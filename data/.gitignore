@@ -1,3 +1,4 @@
+_tests/*
 novelomics/novelomics_experiment.csv
 novelomics/novelomics_samples.csv
 novelomics-experiment/novelomics_experiment.csv

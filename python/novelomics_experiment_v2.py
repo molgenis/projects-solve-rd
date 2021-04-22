@@ -6,7 +6,13 @@
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: NA
-# COMMENTS: NA
+# COMMENTS: The purpose of this script is to map novel omics metadata into
+# main RD3 tables. Data is uploaded by external partners and this workflow
+# maps values into RD3 terminology and imports them into the correct freeze.
+# At the moment, this script covers Freeze 1 & 2. If new data does not exist
+# in either freeze, then records are pushed into a 'holding' table. This script
+# will likely need to be updated to pull and process data from the 'holding'
+# table.
 # //////////////////////////////////////////////////////////////////////////////
 
 import json
@@ -293,9 +299,6 @@ if len(new_rd3_seqtypes):
     # rd3.update_table(data=seqtypes_to_upload, entity='rd3_seqType')
 else:
     print('No new sequencing types')
-
-################################ PROCESS NEW LIBRARY TYPE HERE ################################
-
 
 # Triage all records from the staging area. Use subject ID to determine if the
 # record belongs in Freeze1 or Freeze2

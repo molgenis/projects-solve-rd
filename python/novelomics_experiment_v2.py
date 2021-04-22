@@ -241,7 +241,7 @@ def update_rd3_subject(data, ids, patch):
 # token = '${molgenisToken}'
 # host = 'https://solve-rd.gcc.rug.nl/api/'
 
-token = 'F4dLD+nbEKrWCLfwzpFvxQvvoFsGzgPHf3fgjCOPtD0='
+token = ''
 host = 'https://solve-rd-acc.gcc.rug.nl/api/'
 rd3 = molgenis_extra(url=host, token=token)
 

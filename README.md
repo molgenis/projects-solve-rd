@@ -1,28 +1,28 @@
 # Molgenis Solve RD Database
 
-The `molgenis-solve-rd` contains all of the scripts and workflows for updating the Molgenis SolveRD database.
+The `molgenis-solve-rd` repository contains all of the scripts, EMX files, and other files for updating the RD3 database.
+
+## Overview
+
+Scripts, data files, and other files are stored in a number of subfolders.
+
+- `data/`: In this folder you can find all outputs (data, emx, etc.) from the scripts located in the `R/` and `python` folder. All files stored here are imported into the solve-rd database using the scripts located in `shell/`
+- `public/`: This folder contains the custom molgenis apps, documents, other files imported into the Solve-RD databases (non-data files). Additional information can be found in the `public/README.md` file.
+- `python/`: All python scripts that run in Molgenis as scheduled jobs are stored in this folder.
+- `R/`: This folder has R scripts that were used to build EMX files from datasets, process data, and other tasks. Outputs from these scripts are located in `data/`, and then imported using one of scripts in `shell/`. The R workspace uses [renv](https://github.com/rstudio/renv) to manage packages.
+- `shell/`: scripts for sending data to the production/acceptance servers
+- `www/`: various static assets (i.e., images, documents, etc.)
+
+In addition, the `archive` folder has files that I'm not ready to remove. The `dev` folder is exlained in the following section.
 
 ## Getting Started
 
-Many of the scripts and workflows are written in R. It is recommended to have the latest version of R installed from [CRAN](https://cran.r-project.org). This workspace also uses the [renv](https://cran.r-project.org/package=renv) package. Once R is installed, the project library can be restored using the following command.
+### Configuring R
+
+In the `dev` folder, you will find the `dev.R` file. Use this file to configure the R workspace.
+
+If you are working with R scripts, you will need to initialize the R library on your local machine. This workspace uses [renv](https://github.com/rstudio/renv) to manage R packages. Run the following command in the R console to initialize the R library locally.
 
 ```r
 renv::restore()
 ```
-
-## Project Structure
-
-Scripts, data files, and other files are stored in a number of subfolders.
-
-- data: all outputs from the scripts located in the `R/` folder. The files here are imported into the solve-rd database using the scripts located in `shell/`
-- public: custom molgenis apps, documents, other files imported into the Solve-RD databases.
-- python: data processing scripts that run in Molgenis
-- R: R workflows for generating EMX for new tables, transforming data, mapping variables, etc.
-- shell: scripts for sending data to the production/acceptance servers
-- www: various static assets (i.e., images, documents, etc.)
-
-### Workspace Management and Local Development Environment
-
-In the `dev` folder, you will find the `dev.R` file. Use this file to configure the R environment. This workspace uses `renv` to manage the R library. Use `renv::restore()` to install R packages locally. `renv` is &mdash; in principle &mdash; similar to yarn/npm. The `renv` folder contains all of the local R package library configuration files.
-
-You can also find the docker files for creating a local Molgenis instance in `dev/dev-env`. This is useful if you would like to test scripts locally. Export the `rd3` EMX from the acceptance server and upload into the local instance.

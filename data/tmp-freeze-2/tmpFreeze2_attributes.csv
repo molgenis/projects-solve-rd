@@ -1,0 +1,24 @@
+name,description,entity,idAttribute,auto
+id,auto generated molgenis ID,tmpFreeze2,TRUE,TRUE
+organisation_name,name of the organisation. E.g. University Medical Center Groningen,tmpFreeze2,FALSE,FALSE
+organisation_identifier,identifier of the organisation. E.g. UMCG ,tmpFreeze2,FALSE,FALSE
+samples_tissueType,Tissue Types: NA,tmpFreeze2,FALSE,FALSE
+samples_id,id: unique identifier (sampleID + patch),tmpFreeze2,FALSE,FALSE
+samples_alternativeIdentifier,alternative identifier used by sample provider,tmpFreeze2,FALSE,FALSE
+samples_subject,subject: reference to the subject from which samples was extracted,tmpFreeze2,FALSE,FALSE
+samples_organisation,organisation: Name of the organisation. E.g. University Medical Center Groningen,tmpFreeze2,FALSE,FALSE
+samples_ERN,ERN: ERN,tmpFreeze2,FALSE,FALSE
+labinfo_library,library: link to more information about the library used in experiment,tmpFreeze2,FALSE,FALSE
+labinfo_sequencer,sequencer: sequencerinfo,tmpFreeze2,FALSE,FALSE
+labinfo_seqType,"seqType: sequencing technique types (e.g. WXS, WGS)",tmpFreeze2,FALSE,FALSE
+labinfo_id,id: Unique identifier (experimentID + patch),tmpFreeze2,FALSE,FALSE
+labinfo_sample,"sample: all sample run in this condition, using same barcode",tmpFreeze2,FALSE,FALSE
+labinfo_capture,Enrichment kit: Enrichment kit,tmpFreeze2,FALSE,FALSE
+labinfo_libraryType,"Library Source: Library Source, e.g Genomic/Transcriptomic",tmpFreeze2,FALSE,FALSE
+subject_id,id: Unique identifier (subjectID + patch number),tmpFreeze2,FALSE,FALSE
+subject_organisation,Organisation: Name of the organisation that submitted Subject,tmpFreeze2,FALSE,FALSE
+subject_ERN,ERN: ERN,tmpFreeze2,FALSE,FALSE
+subject_solved,solved: Solved Case for Solve-RD (true/false),tmpFreeze2,FALSE,FALSE
+subject_date_solved,DateSolved: Date Solved,tmpFreeze2,FALSE,FALSE
+subject_matchMakerPermission,MatchMaker Permission: Permission is given for MatchMaking (boolean),tmpFreeze2,FALSE,FALSE
+subject_recontact,Recontact Incidental findings: Recontact is allowed in case of incidental findings,tmpFreeze2,FALSE,FALSE

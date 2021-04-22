@@ -1,0 +1,6 @@
+name,dataType,idAttribute,auto,entity
+id,string,TRUE,TRUE,solved
+subject,string,FALSE,FALSE,solved
+solved,bool,FALSE,FALSE,solved
+recontact,string,FALSE,FALSE,solved
+contact,email,FALSE,FALSE,solved

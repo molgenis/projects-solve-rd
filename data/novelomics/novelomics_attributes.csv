@@ -1,0 +1,53 @@
+entity,name,description,idAttribute,nillable,auto
+shipment,sample_id,sample ID,FALSE,TRUE,FALSE
+shipment,participant_subject,Participant (subject),FALSE,TRUE,FALSE
+shipment,type_of_analysis,type of analysis,FALSE,TRUE,FALSE
+shipment,tissue_type,tissue type,FALSE,TRUE,FALSE
+shipment,sample_type,sample type,FALSE,TRUE,FALSE
+shipment,solve_rd_experiment_id,Solve-RD Experiment ID,FALSE,TRUE,FALSE
+shipment,batch,Batch,FALSE,TRUE,FALSE
+shipment,molgenis_id,molgenis_id,TRUE,FALSE,TRUE
+experiment,file_path,file_path,FALSE,TRUE,FALSE
+experiment,file_name,file_name,FALSE,TRUE,FALSE
+experiment,unencrypted_md5_checksum,unencrypted_md5_checksum,FALSE,TRUE,FALSE
+experiment,encrypted_md5_checksum,encrypted_md5_checksum,FALSE,TRUE,FALSE
+experiment,file_type,file_type,FALSE,TRUE,FALSE
+experiment,file_size,file_size,FALSE,TRUE,FALSE
+experiment,file_group_id,file_group_id,FALSE,TRUE,FALSE
+experiment,batch_id,batch_id,FALSE,TRUE,FALSE
+experiment,project_experiment_dataset_id,project_experiment_dataset_id,FALSE,TRUE,FALSE
+experiment,sample_id,sample_id,FALSE,TRUE,FALSE
+experiment,sample_links,sample_links,FALSE,TRUE,FALSE
+experiment,gender,gender,FALSE,TRUE,FALSE
+experiment,subject_id,subject_id,FALSE,TRUE,FALSE
+experiment,phenotype,phenotype,FALSE,TRUE,FALSE
+experiment,subject_links,subject_links,FALSE,TRUE,FALSE
+experiment,sequencing_center,sequencing_center,FALSE,TRUE,FALSE
+experiment,platform_brand,platform_brand,FALSE,TRUE,FALSE
+experiment,platform_model,platform_model,FALSE,TRUE,FALSE
+experiment,library_source,library_source,FALSE,TRUE,FALSE
+experiment,library_selection,library_selection,FALSE,TRUE,FALSE
+experiment,library_strategy,library_strategy,FALSE,TRUE,FALSE
+experiment,library_layout,library_layout,FALSE,TRUE,FALSE
+experiment,paired_nominal_length,paired_nominal_length,FALSE,TRUE,FALSE
+experiment,paired_nominal_sdev,paired_nominal_sdev,FALSE,TRUE,FALSE
+experiment,experiment_links,experiment_links,FALSE,TRUE,FALSE
+experiment,analysis_center,analysis_center,FALSE,TRUE,FALSE
+experiment,analysis_type,analysis_type,FALSE,TRUE,FALSE
+experiment,sequencing_type,sequencing_type,FALSE,TRUE,FALSE
+experiment,reference_genome,reference_genome,FALSE,TRUE,FALSE
+experiment,linked_object,linked_object,FALSE,TRUE,FALSE
+experiment,platform,platform,FALSE,TRUE,FALSE
+experiment,program,program,FALSE,TRUE,FALSE
+experiment,imputation,imputation,FALSE,TRUE,FALSE
+experiment,analysis_links,analysis_links,FALSE,TRUE,FALSE
+experiment,experiment_type,experiment_type,FALSE,TRUE,FALSE
+experiment,tissue_type,tissue_type,FALSE,TRUE,FALSE
+experiment,sample_type,sample_type,FALSE,TRUE,FALSE
+experiment,sub_project_name,sub_project_name,FALSE,TRUE,FALSE
+experiment,project_batch_id,project_batch_id,FALSE,TRUE,FALSE
+experiment,file_ega_id,file_ega_id,FALSE,TRUE,FALSE
+experiment,run_ega_id,run_ega_id,FALSE,TRUE,FALSE
+experiment,experiment_ega_id,experiment_ega_id,FALSE,TRUE,FALSE
+experiment,sample_ega_id,sample_ega_id,FALSE,TRUE,FALSE
+experiment,molgenis_id,molgenis_id,TRUE,FALSE,TRUE

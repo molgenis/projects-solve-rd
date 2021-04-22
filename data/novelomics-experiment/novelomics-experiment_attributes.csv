@@ -1,4 +1,5 @@
 entity,name,label,idAttribute,nillable,auto
+novelomics-experiment,id,id,FALSE,TRUE,FALSE
 novelomics-experiment,EGA,EGA,FALSE,TRUE,FALSE
 novelomics-experiment,EGApath,EGA PATH,FALSE,TRUE,FALSE
 novelomics-experiment,name,Filename,FALSE,TRUE,FALSE
@@ -13,9 +14,8 @@ novelomics-experiment,sequencingCentre,SequencingCentre,FALSE,TRUE,FALSE
 novelomics-experiment,sequencer,sequencer,FALSE,TRUE,FALSE
 novelomics-experiment,libraryType,Library Source,FALSE,TRUE,FALSE
 novelomics-experiment,capture,Enrichment Kit,FALSE,TRUE,FALSE
-novelomics-experiment,librarySelectionId,librarySelectionId,FALSE,TRUE,FALSE
-novelomics-experiment,pairedNominalLength,pairedNominalLength,FALSE,TRUE,FALSE
 novelomics-experiment,seqType,seqType,FALSE,TRUE,FALSE
+novelomics-experiment,library,library,FALSE,TRUE,FALSE
 novelomics-experiment,tissueType,Tissue Types,FALSE,TRUE,FALSE
 novelomics-experiment,materialType,materialType,FALSE,TRUE,FALSE
 novelomics-experiment,project_batch_id,project_batch_id,FALSE,TRUE,FALSE

@@ -1,9 +1,0 @@
-entity,name,label,idAttribute,nillable,auto
-novelomics-shipment,sampleID,sampleID,FALSE,TRUE,FALSE
-novelomics-shipment,subjectID,SubjectID,FALSE,TRUE,FALSE
-novelomics-shipment,seqType,seqType,FALSE,TRUE,FALSE
-novelomics-shipment,tissueType,Tissue Types,FALSE,TRUE,FALSE
-novelomics-shipment,materialType,materialType,FALSE,TRUE,FALSE
-novelomics-shipment,experimentID,experimentID,FALSE,TRUE,FALSE
-novelomics-shipment,project_batch_id,project_batch_id,FALSE,TRUE,FALSE
-novelomics-shipment,molgenis_id,molgenis_id,TRUE,FALSE,TRUE

@@ -15,8 +15,13 @@
 # table.
 # //////////////////////////////////////////////////////////////////////////////
 
+import os  # for local testing only
 import json
 import molgenis.client as molgenis
+from datetime import datetime
+
+# set token
+# os.environ['molgenisToken'] = ''
 
 # @title rd3_extra
 # @param rd3 molgenis session
@@ -128,11 +133,12 @@ def map_rd3_files(data, patch):
         tmp['md5'] = d.get('unencrypted_md5_checksum')
         tmp['typeFile'] = d.get('file_type')
         tmp['filegroupID'] = d.get('file_group_id')
-        tmp['samplesID'] = d.get('sample_id')
+        tmp['samples'] = d.get('sample_id')
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
         tmp['run_ega_id'] = d.get('run_ega_id')
         tmp['experiment_ega_id'] = d.get('experiment_ega_id')
         tmp['patch'] = patch
+        tmp['dateCreated'] = datetime.today().strftime('%Y-%m-%d')
         out.append(tmp)
     return out
 
@@ -140,21 +146,22 @@ def map_rd3_files(data, patch):
 # @title map new labinfo
 # @param data input data
 # @param id_suffix content to append to ID, e.g., "_original"
+# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
 # @param patch SolveRD3 data release
 # @param distinct if True, distinct dictionaries will be returned
 # @return list of dictionaries
-def map_rd3_labinfo(data, id_suffix, patch, distinct=False):
+def map_rd3_labinfo(data, id_suffix, sample_id_suffix, patch, distinct=False):
     out = []
     for d in data:
         tmp = {}
         tmp['id'] = d.get('project_experiment_dataset_id') + id_suffix
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['sampleID'] = d.get('sample_id')
+        tmp['sample'] = d.get('sample_id') + sample_id_suffix
         tmp['capture'] = d.get('library_selection')
         tmp['libraryType'] = d.get('library_source').title()
         tmp['library'] = None
         if d.get('library_layout') == 'PAIRED':
-            tmp['library'] = 1
+            tmp['library'] = '1'
         tmp['sequencingCentre'] = d.get('sequencing_center')
         tmp['sequencer'] = d.get('platform_model')
         tmp['seqType'] = d.get('library_strategy')
@@ -168,17 +175,20 @@ def map_rd3_labinfo(data, id_suffix, patch, distinct=False):
 # @title map new rd3 samples
 # @param data input data
 # @param id_suffix content to append to ID, e.g., "_original"
+# @param subject_suffix A string indicating which patch in rd3_freeze*_subject to link to
 # @param patch SolveRD3 data release
 # @param distinct if True, distinct dictionaries will be returned
 # @return list of dictionaries
-def map_rd3_samples(data, id_suffix, patch, distinct=False):
+def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
     out = []
     for d in data:
         tmp = {}
-        tmp['id'] = d.get('subject_id') + id_suffix
-        tmp['subjectID'] = d.get('subject_id')
+        tmp['id'] = d.get('sample_id') + id_suffix
+        tmp['subject'] = d.get('subject_id') + subject_suffix
         tmp['sampleID'] = d.get('sample_id')
-        tmp['tissueType'] = d.get('tissue_type')
+        tmp['tissueType'] = None
+        if d.get('tissue_type') == 'blood':
+            tmp['tissueType'] = 'Whole Blood'
         tmp['materialType'] = d.get('sample_type')
         tmp['patch'] = patch
         out.append(tmp)
@@ -246,10 +256,10 @@ def update_rd3_subject(data, ids, patch):
 # set tokens and host
 # token = '${molgenisToken}'
 # host = 'https://solve-rd.gcc.rug.nl/api/'
+# rd3 = molgenis_extra(url=host, token=token)
 
-token = ''
 host = 'https://solve-rd-acc.gcc.rug.nl/api/'
-rd3 = molgenis_extra(url=host, token=token)
+rd3 = molgenis_extra(url=host, token=os.environ['molgenisToken'])
 
 
 # fetch data
@@ -288,7 +298,7 @@ else:
 
 # process sequenceTypes
 print('References: Looking for new sequencing types...')
-novelomics_seqtypes = flatten_attr(data, 'experiment_type', distinct=True)
+novelomics_seqtypes = flatten_attr(data, 'library_strategy', distinct=True)
 new_rd3_seqtypes = identify_new_lookups(rd3_seqtypes, 'identifier', novelomics_seqtypes)
 if len(new_rd3_seqtypes):
     print('Identified new seqType references:', len(new_rd3_seqtypes))
@@ -306,7 +316,6 @@ print('Triaging records...')
 rd3_freeze1 = []
 rd3_freeze2 = []
 rd3_new = []
-
 for d in data:
     if d.get('subject_id') in freeze1_ids:
         rd3_freeze1.append(d)
@@ -328,7 +337,8 @@ else:
 # push new directly into table
 if len(rd3_new):
     print('Importing non-Freeze cases into `rd3_novelomics-experiment`')
-    # rd3.update_table(data=rd3_new,entity='rd3_novelomics-experiment')
+    rd3_new_novelomics_records = map_rd3_new_records(rd3_new, '_novelomics_original')
+    rd3.update_table(data=rd3_new_novelomics_records,entity='rd3_novelomics-experiment')
 
 # get unique IDs for freeze1 and freeze2 patients
 rd3_freeze1_ids = flatten_attr(rd3_freeze1, 'subject_id', distinct=True)
@@ -344,12 +354,14 @@ if len(rd3_freeze1):
     rd3_freeze1_labinfo = map_rd3_labinfo(
         data=rd3_freeze1,
         id_suffix = '_novelomics_original',
+        sample_id_suffix = '_novelomics_original',
         patch = 'novelomics_original',
         distinct = True
     )
     rd3_freeze1_sample = map_rd3_samples(
         data=rd3_freeze1,
         id_suffix='_novelomics_original',
+        subject_suffix="_original",
         patch='novelomics_original',
         distinct = True
     )
@@ -373,7 +385,7 @@ if len(rd3_freeze1):
     print('Importing Freeze 1 Samples...')
     rd3.update_table(data=rd3_freeze1_sample,entity='rd3_freeze1_sample')
     print('Importing Freeze 1 Labinfo...')
-    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_noveomics')
+    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_novelomics')
     print('Importing Freeze1 Files...')
     rd3.update_table(data=rd3_freeze1_file,entity='rd3_freeze1_file')
 

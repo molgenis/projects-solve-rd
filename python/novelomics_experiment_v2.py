@@ -133,8 +133,13 @@ def map_rd3_files(data, sample_id_suffix, patch):
         tmp['name'] = d.get('file_name')
         tmp['md5'] = d.get('unencrypted_md5_checksum')
         tmp['typeFile'] = d.get('file_type')
+<<<<<<< HEAD
         # tmp['filegroupID'] = d.get('file_group_id')
         tmp['samples'] = d.get('sample_id') + sample_id_suffix
+=======
+        tmp['filegroupID'] = d.get('file_group_id')
+        tmp['samples'] = d.get('sample_id')
+>>>>>>> 797c43773c8ad4ea340dfd6ff80b29646d0e3be1
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
         # tmp['run_ega_id'] = d.get('run_ega_id')
         # tmp['experiment_ega_id'] = d.get('experiment_ega_id')

@@ -2,7 +2,7 @@
 # FILE: novelomics_shipment.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-04-22
+# MODIFIED: 2021-04-23
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: NA
@@ -121,22 +121,23 @@ def identify_new_lookups(lookup, lookup_attr, new):
 # @title map new freeze files
 # @description map file metadata to target EMX format
 # @param data input data
+# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
 # @param patch SolveRD3 data release
 # @return list of dictionaries
-def map_rd3_files(data, patch):
+def map_rd3_files(data, sample_id_suffix, patch):
     out = []
     for d in data:
         tmp = {}
         tmp['EGA'] = d.get('file_ega_id')
-        tmp['EGApath'] = d.get('file_path')
+        # tmp['EGApath'] = d.get('file_path')
         tmp['name'] = d.get('file_name')
         tmp['md5'] = d.get('unencrypted_md5_checksum')
         tmp['typeFile'] = d.get('file_type')
-        tmp['filegroupID'] = d.get('file_group_id')
-        tmp['samples'] = d.get('sample_id')
+        # tmp['filegroupID'] = d.get('file_group_id')
+        tmp['samples'] = d.get('sample_id') + sample_id_suffix
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['run_ega_id'] = d.get('run_ega_id')
-        tmp['experiment_ega_id'] = d.get('experiment_ega_id')
+        # tmp['run_ega_id'] = d.get('run_ega_id')
+        # tmp['experiment_ega_id'] = d.get('experiment_ega_id')
         tmp['patch'] = patch
         tmp['dateCreated'] = datetime.today().strftime('%Y-%m-%d')
         out.append(tmp)
@@ -349,6 +350,7 @@ if len(rd3_freeze1):
     print('Mapping new freeze1 data...')
     rd3_freeze1_file = map_rd3_files(
         data=rd3_freeze1,
+        sample_id_suffix="_novelomics_original",
         patch='novelomics_original'
     )
     rd3_freeze1_labinfo = map_rd3_labinfo(
@@ -397,17 +399,20 @@ if len(rd3_freeze2):
     print('Mapping new freeze2 data...')
     rd3_freeze2_file = map_rd3_files(
         data=rd3_freeze2,
+        sample_id_suffix='_novelomics_original',
         patch='novelomics_original'
     )
     rd3_freeze2_labinfo = map_rd3_labinfo(
         data=rd3_freeze2,
         id_suffix = '_novelomics_original',
-        patch ='novelomics_original',
+        sample_id_suffix = '_novelomics_original',
+        patch = 'novelomics_original',
         distinct = True
     )
     rd3_freeze2_sample = map_rd3_samples(
         data=rd3_freeze2,
         id_suffix='_novelomics_original',
+        subject_suffix="_original",
         patch='novelomics_original',
         distinct = True
     )
@@ -423,7 +428,7 @@ if len(rd3_freeze2):
     print('Importing Freeze 2 Subjects...')
     for f2_subject in rd3_freeze2_subject:
         rd3.update_one(
-            entity='rd3_freeze2_subjects',
+            entity='rd3_freeze2_subject',
             id_=f2_subject['id'],
             attr='patch',
             value=f2_subject['patch']
@@ -436,4 +441,11 @@ if len(rd3_freeze2):
     rd3.update_table(data=rd3_freeze2_file,entity='rd3_freeze2_file')
 else:
     print('No new freeze2 records to map')
+
+
+#//////////////////////////////////////////////////////////
+# cleanup
+# rd3.delete(entity='rd3_freeze1_labinfo_novelomics')
+# rd3.delete(entity='rd3_freeze2_labinfo_novelomics')
+# rd3.delete(entity='rd3_freeze2_file')
 

@@ -129,8 +129,7 @@ def map_rd3_files(data, sample_id_suffix, patch):
     for d in data:
         tmp = {}
         tmp['EGA'] = d.get('file_ega_id')
-        # tmp['EGApath'] = d.get('file_path')
-        tmp['name'] = d.get('file_name')
+        tmp['name'] = d.get('file_path') + '/' + d.get('file_name')
         tmp['md5'] = d.get('unencrypted_md5_checksum')
         tmp['typeFile'] = d.get('file_type')
         # tmp['filegroupID'] = d.get('file_group_id')
@@ -255,12 +254,12 @@ def update_rd3_subject(data, ids, patch):
     return out
 
 # set tokens and host
-# token = '${molgenisToken}'
-# host = 'https://solve-rd.gcc.rug.nl/api/'
-# rd3 = molgenis_extra(url=host, token=token)
+token = '${molgenisToken}'
+host = 'https://solve-rd.gcc.rug.nl/api/'
+rd3 = molgenis_extra(url=host, token=token)
 
-host = 'https://solve-rd-acc.gcc.rug.nl/api/'
-rd3 = molgenis_extra(url=host, token=os.environ['molgenisToken'])
+# host = 'https://solve-rd-acc.gcc.rug.nl/api/'
+# rd3 = molgenis_extra(url=host, token=os.environ['molgenisToken'])
 
 
 # fetch data
@@ -376,7 +375,7 @@ if len(rd3_freeze1):
     print('Mapped Freeze1 Labinfo:', len(rd3_freeze1_labinfo))
     print('Mapped Freeze1 Samples:', len(rd3_freeze1_sample))
     print('Updated Freeze1 Subjects:', len(rd3_freeze1_subject))
-    print('Importing Freeze1 Subjects...')
+    print('Updating Freeze1 Subjects...')
     for f1_subject in rd3_freeze1_subject:
         rd3.update_one(
             entity='rd3_freeze1_subject',

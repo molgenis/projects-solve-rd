@@ -2,7 +2,7 @@
 # FILE: novelomics_shipment.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-04-23
+# MODIFIED: 2021-04-29
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: NA
@@ -15,7 +15,7 @@
 # table.
 # //////////////////////////////////////////////////////////////////////////////
 
-import os  # for local testing only
+# import os  # for local testing only
 import json
 import molgenis.client as molgenis
 from datetime import datetime
@@ -254,10 +254,11 @@ def update_rd3_subject(data, ids, patch):
     return out
 
 # set tokens and host
-token = '${molgenisToken}'
+# token = '${molgenisToken}'
 # host = 'https://solve-rd.gcc.rug.nl/api/'
 # rd3 = molgenis_extra(url=host, token=token)
 
+token = '${molgenisToken}'
 host = 'https://solve-rd-acc.gcc.rug.nl/api/'
 rd3 = molgenis_extra(url=host, token=token)
 # rd3 = molgenis_extra(url=host, token=os.environ['molgenisToken'])
@@ -376,10 +377,16 @@ if len(rd3_freeze1):
     print('Mapped Freeze1 Labinfo:', len(rd3_freeze1_labinfo))
     print('Mapped Freeze1 Samples:', len(rd3_freeze1_sample))
     print('Updated Freeze1 Subjects:', len(rd3_freeze1_subject))
-    print('Updating Freeze1 Subjects...')
+    print('Importing Freeze1 Subjects and Subject Info data...')
     for f1_subject in rd3_freeze1_subject:
         rd3.update_one(
             entity='rd3_freeze1_subject',
+            id_=f1_subject['id'],
+            attr='patch',
+            value=f1_subject['patch']
+        )
+        rd3.update_one(
+            entity='rd3_freeze1_subjectinfo',
             id_=f1_subject['id'],
             attr='patch',
             value=f1_subject['patch']
@@ -425,10 +432,16 @@ if len(rd3_freeze2):
     print('Mapped Freeze2 Labinfo:', len(rd3_freeze2_labinfo))
     print('Mapped Freeze2 Samples:', len(rd3_freeze2_sample))
     print('Updated Freeze2 Subjects:', len(rd3_freeze2_subject))
-    print('Importing Freeze 2 Subjects...')
+    print('Importing Freeze2 Subjects and Subject Info data...')
     for f2_subject in rd3_freeze2_subject:
         rd3.update_one(
             entity='rd3_freeze2_subject',
+            id_=f2_subject['id'],
+            attr='patch',
+            value=f2_subject['patch']
+        )
+        rd3.update_one(
+            entity='rd3_freeze2_subjectinfo',
             id_=f2_subject['id'],
             attr='patch',
             value=f2_subject['patch']
@@ -448,4 +461,5 @@ else:
 # rd3.delete(entity='rd3_freeze1_labinfo_novelomics')
 # rd3.delete(entity='rd3_freeze2_labinfo_novelomics')
 # rd3.delete(entity='rd3_freeze2_file')
+# rd3.delete(entity='rd3_novelomics-experiment')
 

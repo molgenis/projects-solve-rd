@@ -15,7 +15,7 @@
 # table.
 # //////////////////////////////////////////////////////////////////////////////
 
-# import os  # for local testing only
+import os  # for local testing only
 import json
 import molgenis.client as molgenis
 from datetime import datetime
@@ -245,6 +245,8 @@ def update_rd3_subject(data, ids, patch):
             tmp['id'] = d.get('id')
             tmp['subjectID'] = d.get('subjectID')
             tmp['patch'] = d.get('patch')
+            tmp['organisation'] = d.get('organisation', {}).get('identifier')
+            tmp['ERN'] = d.get('ERN', {}).get('identifier')
             if len(tmp['patch']) >= 1:
                 tmp_patches = flatten_attr(tmp['patch'], 'id')
                 tmp['patch'] = ','.join(map(str, tmp_patches)) + "," + patch
@@ -254,26 +256,33 @@ def update_rd3_subject(data, ids, patch):
     return out
 
 # set tokens and host
-# token = '${molgenisToken}'
-# host = 'https://solve-rd.gcc.rug.nl/api/'
-# rd3 = molgenis_extra(url=host, token=token)
+env = 'acc'
+api = {
+    'host': {
+        'prod': 'https://solve-rd.gcc.rug.nl/api/',
+        'acc' : 'https://solve-rd-acc.gcc.rug.nl/api/'
+    },
+    'token': {
+        'prod': '${molgenisToken}',
+        'acc': os.environ['molgenisToken']
+    },
+    'attribs': {
+        'subject': 'id,subjectID,patch,organisation,ERN'
+    }
+}
 
-token = '${molgenisToken}'
-host = 'https://solve-rd-acc.gcc.rug.nl/api/'
-rd3 = molgenis_extra(url=host, token=token)
-# rd3 = molgenis_extra(url=host, token=os.environ['molgenisToken'])
-
+rd3 = molgenis_extra(url=api['host'][env], token=api['token'][env])
 
 # fetch data
 data = rd3.get('rd3_portal_novelomics_experiment', batch_size=1000)
 freeze1_subjects = rd3.get(
     entity='rd3_freeze1_subject',
-    attributes='id,subjectID,patch',
+    attributes= api['attribs']['subject'],
     batch_size=10000
 )
 freeze2_subjects = rd3.get(
     entity='rd3_freeze2_subject',
-    attributes='id,subjectID,patch',
+    attributes= api['attribs']['subject'],
     batch_size=10000
 )
 rd3_filetypes = rd3.get('rd3_typeFile')

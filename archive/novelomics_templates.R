@@ -11,7 +11,7 @@
 
 suppressPackageStartupMessages(library(dplyr))
 
-# import, clean colnames, and write bgi template
+readr::read_csv(file = "data/novelomics/novelomics_attributes.csv")
 
 bgi <- openxlsx::read.xlsx(
     xlsxFile = "data/novelomics-source/All Shipments_BGI_final_lists_EGA.xlsx"

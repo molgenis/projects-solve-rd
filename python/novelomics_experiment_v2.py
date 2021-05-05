@@ -104,19 +104,6 @@ def proc_subject_patch(data, patch):
         out['patch'] = patch
     return out
 
-# @title Identitfy new lookup values
-# @description using a list of new values, determine if there are new values to update
-# @param lookup RD3 lookup table
-# @param lookup_attr the attribute to look into
-# @param new a list of unique values
-# @return a list of dictionaries of 
-def identify_new_lookups(lookup, lookup_attr, new):
-    refs = flatten_attr(lookup, lookup_attr)
-    out = []
-    for n in new:
-        if (n in refs) == False:
-            out.append({'id': n, 'label': n})
-    return out
 
 # @title map new freeze files
 # @description map file metadata to target EMX format
@@ -285,41 +272,13 @@ freeze2_subjects = rd3.get(
     attributes= api['attribs']['subject'],
     batch_size=10000
 )
-rd3_filetypes = rd3.get('rd3_typeFile')
-rd3_seqtypes = rd3.get('rd3_seqType')
 
 
 # flatten subject IDs
 freeze1_ids = flatten_attr(freeze1_subjects, 'subjectID')
 freeze2_ids = flatten_attr(freeze2_subjects, 'subjectID')
 
-# process file types, if there are new records add to lookup table
-print('References: Looking for new filetypes...')
-novelomics_filetypes = flatten_attr(data, 'file_type', distinct=True)
-new_rd3_filetypes = identify_new_lookups(rd3_filetypes, 'identifier', novelomics_filetypes)
-if len(new_rd3_filetypes):
-    print('Identified new file type references:', len(new_rd3_filetypes))
-    filetypes_to_upload = []
-    for filetype in new_rd3_filetypes:
-        filetypes_to_upload.append({'identifier': filetype.get('id'), 'label': filetype.get('label') })
-    print('Importing new file type lookups. (update labels manually)')
-    # rd3.update_table(data=filetypes_to_upload, entity='rd3_typeFile')
-else:
-    print('No new filetypes')
 
-# process sequenceTypes
-print('References: Looking for new sequencing types...')
-novelomics_seqtypes = flatten_attr(data, 'library_strategy', distinct=True)
-new_rd3_seqtypes = identify_new_lookups(rd3_seqtypes, 'identifier', novelomics_seqtypes)
-if len(new_rd3_seqtypes):
-    print('Identified new seqType references:', len(new_rd3_seqtypes))
-    seqtypes_to_upload = []
-    for seqtype in new_rd3_seqtypes:
-        seqtypes_to_upload.append({'identifier': seqtype.get('id'), 'label': seqtype.get('label')})
-    print('Importing new seqType lookups. (Update labels manually)')
-    # rd3.update_table(data=seqtypes_to_upload, entity='rd3_seqType')
-else:
-    print('No new sequencing types')
 
 # Triage all records from the staging area. Use subject ID to determine if the
 # record belongs in Freeze1 or Freeze2

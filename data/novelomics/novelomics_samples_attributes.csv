@@ -1,9 +1,0 @@
-entity,name,label,idAttribute,nillable
-novelomics_samples,sample_id,sample ID,FALSE,TRUE
-novelomics_samples,participant_subject,Participant (subject),FALSE,TRUE
-novelomics_samples,type_of_analysis,type of analysis,FALSE,TRUE
-novelomics_samples,tissue_type,tissue type,FALSE,TRUE
-novelomics_samples,sample_type,sample type,FALSE,TRUE
-novelomics_samples,solve_rd_experiment_id,Solve-RD Experiment ID,FALSE,TRUE
-novelomics_samples,batch,Batch,FALSE,TRUE
-novelomics_samples,molgenis_id,molgenis_id,TRUE,FALSE

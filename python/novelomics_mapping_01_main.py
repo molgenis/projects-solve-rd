@@ -1,11 +1,11 @@
 # //////////////////////////////////////////////////////////////////////////////
-# FILE: novelomics_shipment.py
+# FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-04-22
+# MODIFIED: 2021-05-06
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
-# DEPENDENCIES: NA
+# DEPENDENCIES: molgenis.client, os, json, datetime, time
 # COMMENTS: The purpose of this script is to map novel omics metadata into
 # main RD3 tables. Data is uploaded by external partners and this workflow
 # maps values into RD3 terminology and imports them into the correct freeze.
@@ -15,8 +15,14 @@
 # table.
 # //////////////////////////////////////////////////////////////////////////////
 
+import os  # for local testing only
 import json
 import molgenis.client as molgenis
+from datetime import datetime
+from time import sleep
+
+# set token
+# os.environ['molgenisToken'] = ''
 
 # @title rd3_extra
 # @param rd3 molgenis session
@@ -99,40 +105,28 @@ def proc_subject_patch(data, patch):
         out['patch'] = patch
     return out
 
-# @title Identitfy new lookup values
-# @description using a list of new values, determine if there are new values to update
-# @param lookup RD3 lookup table
-# @param lookup_attr the attribute to look into
-# @param new a list of unique values
-# @return a list of dictionaries of 
-def identify_new_lookups(lookup, lookup_attr, new):
-    refs = flatten_attr(lookup, lookup_attr)
-    out = []
-    for n in new:
-        if (n in refs) == False:
-            out.append({'id': n, 'label': n})
-    return out
 
 # @title map new freeze files
 # @description map file metadata to target EMX format
 # @param data input data
+# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
 # @param patch SolveRD3 data release
 # @return list of dictionaries
-def map_rd3_files(data, patch):
+def map_rd3_files(data, sample_id_suffix, patch):
     out = []
     for d in data:
         tmp = {}
         tmp['EGA'] = d.get('file_ega_id')
-        tmp['EGApath'] = d.get('file_path')
-        tmp['name'] = d.get('file_name')
+        tmp['name'] = d.get('file_path') + '/' + d.get('file_name')
         tmp['md5'] = d.get('unencrypted_md5_checksum')
         tmp['typeFile'] = d.get('file_type')
-        tmp['filegroupID'] = d.get('file_group_id')
-        tmp['samplesID'] = d.get('sample_id')
+        # tmp['filegroupID'] = d.get('file_group_id')
+        tmp['samples'] = d.get('sample_id') + sample_id_suffix
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['run_ega_id'] = d.get('run_ega_id')
-        tmp['experiment_ega_id'] = d.get('experiment_ega_id')
+        # tmp['run_ega_id'] = d.get('run_ega_id')
+        # tmp['experiment_ega_id'] = d.get('experiment_ega_id')
         tmp['patch'] = patch
+        tmp['dateCreated'] = datetime.today().strftime('%Y-%m-%d')
         out.append(tmp)
     return out
 
@@ -140,21 +134,22 @@ def map_rd3_files(data, patch):
 # @title map new labinfo
 # @param data input data
 # @param id_suffix content to append to ID, e.g., "_original"
+# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
 # @param patch SolveRD3 data release
 # @param distinct if True, distinct dictionaries will be returned
 # @return list of dictionaries
-def map_rd3_labinfo(data, id_suffix, patch, distinct=False):
+def map_rd3_labinfo(data, id_suffix, sample_id_suffix, patch, distinct=False):
     out = []
     for d in data:
         tmp = {}
         tmp['id'] = d.get('project_experiment_dataset_id') + id_suffix
         tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['sampleID'] = d.get('sample_id')
+        tmp['sample'] = d.get('sample_id') + sample_id_suffix
         tmp['capture'] = d.get('library_selection')
         tmp['libraryType'] = d.get('library_source').title()
         tmp['library'] = None
         if d.get('library_layout') == 'PAIRED':
-            tmp['library'] = 1
+            tmp['library'] = '1'
         tmp['sequencingCentre'] = d.get('sequencing_center')
         tmp['sequencer'] = d.get('platform_model')
         tmp['seqType'] = d.get('library_strategy')
@@ -168,58 +163,30 @@ def map_rd3_labinfo(data, id_suffix, patch, distinct=False):
 # @title map new rd3 samples
 # @param data input data
 # @param id_suffix content to append to ID, e.g., "_original"
+# @param subject_suffix A string indicating which patch in rd3_freeze*_subject to link to
 # @param patch SolveRD3 data release
 # @param distinct if True, distinct dictionaries will be returned
 # @return list of dictionaries
-def map_rd3_samples(data, id_suffix, patch, distinct=False):
+def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
     out = []
     for d in data:
         tmp = {}
-        tmp['id'] = d.get('subject_id') + id_suffix
-        tmp['subjectID'] = d.get('subject_id')
+        tmp['id'] = d.get('sample_id') + id_suffix
+        tmp['subject'] = d.get('subject_id') + subject_suffix
         tmp['sampleID'] = d.get('sample_id')
-        tmp['tissueType'] = d.get('tissue_type')
+        tmp['tissueType'] = None
+        if d.get('tissue_type') == 'blood':
+            tmp['tissueType'] = 'Whole Blood'
         tmp['materialType'] = d.get('sample_type')
         tmp['patch'] = patch
+        tmp['organisation'] = d.get('organisation', {}).get('identifier')
+        tmp['ERN'] = d.get('ERN', {}).get('identifier')
         out.append(tmp)
     if distinct:
         return list(distinct_dict(out, lambda x: ( x['id'], x['sampleID'] ) ))
     else:
         return out
 
-# @title Map new RD3 records
-# @description for new records, map them to the intermediate table
-# @param data input dataset to process
-# @param id_suffix content to append to ID, e.g., "_original"
-# @return a list of dictionaries
-def map_rd3_new_records(data, id_suffix):
-    out = []
-    for d in data:
-        tmp = {}
-        tmp['id'] = d.get('subject_id') + id_suffix
-        tmp['EGA'] = d.get('file_ega_id')
-        tmp['EGApath'] = d.get('file_path')
-        tmp['name'] = d.get('file_name')
-        tmp['md5'] = d.get('unencrypted_md5_checksum')
-        tmp['typeFile'] = d.get('file_type')
-        tmp['filegroupID'] = d.get('file_group_id')
-        tmp['batchID'] = d.get('batch_id')
-        tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['sampleID'] = d.get('sample_id')
-        tmp['subjectID'] = d.get('subject_id')
-        tmp['sequencingCentre'] = d.get('sequencing_center')
-        tmp['sequencer'] = d.get('platform_model')
-        tmp['libraryType'] = d.get('library_source').title()
-        tmp['capture'] = d.get('library_selection')
-        tmp['seqType'] = d.get('library_strategy')
-        tmp['libraryLayout'] = d.get('library_layout')
-        tmp['tissueType'] = d.get('tissue_type')
-        tmp['materialType'] = d.get('sample_type')
-        tmp['project_batch_id'] = d.get('project_batch_id')
-        tmp['run_ega_id'] = d.get('run_ega_id')
-        tmp['experiment_ega_id'] = d.get('experiment_ega_id')
-        out.append(tmp)
-    return out
 
 # @title update RD3 Subjects
 # @description Using a reference ID list, update patch data for matching subjects
@@ -235,6 +202,8 @@ def update_rd3_subject(data, ids, patch):
             tmp['id'] = d.get('id')
             tmp['subjectID'] = d.get('subjectID')
             tmp['patch'] = d.get('patch')
+            tmp['organisation'] = d.get('organisation', {}).get('identifier')
+            tmp['ERN'] = d.get('ERN', {}).get('identifier')
             if len(tmp['patch']) >= 1:
                 tmp_patches = flatten_attr(tmp['patch'], 'id')
                 tmp['patch'] = ','.join(map(str, tmp_patches)) + "," + patch
@@ -243,71 +212,93 @@ def update_rd3_subject(data, ids, patch):
             out.append(tmp)
     return out
 
-# set tokens and host
-# token = '${molgenisToken}'
-# host = 'https://solve-rd.gcc.rug.nl/api/'
 
-token = ''
-host = 'https://solve-rd-acc.gcc.rug.nl/api/'
-rd3 = molgenis_extra(url=host, token=token)
+# @title Update Processed Experiment Data
+# @description Set the value of processed Freeze1 and Freeze2 data to True
+# @param data input dataset containing a list of dictionaries
+def update_processed_experiment_data(data):
+    for d in data:
+        rd3.update_one(
+            entity = 'rd3_portal_novelomics_experiment',
+            id_ = d['molgenis_id'],
+            attr = 'processed',
+            value = True
+        )
+        sleep(0.01)
+
+# @title Update Processed Shipment Staging Table
+# @description For Freeze1- & 2 cases, update the processed attribute to True
+# @param metadata list containing shipmeny metadata
+# @param freeze1 list of Freeze1 IDs to update
+# @param freeze2 list of freeze2 IDs to update
+def update_processed_shipment_data(metadata,freeze1, freeze2):
+    merged_ids = [*freeze1, *freeze2]
+    records = find_dict(data=metadata,attr='participant_subject',value=merged_ids)
+    for record in records:
+        rd3.update_one(
+            entity='rd3_portal_novelomics_shipment',
+            id_=record['molgenis_id'],
+            attr='processed',
+            value=True
+        )
+        sleep(0.01)
+
+
+# @title Merge Afilliation Data
+# @description merge ERN and organisation metadata with main dataset
+# @param data main dataset
+# @param metadata reference dataset containing affiliation metadata
+# @return list of dictionaries
+def merge_affiliation_data(data, metadata):
+    for dat in data:
+        result = find_dict(metadata, 'subjectID', dat['subject_id'])
+        if len(result):
+            dat['organisation'] = result[0]['organisation']
+            dat['ERN'] = result[0]['ERN']
+    return data
+
+# init session
+env = 'dev'
+api = {
+    'host': {
+        'prod': 'https://solve-rd.gcc.rug.nl/api/',
+        'acc' : 'https://solve-rd-acc.gcc.rug.nl/api/',
+        'dev' : 'https://solve-rd-acc.gcc.rug.nl/api/',
+    },
+    'token': {
+        'prod': '${molgenisToken}',
+        'acc': '${molgenisToken}',
+        'dev': os.getenv('molgenisToken') if os.getenv('molgenisToken') is not None else None
+    },
+    'attribs': {
+        'subject': 'id,subjectID,patch,organisation,ERN'
+    }
+}
+
+rd3 = molgenis_extra(url=api['host'][env], token=api['token'][env])
 
 
 # fetch data
-data = rd3.get('rd3_portal_novelomics_experiment', batch_size=1000)
-freeze1_subjects = rd3.get(
-    entity='rd3_freeze1_subject',
-    attributes='id,subjectID,patch',
-    batch_size=10000
-)
-freeze2_subjects = rd3.get(
-    entity='rd3_freeze2_subject',
-    attributes='id,subjectID,patch',
-    batch_size=10000
-)
-rd3_filetypes = rd3.get('rd3_typeFile')
-rd3_seqtypes = rd3.get('rd3_seqType')
-
+experiment = rd3.get('rd3_portal_novelomics_experiment',batch_size=10000)
+metadata = rd3.get('rd3_portal_novelomics_shipment', batch_size=10000)
+freeze1_subjects = rd3.get('rd3_freeze1_subject',attributes= api['attribs']['subject'],batch_size=10000)
+freeze2_subjects = rd3.get('rd3_freeze2_subject',attributes= api['attribs']['subject'],batch_size=10000)
 
 # flatten subject IDs
 freeze1_ids = flatten_attr(freeze1_subjects, 'subjectID')
 freeze2_ids = flatten_attr(freeze2_subjects, 'subjectID')
 
-# process file types, if there are new records add to lookup table
-print('References: Looking for new filetypes...')
-novelomics_filetypes = flatten_attr(data, 'file_type', distinct=True)
-new_rd3_filetypes = identify_new_lookups(rd3_filetypes, 'identifier', novelomics_filetypes)
-if len(new_rd3_filetypes):
-    print('Identified new file type references:', len(new_rd3_filetypes))
-    filetypes_to_upload = []
-    for filetype in new_rd3_filetypes:
-        filetypes_to_upload.append({'identifier': filetype.get('id'), 'label': filetype.get('label') })
-    print('Importing new file type lookups. (update labels manually)')
-    # rd3.update_table(data=filetypes_to_upload, entity='rd3_typeFile')
-else:
-    print('No new filetypes')
 
-# process sequenceTypes
-print('References: Looking for new sequencing types...')
-novelomics_seqtypes = flatten_attr(data, 'experiment_type', distinct=True)
-new_rd3_seqtypes = identify_new_lookups(rd3_seqtypes, 'identifier', novelomics_seqtypes)
-if len(new_rd3_seqtypes):
-    print('Identified new seqType references:', len(new_rd3_seqtypes))
-    seqtypes_to_upload = []
-    for seqtype in new_rd3_seqtypes:
-        seqtypes_to_upload.append({'identifier': seqtype.get('id'), 'label': seqtype.get('label')})
-    print('Importing new seqType lookups. (Update labels manually)')
-    # rd3.update_table(data=seqtypes_to_upload, entity='rd3_seqType')
-else:
-    print('No new sequencing types')
 
 # Triage all records from the staging area. Use subject ID to determine if the
-# record belongs in Freeze1 or Freeze2
+# record belongs in Freeze1 or Freeze2. We don't need to do anything with new cases
+# as they don't exist in Freeze1 or 2. It's best to leave them for now until they
+# are released in a freeze.
 print('Triaging records...')
 rd3_freeze1 = []
 rd3_freeze2 = []
 rd3_new = []
-
-for d in data:
+for d in experiment:
     if d.get('subject_id') in freeze1_ids:
         rd3_freeze1.append(d)
     elif d.get('subject_id') in freeze2_ids:
@@ -317,18 +308,13 @@ for d in data:
 
 print('Freeze 1 records to process:', len(rd3_freeze1))
 print('Freeze 2 records to process:', len(rd3_freeze2))
-print('New RD3 records to process:', len(rd3_new))
+print('New records:', len(rd3_new))
 
 # validate triage
-if sum(map(len, [rd3_freeze1, rd3_freeze2, rd3_new])) != len(data):
-    print('Unable to process all data')
+if sum(map(len, [rd3_freeze1, rd3_freeze2, rd3_new])) == len(experiment):
+    print('Triaged all records')
 else:
-    print('Processed all records')
-
-# push new directly into table
-if len(rd3_new):
-    print('Importing non-Freeze cases into `rd3_novelomics-experiment`')
-    # rd3.update_table(data=rd3_new,entity='rd3_novelomics-experiment')
+    print('Unable to triage all data')
 
 # get unique IDs for freeze1 and freeze2 patients
 rd3_freeze1_ids = flatten_attr(rd3_freeze1, 'subject_id', distinct=True)
@@ -337,19 +323,23 @@ rd3_freeze2_ids = flatten_attr(rd3_freeze2, 'subject_id', distinct=True)
 # process freeze1 data
 if len(rd3_freeze1):
     print('Mapping new freeze1 data...')
+    rd3_freeze1 = merge_affiliation_data(data=rd3_freeze1, metadata=freeze1_subjects)
     rd3_freeze1_file = map_rd3_files(
         data=rd3_freeze1,
+        sample_id_suffix="_novelomics_original",
         patch='novelomics_original'
     )
     rd3_freeze1_labinfo = map_rd3_labinfo(
         data=rd3_freeze1,
         id_suffix = '_novelomics_original',
+        sample_id_suffix = '_novelomics_original',
         patch = 'novelomics_original',
         distinct = True
     )
     rd3_freeze1_sample = map_rd3_samples(
         data=rd3_freeze1,
         id_suffix='_novelomics_original',
+        subject_suffix="_original",
         patch='novelomics_original',
         distinct = True
     )
@@ -362,7 +352,7 @@ if len(rd3_freeze1):
     print('Mapped Freeze1 Labinfo:', len(rd3_freeze1_labinfo))
     print('Mapped Freeze1 Samples:', len(rd3_freeze1_sample))
     print('Updated Freeze1 Subjects:', len(rd3_freeze1_subject))
-    print('Importing Freeze1 Subjects...')
+    print('Importing Freeze1 Subjects and Subject Info data...')
     for f1_subject in rd3_freeze1_subject:
         rd3.update_one(
             entity='rd3_freeze1_subject',
@@ -370,32 +360,42 @@ if len(rd3_freeze1):
             attr='patch',
             value=f1_subject['patch']
         )
+        rd3.update_one(
+            entity='rd3_freeze1_subjectinfo',
+            id_=f1_subject['id'],
+            attr='patch',
+            value=f1_subject['patch']
+        )
+        sleep(0.01)
     print('Importing Freeze 1 Samples...')
     rd3.update_table(data=rd3_freeze1_sample,entity='rd3_freeze1_sample')
     print('Importing Freeze 1 Labinfo...')
-    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_noveomics')
+    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_novelomics')
     print('Importing Freeze1 Files...')
     rd3.update_table(data=rd3_freeze1_file,entity='rd3_freeze1_file')
-
 else:
     print('No new freeze1 records to map')
 
 # process freeze2 data
 if len(rd3_freeze2):
     print('Mapping new freeze2 data...')
+    rd3_freeze2 = merge_affiliation_data(data=rd3_freeze2, metadata=freeze2_subjects)
     rd3_freeze2_file = map_rd3_files(
         data=rd3_freeze2,
+        sample_id_suffix='_novelomics_original',
         patch='novelomics_original'
     )
     rd3_freeze2_labinfo = map_rd3_labinfo(
         data=rd3_freeze2,
         id_suffix = '_novelomics_original',
-        patch ='novelomics_original',
+        sample_id_suffix = '_novelomics_original',
+        patch = 'novelomics_original',
         distinct = True
     )
     rd3_freeze2_sample = map_rd3_samples(
         data=rd3_freeze2,
         id_suffix='_novelomics_original',
+        subject_suffix="_original",
         patch='novelomics_original',
         distinct = True
     )
@@ -408,14 +408,21 @@ if len(rd3_freeze2):
     print('Mapped Freeze2 Labinfo:', len(rd3_freeze2_labinfo))
     print('Mapped Freeze2 Samples:', len(rd3_freeze2_sample))
     print('Updated Freeze2 Subjects:', len(rd3_freeze2_subject))
-    print('Importing Freeze 2 Subjects...')
+    print('Importing Freeze2 Subjects and Subject Info data...')
     for f2_subject in rd3_freeze2_subject:
         rd3.update_one(
-            entity='rd3_freeze2_subjects',
+            entity='rd3_freeze2_subject',
             id_=f2_subject['id'],
             attr='patch',
             value=f2_subject['patch']
         )
+        rd3.update_one(
+            entity='rd3_freeze2_subjectinfo',
+            id_=f2_subject['id'],
+            attr='patch',
+            value=f2_subject['patch']
+        )
+        sleep(0.01)
     print('Importing Freeze 2 Samples...')
     rd3.update_table(data=rd3_freeze2_sample,entity='rd3_freeze2_sample')
     print('Importing Freeze 2 Labinfo...')
@@ -424,4 +431,13 @@ if len(rd3_freeze2):
     rd3.update_table(data=rd3_freeze2_file,entity='rd3_freeze2_file')
 else:
     print('No new freeze2 records to map')
+
+
+# Update entity process status
+print('Updating entities: setting `processed` to `True`...')
+update_processed_experiment_data(data=rd3_freeze1)
+update_processed_experiment_data(data=rd3_freeze2)
+update_processed_shipment_data(metadata=metadata,freeze1=rd3_freeze1_ids,freeze2=rd3_freeze2_ids)
+
+print('Done!! :-)')
 

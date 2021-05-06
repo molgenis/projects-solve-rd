@@ -1,16 +1,21 @@
+![Solve RD: The Solving Unsolved Rare Diseases Database](www/images/Solve-RD.png)
+
 # Molgenis Solve RD Database
 
-The `molgenis-solve-rd` repository contains all of the scripts, EMX files, and other files for updating the RD3 database.
+The purpose of the RD3 database is to track and find samples processed by [Centro Nacional De Análisis Genómico (CNAG)](https://www.cnag.crg.eu) and submited to the [European Genome-phenome Archive (EGA)](https://ega-archive.org). For more information, follow the links below.
 
-## Overview
+- The Solve-RD project site: [http://solve-rd.eu](http://solve-rd.eu)
+- RD3 Data Model repository: [https://github.com/molgenis/RD3_database](https://github.com/molgenis/RD3_database)
 
-Scripts, data files, and other files are stored in a number of subfolders.
+## What's in this repository?
 
-- `data/`: In this folder you can find all outputs (data, emx, etc.) from the scripts located in the `R/` and `python` folder. All files stored here are imported into the solve-rd database using the scripts located in `shell/`
-- `public/`: This folder contains the custom molgenis apps, documents, other files imported into the Solve-RD databases (non-data files). Additional information can be found in the `public/README.md` file.
-- `python/`: All python scripts that run in Molgenis as scheduled jobs are stored in this folder.
-- `R/`: This folder has R scripts that were used to build EMX files from datasets, process data, and other tasks. Outputs from these scripts are located in `data/`, and then imported using one of scripts in `shell/`. The R workspace uses [renv](https://github.com/rstudio/renv) to manage packages.
-- `shell/`: scripts for sending data to the production/acceptance servers
+The `molgenis-solve-rd` repository contains all of the scripts and other files for maintaining the RD3 database.
+
+- `data/`: This folder contains various EMX files for entities that were added after the initial release
+- `public/`: This folder contains the custom molgenis apps that are used in the Molgenis database. Additional information can be found in the `public/README.md` file.
+- `python/`: Various python scripts for prcessing data and other jobs
+- `R/`: Various R scripts for processing data and other jobs
+- `shell/`: scripts for importing data into Molgenis
 - `www/`: various static assets (i.e., images, documents, etc.)
 
 In addition, the `archive` folder has files that I'm not ready to remove. The `dev` folder is exlained in the following section.

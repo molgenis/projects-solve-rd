@@ -2,7 +2,7 @@
 # FILE: novelomics.sh
 # AUTHOR: David Ruvolo
 # CREATED: 2021-02-09
-# MODIFIED: 2021-03-11
+# MODIFIED: 2021-05-04
 # PURPOSE: upload EMX for NovelOmics subpackage in the RD3 Portal 
 # DEPENDENCIES: mcmd (molgenis commander)
 # COMMENTS:
@@ -25,7 +25,3 @@ mcmd config set host
 # Create Subpackage for storing original data
 mcmd import -p data/novelomics/sys_md_Package.csv #--in rd3_portal
 mcmd import -p data/novelomics/novelomics_attributes.csv --as attributes --in rd3_portal_novelomics
-
-# mcmd import -p data/novelomics/novelomics_samples.csv --as rd3_portal_novelomics_samples --in rd3_portal_novelomics
-
-# mcmd import -p data/novelomics/novelomics_experiment.csv --as rd3_portal_novelomics_experiment --in rd3_portal_novelomics

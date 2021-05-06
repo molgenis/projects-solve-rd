@@ -5,6 +5,9 @@
     }
   ],
   "settings" : {
+    "markdownlint.config": {
+      "MD041": false
+    }
   },
   "extensions": {
     "recommendations": [

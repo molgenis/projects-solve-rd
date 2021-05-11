@@ -21,6 +21,9 @@ import molgenis.client as molgenis
 from datetime import datetime
 from time import sleep
 
+# set mode
+env = 'dev'
+
 # set token
 # os.environ['molgenisToken'] = ''
 
@@ -257,8 +260,7 @@ def merge_affiliation_data(data, metadata):
             dat['ERN'] = result[0]['ERN']
     return data
 
-# init session
-env = 'dev'
+# set client config
 api = {
     'host': {
         'prod': 'https://solve-rd.gcc.rug.nl/api/',
@@ -275,12 +277,13 @@ api = {
     }
 }
 
+# init session
 rd3 = molgenis_extra(url=api['host'][env], token=api['token'][env])
 
 
 # fetch data
-experiment = rd3.get('rd3_portal_novelomics_experiment',batch_size=10000)
-metadata = rd3.get('rd3_portal_novelomics_shipment', batch_size=10000)
+experiment = rd3.get('rd3_portal_novelomics_experiment', q='processed==false',batch_size=10000)
+metadata = rd3.get('rd3_portal_novelomics_shipment', q='processed==false', batch_size=10000)
 freeze1_subjects = rd3.get('rd3_freeze1_subject',attributes= api['attribs']['subject'],batch_size=10000)
 freeze2_subjects = rd3.get('rd3_freeze2_subject',attributes= api['attribs']['subject'],batch_size=10000)
 
@@ -299,12 +302,13 @@ rd3_freeze1 = []
 rd3_freeze2 = []
 rd3_new = []
 for d in experiment:
-    if d.get('subject_id') in freeze1_ids:
-        rd3_freeze1.append(d)
-    elif d.get('subject_id') in freeze2_ids:
-        rd3_freeze2.append(d)
-    else:
-        rd3_new.append(d)
+    if not d.get('processed'):
+        if d.get('subject_id') in freeze1_ids:
+            rd3_freeze1.append(d)
+        elif d.get('subject_id') in freeze2_ids:
+            rd3_freeze2.append(d)
+        else:
+            rd3_new.append(d)
 
 print('Freeze 1 records to process:', len(rd3_freeze1))
 print('Freeze 2 records to process:', len(rd3_freeze2))

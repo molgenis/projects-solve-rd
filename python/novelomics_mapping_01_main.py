@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-05-06
+# MODIFIED: 2021-05-18
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -291,6 +291,14 @@ freeze2_subjects = rd3.get('rd3_freeze2_subject',attributes= api['attribs']['sub
 freeze1_ids = flatten_attr(freeze1_subjects, 'subjectID')
 freeze2_ids = flatten_attr(freeze2_subjects, 'subjectID')
 
+# Update IDs: using the shipment metadata, merge patientID using sample and experiment ID.
+print('Processings IDs where outdated...')
+for index,expr in enumerate(experiment):
+    result = list(filter(lambda x: expr['sample_id'] in x['sample_id'], metadata))
+    if len(result):
+        if (expr['project_experiment_dataset_id'] == result[0]['solve_rd_experiment_id']) and not (expr['subject_id'] == result[0]['participant_subject']):
+            print('Updated participant ID from "',expr['subject_id'],'" to "', result[0]['participant_subject'], '"')
+            experiment[index]['subject_id'] = result[0]['participant_subject']
 
 
 # Triage all records from the staging area. Use subject ID to determine if the

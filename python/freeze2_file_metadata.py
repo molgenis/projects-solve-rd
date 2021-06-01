@@ -1,13 +1,13 @@
-#'////////////////////////////////////////////////////////////////////////////
-#' FILE: freeze2_file_metadata.py
-#' AUTHOR: David Ruvolo
-#' CREATED: 2021-05-28
-#' MODIFIED: 2021-05-31
-#' PURPOSE: pushing file metadata into RD3
-#' STATUS: in.progress
-#' PACKAGES: molgenis.client
-#' COMMENTS: NA
-#'////////////////////////////////////////////////////////////////////////////
+# '////////////////////////////////////////////////////////////////////////////
+# ' FILE: freeze2_file_metadata.py
+# ' AUTHOR: David Ruvolo
+# ' CREATED: 2021-05-28
+# ' MODIFIED: 2021-06-01
+# ' PURPOSE: pushing file metadata into RD3
+# ' STATUS: complete
+# ' PACKAGES: molgenis.client
+# ' COMMENTS: NA
+# '////////////////////////////////////////////////////////////////////////////
 
 import os
 import re
@@ -16,24 +16,20 @@ import molgenis.client as molgenis
 from datetime import datetime
 
 # apply methods to class Session
-class rd3_session(molgenis.Session):
+class molgenis_extra(molgenis.Session):
     def update_table(self, data, entity):
         for d in range(0, len(data), 1000):
             response = self._session.post(
-                url = self._url + 'v2/' + entity,
-                headers = self._get_token_header_with_content_type(),
-                data = json.dumps({'entities': data[d:d+1000]})
+                url=self._api_url + 'v2/' + entity,
+                headers=self._get_token_header_with_content_type(),
+                data=json.dumps({'entities': data[d:d+1000]})
             )
             if response.status_code == 201:
-                print(
-                    'Imported batch ' + str(d) +
-                    'successfully (' + str(response.status_code) + ')'
-                )
+                print("Imported batch " + str(d) +
+                      " successfully (" + str(response.status_code) + ")")
             else:
-                print(
-                    'Failed to import batch' + str(d) +
-                    '(' + str(response.status_code) + ')'
-                )
+                print("Failed to import batch " + str(d) +
+                      " (" + str(response.status_code) + ")")
 
 # @title Read File
 # @description Read ASCII file and transform into a list of dictionaries
@@ -48,7 +44,7 @@ def read_file(file):
                 tmp = {
                     'file_id': None,
                     'status': None,
-                    'bytes': None, 
+                    'bytes': None,
                     'check_sum': None,
                     'file_name': None
                 }
@@ -63,8 +59,11 @@ def read_file(file):
                         tmp['check_sum'] = el
                     if re.search(r'(/SolveRD/)', el):
                         tmp['file_name'] = el
-                rawdata.append(tmp)
+                if not (all(v is None for v in tmp.values())):
+                    rawdata.append(tmp)
     return rawdata
+
+
 
 # @title Extract Filetype from string
 # @description
@@ -73,7 +72,7 @@ def read_file(file):
 # @return a dict containing an filetype and ID
 def extract_filetype(filename):
     base = os.path.basename(filename)
-    value = None
+    value = ''
     if re.search(r'(.g.vcf)', base):
         value = 'vcf'
     if re.search(r'(.bai.)', base):
@@ -103,46 +102,100 @@ def extract_id(filename):
 # @return dictionary of counts by key
 def missing_count(data):
     keys = {k: 0 for k in data[0].keys()}
-    for d in enumerate(data):
+    for d in data:
         for i in d:
-            if (type(i) == None) or (i == ''):
+            if d[i] == None:
                 keys[i] += 1
     return keys
 
 
-#//////////////////////////////////////
+# @title Extract Nested Attribute
+# @description extract attribute from nested dictionary
+# @param data input dataset a list of dictionaries
+# @param attr value to extract
+# @return a string of values
+def extract_nested_attr(data, attr):
+    value = None
+    if len(data) == 1:
+        value = data[0].get(attr)
+    if len(data) > 1:
+        joined_att = []
+        for d in data:
+            joined_att.append(d.get(attr))
+        value = ','.join(map(str, joined_att))
+    return value
+
+# @title Flatten Experiment
+# @description Flatten experiment data by extracting elements of interest
+# @param data data from rd3_freeze*_labinfo
+# @return list of dictionarires
+def flatten_labinfo(data):
+    out = []
+    for d in data:
+        tmp = {}
+        tmp['id'] = d.get('id')
+        tmp['experimentID'] = d.get('experimentID')
+        tmp['sample_id'] = extract_nested_attr(d.get('sample'), 'id')
+        tmp['sampleID'] = extract_nested_attr(d.get('sample'), 'sampleID')
+        out.append(tmp)
+    return out
+
+# @title Map Filemetadata
+# @description map file metadata into RD3 terminology and merge experimentID
+# @param file_data output of `read_file` (list object)
+# @param lab_data list of dictionaries from `rd3.get('rd3_freeze*_labinfo')`
+# @return list of dictionaries ready for import 
+def map_file_metadata(file_data,lab_data):
+    out = []
+    for d in file_data:
+        tmp = {
+            'EGA': d.get('file_id'),
+            'name': d.get('file_name'),
+            'md5': d.get('check_sum'),
+            'typeFile': extract_filetype(d.get('file_name')),
+            'dateCreated': datetime.today().strftime('%Y-%m-%d'),
+            'patch': 'freeze2_original'
+        }
+        tmp_expr_id = extract_id(d.get('file_name'))
+        if tmp_expr_id is not None:
+            tmp['experimentID'] = str(tmp_expr_id)
+            q = list(filter(lambda el: el['experimentID'] in tmp_expr_id, lab_data))
+            if len(q):
+                tmp['samples'] = q[0].get('sample_id')
+        out.append(tmp)
+    return out
+
+# //////////////////////////////////////
 
 # set client config
-env = 'acc'
+env = 'prod'
 api = {
     'host': {
         'prod': 'https://solve-rd.gcc.rug.nl/api/',
-        'acc' : 'https://solve-rd-acc.gcc.rug.nl/api/'
+        'acc': 'https://solve-rd-acc.gcc.rug.nl/api/'
     },
     'token': os.getenv('molgenisToken') if os.getenv('molgenisToken') is not None else None
 }
 
 # init session
-rd3 = rd3_session(url=api['host'][env], token=api['token'])
+rd3 = molgenis_extra(url=api['host'][env], token=api['token'])
 
-# load, process, and map metadata
-rawdata = read_file(file = '')
-mapped_data = []
-maxreps = len(rawdata)
-for i, d in enumerate(rawdata):
-    mapped_data.append({
-        'EGA': d['file_id'],
-        'name': d['file_name'],
-        'md5': d['check_sum'],
-        'typeFile': extract_filetype(d['file_name']),
-        'samples': extract_id(d['file_name']),
-        'dateCreated': datetime.today().strftime('%Y-%m-%d'),
-        'patch': 'freeze2_original'
-    })
+# pull experiment info
+rd3_freeze2_labinfo_raw = rd3.get(
+    entity='rd3_freeze2_labinfo',
+    attributes='id,experimentID,sample',
+    batch_size=10000
+)
 
-# evaluate missing information and upload
-counts = missing_count(mapped_data)
-if sum(counts) == 0:
-    rd3_session.update_table(data = mapped_data, entity='rd3_freeze2_file')
-else:
-    SystemError('Error: missing values detected\n' + counts)
+rd3_freeze2_labinfo = flatten_labinfo(data = rd3_freeze2_labinfo_raw)
+
+# load raw metadata file
+print('Loading and processing data file...')
+metadata_raw = read_file(file='')
+
+print('Mapping metadata into RD3 terminology...')
+metadata = map_file_metadata(file_data = metadata_raw, lab_data=rd3_freeze2_labinfo)
+
+# upload
+print('Uploading metadata...')
+rd3.update_table(data = metadata, entity='rd3_freeze2_file')

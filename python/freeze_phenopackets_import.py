@@ -47,7 +47,7 @@ class molgenis_extra(molgenis.Session):
 # @param filename name of the file
 # @return a dictionary containing phenopackets data
 def read_phenopacket(filename):
-    file = open(filename)
+    file = open(filename, 'r')
     return json.load(file)
 
     

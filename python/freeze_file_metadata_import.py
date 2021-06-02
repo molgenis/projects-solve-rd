@@ -1,5 +1,5 @@
 # '////////////////////////////////////////////////////////////////////////////
-# ' FILE: freeze2_file_metadata.py
+# ' FILE: freeze_file_metadata_import.py
 # ' AUTHOR: David Ruvolo
 # ' CREATED: 2021-05-28
 # ' MODIFIED: 2021-06-01

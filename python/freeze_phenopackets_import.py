@@ -122,8 +122,9 @@ def __recode__date(value):
 # @title Unpack Phenopackets JSON string
 # @description extract key information and reshape into RD3
 # @param data result from `read_phenopacket`
+# @param filename name of the file
 # @param a dictionary containing extracted metadata
-def unpack_phenopacket(data):
+def unpack_phenopacket(data,filename):
     out = {
         'id': data['phenopacket']['id'] + '_original',
         'dateofBirth': __recode__date(data['phenopacket']['subject']['dateOfBirth']),
@@ -131,7 +132,8 @@ def unpack_phenopacket(data):
         'solved': __recode__solvedstatus(data['interpretation']['resolutionStatus']),
         'phenotype': [],
         'hasNotPhenotype': [],
-        'disease': []
+        'disease': [],
+        'phenopacketsID': filename
     }
     if len(data['phenopacket']['phenotypicFeatures']):
         phenotypic_features = __unpack__phenotypicfeatures(data['phenopacket']['phenotypicFeatures'])
@@ -172,7 +174,7 @@ files = os.listdir()
 phenopackets = []
 for file in files:
     f = read_phenopacket(file)
-    phenopackets.append(unpack_phenopacket(f))
+    phenopackets.append(unpack_phenopacket(data=f,filename=file))
 
 
 # import data
@@ -183,7 +185,7 @@ rd3.batch_update_one_attr('rd3_freeze2_subject', 'solved', select_keys(test, ['i
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenotype', select_keys(test, ['id', 'phenotype']))
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'hasNotPhenotype', select_keys(test, ['id', 'hasNotPhenotype']))
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'disease', select_keys(test, ['id', 'disease']))
-
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenopacketsID', select_keys(test, ['id','phenopacketsID']))
 
 #//////////////////////////////////////
 

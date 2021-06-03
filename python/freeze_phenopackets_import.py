@@ -2,11 +2,11 @@
 #' FILE: freeze_phenopackets_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2021-06-02
+#' MODIFIED: 2021-06-03
 #' PURPOSE: push phenopackets metadata into RD3
-#' STATUS: in.progress
-#' PACKAGES: NA
-#' COMMENTS: NA
+#' STATUS: working
+#' PACKAGES: os, json, requests, urlib.parse, molgenis.client
+#' COMMENTS: Run in the same folder as all phenopackets files
 #'////////////////////////////////////////////////////////////////////////////
 
 import os
@@ -61,13 +61,14 @@ def __unpack__phenotypicfeatures(phenotypicFeatures):
     for pheno in phenotypicFeatures:
         if pheno:
             hpo_id = re.sub(r'^(HP:)', 'HP_', pheno['type']['id'])
-            if 'negated' in pheno:
-                if pheno['negated']:
+            if not (hpo_id in phenotype) and not (hpo_id in hasNotPhenotype):
+                if 'negated' in pheno:
+                    if pheno['negated']:
+                        hasNotPhenotype.append(hpo_id)
+                    if not pheno['negated']:
+                        phenotype.append(hpo_id)
+                else:
                     phenotype.append(hpo_id)
-                if not pheno['negated']:
-                    hasNotPhenotype.append(hpo_id)
-            else:
-                hasNotPhenotype.append(hpo_id)
     return {'phenotype': phenotype, 'hasNotPhenotype': hasNotPhenotype}
 
 # @title Unpack Diseases
@@ -87,18 +88,6 @@ def __unpack__diseases(diseases):
 
 # Unique ontologies: ['HP', 'Orphanet', 'HGNC', 'OMIM']
 
-
-# @title Recode solved status value
-# @describe recode phenopackets status into RD3 terminology
-# @param value string containing a value to record
-def __recode__solvedstatus(value):
-    if value.lower() in ['unsolved', 'unknown']:
-        return 'false'
-    elif value.lower() == 'solved':
-        return 'true'
-    else:
-        return value
-
 # @title Records Sex
 # @describe record phenopackets sex values into RD3 terminology
 # @param value string containing a sex
@@ -106,7 +95,7 @@ def __recode__solvedstatus(value):
 def __recode__sex(value):
     if value.lower() == 'female': return 'F'
     elif value.lower() == 'male': return 'M'
-    elif value.lower() == 'uknown_sex': return 'U'
+    elif value.lower() == 'unknown_sex': return 'U'
     else: return value
 
 # @title Format date
@@ -129,7 +118,6 @@ def unpack_phenopacket(data,filename):
         'id': data['phenopacket']['id'] + '_original',
         'dateofBirth': __recode__date(data['phenopacket']['subject']['dateOfBirth']),
         'sex1': __recode__sex(data['phenopacket']['subject']['sex']),
-        'solved': __recode__solvedstatus(data['interpretation']['resolutionStatus']),
         'phenotype': [],
         'hasNotPhenotype': [],
         'disease': [],
@@ -152,6 +140,22 @@ def unpack_phenopacket(data,filename):
 def select_keys(data, keys):
     return list(map(lambda x: {k:v for k,v in x.items() if k in keys}, data))
 
+# @title flatten attribute
+# @description pull values from a specific attribute
+# @param data list of dict
+# @param name of attribute to flatten
+# @param distinct if TRUE, return unique cases only
+# @return a list of values
+def flatten_attr(data, attr, distinct=False):
+    out = []
+    for d in data:
+        tmp_attr = d.get(attr)
+        out.append(tmp_attr)
+    if distinct:
+        return list(set(out))
+    else:
+        return out
+
 #//////////////////////////////////////
 
 # init molgenis sesssion
@@ -168,27 +172,50 @@ api = {
 # init session
 rd3 = molgenis_extra(url=api['host'][env], token=api['token'])
 
+# pull freeze2 data
+freeze2 = rd3.get(entity='rd3_freeze2_subject', attributes='id,subjectID', batch_size=10000)
+freeze2_ids = flatten_attr(freeze2, 'id')
 
 # load and parse phenopackets
+# also run a check to make sure IDs exist in RD3
 files = os.listdir()
+unavailable = []
 phenopackets = []
 for file in files:
     f = read_phenopacket(file)
-    phenopackets.append(unpack_phenopacket(data=f,filename=file))
+    p = unpack_phenopacket(data=f, filename=file)
+    if p['id'] in freeze2_ids:
+        phenopackets.append(p)
+    else:
+        unavailable.append(p)
 
+# display message
+print('Count of Phenopackets PatientIDs that exist in RD3:', len(phenopackets))
+print('Count of Phenopackets PatientIDs that do notexist in RD3:', len(unavailable))
 
 # import data
-test = list(filter(lambda d: d['id'] in '', phenopackets)) # enter test case
-rd3.batch_update_one_attr('rd3_freeze2_subjectinfo', 'dateofBirth', select_keys(test, ['id', 'dateofBirth']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'sex1', select_keys(test, ['id', 'sex1']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'solved', select_keys(test, ['id', 'solved']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenotype', select_keys(test, ['id', 'phenotype']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'hasNotPhenotype', select_keys(test, ['id', 'hasNotPhenotype']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'disease', select_keys(test, ['id', 'disease']))
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenopacketsID', select_keys(test, ['id','phenopacketsID']))
+# test = list(filter(lambda d: d['id'] in '', phenopackets)) # enter test case
+
+# prep for import
+# del update_dob, update_sex1, update_phenotype, update_hasNotPhenotype, update_disease, update_phenopacketsID
+update_dob = select_keys(phenopackets, ['id', 'dateofBirth'])
+update_sex1 = select_keys(phenopackets, ['id', 'sex1'])
+update_phenotype = select_keys(phenopackets, ['id','phenotype'])
+update_hasNotPhenotype = select_keys(phenopackets, ['id', 'hasNotPhenotype'])
+update_disease = select_keys(phenopackets, ['id', 'disease'])
+update_phenopacketsID = select_keys(phenopackets, ['id', 'phenopacketsID'])
+
+# import
+rd3.batch_update_one_attr('rd3_freeze2_subjectinfo', 'dateofBirth', update_dob)
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'sex1', update_sex1)
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenotype', update_phenotype)
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'hasNotPhenotype', update_hasNotPhenotype)
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'disease', update_disease)
+rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenopacketsID', update_phenopacketsID)
 
 #//////////////////////////////////////
 
+# for testing
 # find distinct values for testing and recoding
 dist_sex = []
 dist_solved_status = []

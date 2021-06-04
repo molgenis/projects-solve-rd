@@ -1,13 +1,13 @@
-#'////////////////////////////////////////////////////////////////////////////
-#' FILE: freeze_phenopackets_import.py
-#' AUTHOR: David Ruvolo
-#' CREATED: 2021-06-02
-#' MODIFIED: 2021-06-03
-#' PURPOSE: push phenopackets metadata into RD3
-#' STATUS: working
-#' PACKAGES: os, json, requests, urlib.parse, molgenis.client
-#' COMMENTS: Run in the same folder as all phenopackets files
-#'////////////////////////////////////////////////////////////////////////////
+# '////////////////////////////////////////////////////////////////////////////
+# ' FILE: freeze_phenopackets_import.py
+# ' AUTHOR: David Ruvolo
+# ' CREATED: 2021-06-02
+# ' MODIFIED: 2021-06-04
+# ' PURPOSE: push phenopackets metadata into RD3
+# ' STATUS: working
+# ' PACKAGES: os, json, requests, urlib.parse, molgenis.client
+# ' COMMENTS: Run in the same folder as all phenopackets files
+# '////////////////////////////////////////////////////////////////////////////
 
 import os
 import json
@@ -16,16 +16,16 @@ import requests
 from urllib.parse import quote_plus, urlparse, parse_qs
 import molgenis.client as molgenis
 
-#//////////////////////////////////////
+# //////////////////////////////////////
 
 # @title Molgenis Extra
 # @describe extend class Molgenis Session
 # @param molgenis.Session required Session object
 class molgenis_extra(molgenis.Session):
     def batch_update_one_attr(self, entity, attr, values):
-        add='No new data'
+        add = 'No new data'
         for i in range(0, len(values), 1000):
-            add='Update did tot go OK'
+            add = 'Update did tot go OK'
             """Updates one attribute of a given entity with the given values of the given ids"""
             response = self._session.put(
                 self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
@@ -33,8 +33,8 @@ class molgenis_extra(molgenis.Session):
                 data=json.dumps({'entities': values[i:i+1000]})
             )
             if response.status_code == 200:
-                add='Update went OK'
-            else: 
+                add = 'Update went OK'
+            else:
                 try:
                     response.raise_for_status()
                 except requests.RequestException as ex:
@@ -50,7 +50,7 @@ def read_phenopacket(filename):
     file = open(filename, 'r')
     return json.load(file)
 
-    
+
 # @title unpack phenotypicFeatures
 # @description extract `phenotypicFeatures` from and separate into observed and unobserved phenotypes
 # @param phenotypicFeatures list of dictionaries from data['phenopacket']['phenotypicFeatures']
@@ -93,44 +93,24 @@ def __unpack__diseases(diseases):
 # @param value string containing a sex
 # @return a string
 def __recode__sex(value):
-    if value.lower() == 'female': return 'F'
-    elif value.lower() == 'male': return 'M'
-    elif value.lower() == 'unknown_sex': return 'U'
-    else: return value
+    if value.lower() == 'female':
+        return 'F'
+    elif value.lower() == 'male':
+        return 'M'
+    elif value.lower() == 'unknown_sex':
+        return 'U'
+    else:
+        return value
 
 # @title Format date
 # @describe format date
 # @param value string containing date to recode
 # @return a string containing yyyy-mm-dd
 def __recode__date(value):
-    if value is not '':
-        return re.sub('(T00:00:00Z)', '', value).split('-')[0]
+    if value != '':
+        return re.sub(r'(T00:00:00Z)', '', value).split('-')[0]
     else:
         return value
-
-# @title Unpack Phenopackets JSON string
-# @description extract key information and reshape into RD3
-# @param data result from `read_phenopacket`
-# @param filename name of the file
-# @param a dictionary containing extracted metadata
-def unpack_phenopacket(data,filename):
-    out = {
-        'id': data['phenopacket']['id'] + '_original',
-        'dateofBirth': __recode__date(data['phenopacket']['subject']['dateOfBirth']),
-        'sex1': __recode__sex(data['phenopacket']['subject']['sex']),
-        'phenotype': [],
-        'hasNotPhenotype': [],
-        'disease': [],
-        'phenopacketsID': filename
-    }
-    if len(data['phenopacket']['phenotypicFeatures']):
-        phenotypic_features = __unpack__phenotypicfeatures(data['phenopacket']['phenotypicFeatures'])
-        out['phenotype'] = ','.join(phenotypic_features['phenotype'])
-        out['hasNotPhenotype'] = ','.join(phenotypic_features['hasNotPhenotype'])
-    if len(data['phenopacket']['diseases']):
-        diseases = __unpack__diseases(data['phenopacket']['diseases'])
-        out['disease'] = ','.join(diseases)
-    return out
 
 # @title select keys
 # @describe reduce list of dictionaries to named keys
@@ -138,7 +118,7 @@ def unpack_phenopacket(data,filename):
 # @param keys an array of values
 # @return a list of dictionaries
 def select_keys(data, keys):
-    return list(map(lambda x: {k:v for k,v in x.items() if k in keys}, data))
+    return list(map(lambda x: {k: v for k, v in x.items() if k in keys}, data))
 
 # @title flatten attribute
 # @description pull values from a specific attribute
@@ -156,7 +136,34 @@ def flatten_attr(data, attr, distinct=False):
     else:
         return out
 
-#//////////////////////////////////////
+# @title Unpack Phenopackets JSON string
+# @description extract key information and reshape into RD3
+# @param data result from `read_phenopacket`
+# @param filename name of the file
+# @param a dictionary containing extracted metadata
+def unpack_phenopacket(data, filename):
+    out = {
+        'id': data['phenopacket']['id'] + '_original',
+        'dateofBirth': __recode__date(data['phenopacket']['subject']['dateOfBirth']),
+        'sex1': __recode__sex(data['phenopacket']['subject']['sex']),
+        'phenotype': [],
+        'hasNotPhenotype': [],
+        'disease': [],
+        'phenopacketsID': filename
+    }
+    if len(data['phenopacket']['phenotypicFeatures']):
+        phenotypic_features = __unpack__phenotypicfeatures(
+            data['phenopacket']['phenotypicFeatures'])
+        out['phenotype'] = ','.join(phenotypic_features['phenotype'])
+        out['hasNotPhenotype'] = ','.join(
+            phenotypic_features['hasNotPhenotype'])
+    if len(data['phenopacket']['diseases']):
+        diseases = __unpack__diseases(data['phenopacket']['diseases'])
+        out['disease'] = ','.join(diseases)
+    return out
+
+# //////////////////////////////////////
+
 
 # init molgenis sesssion
 # os.environ['molgenisToken'] = ''
@@ -173,17 +180,69 @@ api = {
 rd3 = molgenis_extra(url=api['host'][env], token=api['token'])
 
 # pull freeze2 data
-freeze2 = rd3.get(entity='rd3_freeze2_subject', attributes='id,subjectID', batch_size=10000)
+freeze2 = rd3.get(entity='rd3_freeze2_subject',attributes='id,subjectID', batch_size=10000)
 freeze2_ids = flatten_attr(freeze2, 'id')
+
+# get HPO and disease codes
+hpo_codes_raw = rd3.get(entity='rd3_phenotype', batch_size=10000)
+disease_codes_raw = rd3.get(entity='rd3_disease', batch_size=10000)
+
+hpo_codes = flatten_attr(hpo_codes_raw, 'id')
+disease_codes = flatten_attr(disease_codes_raw, 'id')
+
+# disease_error_file = open('disease_errors.txt', 'w')
+# hpo_error_file = open('hpo_errors.txt', 'w')
 
 # load and parse phenopackets
 # also run a check to make sure IDs exist in RD3
 files = os.listdir()
+hpo_codes_not_found = []
+disease_codes_not_found = []
 unavailable = []
 phenopackets = []
 for file in files:
     f = read_phenopacket(file)
-    p = unpack_phenopacket(data=f, filename=file)
+    # p = unpack_phenopacket(data=f, filename=file)
+    p = {
+        'id': f['phenopacket']['id'] + '_original',
+        'dateofBirth': __recode__date(f['phenopacket']['subject']['dateOfBirth']),
+        'sex1': __recode__sex(f['phenopacket']['subject']['sex']),
+        'phenotype': [],
+        'hasNotPhenotype': [],
+        'disease': [],
+        'phenopacketsID': file
+    }
+    if f['phenopacket']['phenotypicFeatures']:
+        phenotypic_features = __unpack__phenotypicfeatures(f['phenopacket']['phenotypicFeatures'])
+        patient_hpo_has = []
+        patient_hpo_hasnot = []
+        for hc1 in phenotypic_features['phenotype']:
+            if hc1 in hpo_codes:
+                patient_hpo_has.append(hc1)
+            else:
+                print({'id': p['id'], 'hpo': hc1})
+                hpo_codes_not_found.append({'id': p['id'], 'hpo': hc1})
+                phenotypic_features['phenotype'].remove(hc1)
+        for hc2 in phenotypic_features['hasNotPhenotype']:
+            if hc2 in hpo_codes:
+                patient_hpo_hasnot.append(hc2)
+            else:
+                print({'id': p['id'], 'hpo': hc2})
+                hpo_codes_not_found.append({'id': p['id'], 'hpo': hc2})
+                phenotypic_features['hasNotPhenotype'].remove(hc2)
+        p['phenotype'] = ','.join(patient_hpo_has)
+        p['hasNotPhenotype'] = ','.join(patient_hpo_hasnot)
+    if f['phenopacket']['diseases']:
+        diseases = __unpack__diseases(f['phenopacket']['diseases'])
+        patient_diseases_has = []
+        for dx in diseases:
+            if dx in disease_codes:
+                patient_diseases_has.append(dx)
+            else:
+                print({'id': p['id'], 'dx': dx})
+                disease_codes_not_found.append({'id': p['id'], 'code': dx})
+                diseases.remove(dx)
+        p['disease'] = ','.join(patient_diseases_has)
     if p['id'] in freeze2_ids:
         phenopackets.append(p)
     else:
@@ -192,6 +251,8 @@ for file in files:
 # display message
 print('Count of Phenopackets PatientIDs that exist in RD3:', len(phenopackets))
 print('Count of Phenopackets PatientIDs that do notexist in RD3:', len(unavailable))
+print('Count of unknown HPO codes:', len(hpo_codes_not_found))
+print('Count of unknown disease codes:', len(disease_codes_not_found))
 
 # import data
 # test = list(filter(lambda d: d['id'] in '', phenopackets)) # enter test case
@@ -200,7 +261,7 @@ print('Count of Phenopackets PatientIDs that do notexist in RD3:', len(unavailab
 # del update_dob, update_sex1, update_phenotype, update_hasNotPhenotype, update_disease, update_phenopacketsID
 update_dob = select_keys(phenopackets, ['id', 'dateofBirth'])
 update_sex1 = select_keys(phenopackets, ['id', 'sex1'])
-update_phenotype = select_keys(phenopackets, ['id','phenotype'])
+update_phenotype = select_keys(phenopackets, ['id', 'phenotype'])
 update_hasNotPhenotype = select_keys(phenopackets, ['id', 'hasNotPhenotype'])
 update_disease = select_keys(phenopackets, ['id', 'disease'])
 update_phenopacketsID = select_keys(phenopackets, ['id', 'phenopacketsID'])
@@ -209,11 +270,11 @@ update_phenopacketsID = select_keys(phenopackets, ['id', 'phenopacketsID'])
 rd3.batch_update_one_attr('rd3_freeze2_subjectinfo', 'dateofBirth', update_dob)
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'sex1', update_sex1)
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenotype', update_phenotype)
-rd3.batch_update_one_attr('rd3_freeze2_subject', 'hasNotPhenotype', update_hasNotPhenotype)
+rd3.batch_update_one_attr('rd3_freeze2_subject','hasNotPhenotype', update_hasNotPhenotype)
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'disease', update_disease)
 rd3.batch_update_one_attr('rd3_freeze2_subject', 'phenopacketsID', update_phenopacketsID)
 
-#//////////////////////////////////////
+# //////////////////////////////////////
 
 # for testing
 # find distinct values for testing and recoding

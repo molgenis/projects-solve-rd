@@ -168,7 +168,7 @@ def map_file_metadata(file_data,lab_data):
 # //////////////////////////////////////
 
 # set client config
-env = 'prod'
+env = 'acc'
 api = {
     'host': {
         'prod': 'https://solve-rd.gcc.rug.nl/api/',

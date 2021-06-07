@@ -76,6 +76,12 @@ def __unpack__phenotypicfeatures(phenotypicFeatures):
 # @param diseases list of dictionaries from data['phenopacket']['diseases]
 # @return a list of disease IDs
 def __unpack__diseases(diseases):
+    ids_to_recode = {
+        'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
+        'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
+        'MIM_607569': {'old':'MIM_607569','new':'MIM_603689'},
+        'ORDO_856': {'old': 'ORDO_856', 'new': ''}
+    }
     out = []
     for disease in diseases:
         code = disease['term']['id']
@@ -83,6 +89,8 @@ def __unpack__diseases(diseases):
             code = re.sub(r'^(Orphanet:)', 'ORDO_', code)
         if re.search(r'^(OMIM:)', code):
             code = re.sub(r'^(OMIM:)', 'MIM_', code)
+        if code in ids_to_recode:
+            code = ids_to_recode[code]['new']
         out.append(code)
     return out
 
@@ -167,7 +175,7 @@ def unpack_phenopacket(data, filename):
 
 # init molgenis sesssion
 # os.environ['molgenisToken'] = ''
-env = 'prod'
+env = 'acc'
 api = {
     'host': {
         'prod': 'https://solve-rd.gcc.rug.nl/api/',

@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-05-18
+# MODIFIED: 2021-06-08
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -20,12 +20,14 @@ import json
 import molgenis.client as molgenis
 from datetime import datetime
 from time import sleep
+import requests
+from urllib.parse import quote_plus, urlparse, parse_qs
 
 # set mode
 env = 'dev'
 
 # set token
-# os.environ['molgenisToken'] = ''
+os.environ['molgenisToken'] = ''
 
 # @title rd3_extra
 # @param rd3 molgenis session
@@ -42,7 +44,26 @@ class molgenis_extra(molgenis.Session):
                     " successfully (" + str(response.status_code) + ")")
             else:
                 print("Failed to import batch " + str(d) +
-                    " (" + str(response.status_code) + ")")
+                    " (" + str(response.status_code) + str(response.reason) + ")")
+    def batch_update_one_attr(self, entity, attr, values):
+        add = 'No new data'
+        for i in range(0, len(values), 1000):
+            add = 'Update did tot go OK'
+            """Updates one attribute of a given entity with the given values of the given ids"""
+            response = self._session.put(
+                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
+                headers=self._get_token_header_with_content_type(),
+                data=json.dumps({'entities': values[i:i+1000]})
+            )
+            if response.status_code == 200:
+                add = 'Update went OK'
+            else:
+                try:
+                    response.raise_for_status()
+                except requests.RequestException as ex:
+                    self._raise_exception(ex)
+                return response
+        return add
 
 # @title flatten attribute
 # @description pull values from a specific attribute
@@ -209,7 +230,9 @@ def update_rd3_subject(data, ids, patch):
             tmp['ERN'] = d.get('ERN', {}).get('identifier')
             if len(tmp['patch']) >= 1:
                 tmp_patches = flatten_attr(tmp['patch'], 'id')
-                tmp['patch'] = ','.join(map(str, tmp_patches)) + "," + patch
+                tmp['patch'] = ','.join(map(str, tmp_patches))
+                if not (patch in tmp_patches):
+                    tmp['patch'] = tmp['patch'] + "," + patch
             else:
                 tmp['patch'] = patch
             out.append(tmp)
@@ -292,13 +315,13 @@ freeze1_ids = flatten_attr(freeze1_subjects, 'subjectID')
 freeze2_ids = flatten_attr(freeze2_subjects, 'subjectID')
 
 # Update IDs: using the shipment metadata, merge patientID using sample and experiment ID.
-print('Processings IDs where outdated...')
-for index,expr in enumerate(experiment):
-    result = list(filter(lambda x: expr['sample_id'] in x['sample_id'], metadata))
-    if len(result):
-        if (expr['project_experiment_dataset_id'] == result[0]['solve_rd_experiment_id']) and not (expr['subject_id'] == result[0]['participant_subject']):
-            print('Updated participant ID from "',expr['subject_id'],'" to "', result[0]['participant_subject'], '"')
-            experiment[index]['subject_id'] = result[0]['participant_subject']
+# print('Processings IDs where outdated...')
+# for index,expr in enumerate(experiment):
+#     result = list(filter(lambda x: expr['sample_id'] in x['sample_id'], metadata))
+#     if len(result):
+#         if (expr['project_experiment_dataset_id'] == result[0]['solve_rd_experiment_id']) and not (expr['subject_id'] == result[0]['participant_subject']):
+#             print('Updated participant ID from "',expr['subject_id'],'" to "', result[0]['participant_subject'], '"')
+#             experiment[index]['subject_id'] = result[0]['participant_subject']
 
 
 # Triage all records from the staging area. Use subject ID to determine if the

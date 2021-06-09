@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-06-08
+# MODIFIED: 2021-06-09
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -51,7 +51,7 @@ class molgenis_extra(molgenis.Session):
             add = 'Update did tot go OK'
             """Updates one attribute of a given entity with the given values of the given ids"""
             response = self._session.put(
-                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
+                self._url + "v2/" + quote_plus(entity) + "/" + attr,
                 headers=self._get_token_header_with_content_type(),
                 data=json.dumps({'entities': values[i:i+1000]})
             )
@@ -242,32 +242,34 @@ def update_rd3_subject(data, ids, patch):
 # @title Update Processed Experiment Data
 # @description Set the value of processed Freeze1 and Freeze2 data to True
 # @param data input dataset containing a list of dictionaries
+# @return string containing data request response
 def update_processed_experiment_data(data):
+    update = []
     for d in data:
-        rd3.update_one(
-            entity = 'rd3_portal_novelomics_experiment',
-            id_ = d['molgenis_id'],
-            attr = 'processed',
-            value = True
-        )
-        sleep(0.01)
+        update.append({'molgenis_id': d.get('molgenis_id'), 'processed': True})
+    rd3.batch_update_one_attr(
+        entity='rd3_portal_novelomics_experiment',
+        attr = 'processed',
+        values = update
+    )
 
 # @title Update Processed Shipment Staging Table
 # @description For Freeze1- & 2 cases, update the processed attribute to True
 # @param metadata list containing shipmeny metadata
-# @param freeze1 list of Freeze1 IDs to update
-# @param freeze2 list of freeze2 IDs to update
-def update_processed_shipment_data(metadata,freeze1, freeze2):
-    merged_ids = [*freeze1, *freeze2]
-    records = find_dict(data=metadata,attr='participant_subject',value=merged_ids)
-    for record in records:
-        rd3.update_one(
-            entity='rd3_portal_novelomics_shipment',
-            id_=record['molgenis_id'],
-            attr='processed',
-            value=True
-        )
-        sleep(0.01)
+# @param data list of freeze IDs to update
+def update_processed_shipment_data(metadata, data):
+    records = select_dict(
+        data=find_dict(data=metadata,attr='participant_subject',value=data),
+        keys=['molgenis_id']
+    )
+    update = []
+    for r in records:
+        update.append({'molgenis_id': r.get('molgenis_id'), 'processed': True})
+    rd3.batch_update_one_attr(
+        entity='rd3_portal_novelomics_shipment',
+        attr='processed',
+        values=update
+    )
 
 
 # @title Merge Afilliation Data
@@ -355,10 +357,19 @@ else:
 rd3_freeze1_ids = flatten_attr(rd3_freeze1, 'subject_id', distinct=True)
 rd3_freeze2_ids = flatten_attr(rd3_freeze2, 'subject_id', distinct=True)
 
+#//////////////////////////////////////////////////////////////////////////////
+
+# set import flags
+should_import_freeze_1 = False
+should_import_freeze_2 = False
+
 # process freeze1 data
 if len(rd3_freeze1):
     print('Mapping new freeze1 data...')
-    rd3_freeze1 = merge_affiliation_data(data=rd3_freeze1, metadata=freeze1_subjects)
+    rd3_freeze1 = merge_affiliation_data(
+        data=rd3_freeze1,
+        metadata=freeze1_subjects
+    )
     rd3_freeze1_file = map_rd3_files(
         data=rd3_freeze1,
         sample_id_suffix="_novelomics_original",
@@ -383,38 +394,21 @@ if len(rd3_freeze1):
         ids = rd3_freeze1_ids,
         patch = 'novelomics_original'
     )
+    should_import_freeze_1 = True
     print('Mapped Freeze1 Files:', len(rd3_freeze1_file))
     print('Mapped Freeze1 Labinfo:', len(rd3_freeze1_labinfo))
     print('Mapped Freeze1 Samples:', len(rd3_freeze1_sample))
     print('Updated Freeze1 Subjects:', len(rd3_freeze1_subject))
-    print('Importing Freeze1 Subjects and Subject Info data...')
-    for f1_subject in rd3_freeze1_subject:
-        rd3.update_one(
-            entity='rd3_freeze1_subject',
-            id_=f1_subject['id'],
-            attr='patch',
-            value=f1_subject['patch']
-        )
-        rd3.update_one(
-            entity='rd3_freeze1_subjectinfo',
-            id_=f1_subject['id'],
-            attr='patch',
-            value=f1_subject['patch']
-        )
-        sleep(0.01)
-    print('Importing Freeze 1 Samples...')
-    rd3.update_table(data=rd3_freeze1_sample,entity='rd3_freeze1_sample')
-    print('Importing Freeze 1 Labinfo...')
-    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_novelomics')
-    print('Importing Freeze1 Files...')
-    rd3.update_table(data=rd3_freeze1_file,entity='rd3_freeze1_file')
 else:
     print('No new freeze1 records to map')
 
 # process freeze2 data
 if len(rd3_freeze2):
     print('Mapping new freeze2 data...')
-    rd3_freeze2 = merge_affiliation_data(data=rd3_freeze2, metadata=freeze2_subjects)
+    rd3_freeze2 = merge_affiliation_data(
+        data=rd3_freeze2,
+        metadata=freeze2_subjects
+    )
     rd3_freeze2_file = map_rd3_files(
         data=rd3_freeze2,
         sample_id_suffix='_novelomics_original',
@@ -439,40 +433,64 @@ if len(rd3_freeze2):
         ids = rd3_freeze2_ids,
         patch = 'novelomics_original'
     )
+    should_import_freeze_2 = True
     print('Mapped Freeze2 Files:', len(rd3_freeze2_file))
     print('Mapped Freeze2 Labinfo:', len(rd3_freeze2_labinfo))
     print('Mapped Freeze2 Samples:', len(rd3_freeze2_sample))
     print('Updated Freeze2 Subjects:', len(rd3_freeze2_subject))
+else:
+    print('No new freeze2 records to map')
+
+
+#//////////////////////////////////////////////////////////////////////////////
+
+# import freeze1 data if applicable
+if should_import_freeze_1:
+    print('Importing Freeze1 Subjects and Subject Info data...')
+    rd3.batch_update_one_attr(
+        entity= 'rd3_freeze1_subject',
+        attr='patch',
+        values=select_dict(rd3_freeze1_subject, ['id','patch'])
+    )
+    rd3.batch_update_one_attr(
+        entity='rd3_freeze1_subjectinfo',
+        attr='patch',
+        values = select_dict(rd3_freeze1_subject, ['id', 'patch'])
+    )
+    print('Importing Freeze 1 Samples...')
+    rd3.update_table(data=rd3_freeze1_sample,entity='rd3_freeze1_sample')
+    print('Importing Freeze 1 Labinfo...')
+    rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_novelomics')
+    print('Importing Freeze1 Files...')
+    rd3.update_table(data=rd3_freeze1_file,entity='rd3_freeze1_file')
+    print('Updating Portal Tables: setting `processed to `True`')
+    update_processed_experiment_data(data=rd3_freeze1)
+    update_processed_shipment_data(metadata=metadata,data=rd3_freeze1_ids)
+
+
+# import freeze2 data if applicable
+if should_import_freeze_2:
     print('Importing Freeze2 Subjects and Subject Info data...')
-    for f2_subject in rd3_freeze2_subject:
-        rd3.update_one(
-            entity='rd3_freeze2_subject',
-            id_=f2_subject['id'],
-            attr='patch',
-            value=f2_subject['patch']
-        )
-        rd3.update_one(
-            entity='rd3_freeze2_subjectinfo',
-            id_=f2_subject['id'],
-            attr='patch',
-            value=f2_subject['patch']
-        )
-        sleep(0.01)
+    rd3.batch_update_one_attr(
+        entity='rd3_freeze2_subject',
+        attr='patch',
+        values=select_dict(rd3_freeze2_subject, ['id','patch'])
+    )
+    rd3.batch_update_one_attr(
+        entity='rd3_freeze2_subjectinfo',
+        attr='patch',
+        values=select_dict(rd3_freeze2_subject, ['id','patch'])
+    )
     print('Importing Freeze 2 Samples...')
     rd3.update_table(data=rd3_freeze2_sample,entity='rd3_freeze2_sample')
     print('Importing Freeze 2 Labinfo...')
     rd3.update_table(data=rd3_freeze2_labinfo,entity='rd3_freeze2_labinfo_novelomics')
     print('Importing Freeze 2 Files...')
     rd3.update_table(data=rd3_freeze2_file,entity='rd3_freeze2_file')
-else:
-    print('No new freeze2 records to map')
+    print('Updating Portal Tables: setting `processed to `True`')
+    update_processed_experiment_data(data=rd3_freeze2)
+    update_processed_shipment_data(metadata=metadata,data=rd3_freeze2_ids)
 
-
-# Update entity process status
-print('Updating entities: setting `processed` to `True`...')
-update_processed_experiment_data(data=rd3_freeze1)
-update_processed_experiment_data(data=rd3_freeze2)
-update_processed_shipment_data(metadata=metadata,freeze1=rd3_freeze1_ids,freeze2=rd3_freeze2_ids)
-
+# FIN!
 print('Done!! :-)')
 

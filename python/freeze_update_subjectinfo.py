@@ -2,9 +2,9 @@
 #' FILE: freeze_update_subjectinfo.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-08
-#' MODIFIED: 2021-06-08
+#' MODIFIED: 2021-06-09
 #' PURPOSE: update subjectinfo table
-#' STATUS: in.progress
+#' STATUS: refresh subjectinfo table
 #' PACKAGES: NA
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
@@ -29,6 +29,26 @@ def flatten_attr(data, attr, distinct=False):
     else:
         return out
 
+# @title find missing subject records
+# @description find records from `rd3_freeze*_subject` that aren't in `rd3_freeze*_subjectinfo`
+# @param subjects output from `rd3_freeze*_subject` (a list of dictionaries)
+# @param subjectinfo output from `rd3_freeze*_subjectinfo` (a list of dictionaries)
+# @return a list of dictionaries containing subjects to add to `rd3_freeze*_subjectinfo`
+def find_missing_records(subjects, subjectinfo):
+    subjectinfo_ids = flatten_attr(subjectinfo, 'id')
+    out = []
+    for subject in subjects:
+        if not (subject['id'] in subjectinfo_ids):
+            tmp = subject
+            if len(subject['patch']) >= 1:
+                tmp_patches = flatten_attr(tmp['patch'], 'id')
+                tmp['subjectID'] = subject['id']
+                tmp['patch'] = ','.join(map(str, tmp_patches))
+            out.append(tmp)
+    return out
+
+#//////////////////////////////////////////////////////////////////////////////
+
 # set client config
 api = {
     'host': {
@@ -51,30 +71,16 @@ env = 'acc'
 rd3 = molgenis.Session(url=api['host'][env], token=api['token'][env])
 
 
-# pull data
+# process freeze1 data
 freeze1_subjects = rd3.get('rd3_freeze1_subject', attributes=api['attribs']['subject'])
 freeze1_subjectinfo = rd3.get('rd3_freeze1_subjectinfo', attributes=api['attribs']['subject'])
 
+missing_freeze1_subjectinfo = find_missing_records(freeze1_subjects, freeze1_subjectinfo)
+rd3.add_all('rd3_freeze1_subjectinfo',missing_freeze1_subjectinfo)
+
+
+# process freeze2 data
 freeze2_subjects = rd3.get('rd3_freeze2_subject', attributes=api['attribs']['subject'])
 freeze2_subjectinfo = rd3.get('rd3_freeze2_subjectinfo', attributes=api['attribs']['subject'])
 
-# function for finding and flattening records to update
-def find_missing_subjectinfo_records(subjects, subjectinfo):
-    subjectinfo_ids = flatten_attr(subjectinfo, 'id')
-    out = []
-    for subject in subjects:
-        if not (subject['id'] in subjectinfo_ids):
-            if len(subject['patch']) >= 1:
-                tmp_patches = flatten_attr(subject['patch'], 'id')
-                subject['subjectID'] = subject['id']
-                subject['patch'] = ','.join(map(str, tmp_patches))
-            out.append(subject)
-    return out
-
-# locate which cases aren't in subjectinfo
-missing_freeze1_subjectinfo = find_missing_subjectinfo_records(freeze1_subjects, freeze1_subjectinfo)
-missing_freeze2_subjectinfo = find_missing_subjectinfo_records(freeze2_subjects, freeze2_subjectinfo)
-
-
-# push into RD3
-rd3.add_all('rd3_freeze1_subjectinfo',missing_freeze1_subjectinfo)
+missing_freeze2_subjectinfo = find_missing_records(freeze2_subjects, freeze2_subjectinfo)

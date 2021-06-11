@@ -15,6 +15,8 @@ import json
 import yaml
 import subprocess
 import re
+import requests
+from urllib.parse import quote_plus, urlparse, parse_qs
 from datetime import datetime
 
 # read config
@@ -23,13 +25,32 @@ with open('python/_config.yml', 'r') as f:
 
 # @title timestamp
 def timestamp():
-    return datetime.utcnow().strftime('%Y-%m-%d %H:%H:%S.%f')[:-3]
+    return datetime.utcnow().strftime('%H:%H:%S.%f')[:-3]
 
 # @title Molgenis Extra
 # @describe Add script-specific methods to molgenis.Session class
 # @param molgenis.Session required param
 # @return ...
 class molgenis_extra(molgenis.Session):
+    def batch_update_one_attr(self, entity, attr, values):
+        add = 'No new data'
+        for i in range(0, len(values), 1000):
+            add = 'Update did tot go OK'
+            """Updates one attribute of a given entity with the given values of the given ids"""
+            response = self._session.put(
+                self._url + "v2/" + quote_plus(entity) + "/" + attr,
+                headers=self._get_token_header_with_content_type(),
+                data=json.dumps({'entities': values[i:i+1000]})
+            )
+            if response.status_code == 200:
+                add = 'Update went OK'
+            else:
+                try:
+                    response.raise_for_status()
+                except requests.RequestException as ex:
+                    self._raise_exception(ex)
+                return response
+        return add
     def update_table(self, data, entity):
         for d in range(0, len(data), 1000):
             response = self._session.post(
@@ -150,6 +171,14 @@ def find_dict(data, attr, value):
     return list(filter(lambda d: d[attr] in value, data))
 
 
+# @title select keys
+# @describe reduce list of dictionaries to named keys
+# @param data list of dictionaries to select
+# @param keys an array of values
+# @return a list of dictionaries
+def select_keys(data, keys):
+    return list(map(lambda x: {k: v for k, v in x.items() if k in keys}, data))
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # init session
@@ -158,7 +187,7 @@ rd3 = molgenis_extra(url=config['host'][config['env']], token=config['tokens'][c
 
 # load patient metadata for comparision
 print('[{}] Pulling subject metadata for validation: '.format(timestamp()), end="", flush=True)
-freeze2_subject_metadata = rd3.get('rd3_freeze2_subject', attributes='id,subjectID')
+freeze2_subject_metadata = rd3.get('rd3_freeze2_subject', attributes='id,subjectID,sex1')
 subject_ids = flatten_attr(data=freeze2_subject_metadata, attr='subjectID')
 
 if freeze2_subject_metadata:
@@ -182,7 +211,6 @@ for freeze2_file in freeze2_files_metadata:
 
 #//////////////////////////////////////
 
-
 # gather a list of available PED files
 print('[{}] Gathering list of PED files:'.format(timestamp()), end="", flush=True)
 available_ped_files = list_ped_files(path=config['paths']['cluster']['ped'])
@@ -197,7 +225,7 @@ else:
 # process files
 raw_ped_data = []
 starttime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
-for pedfile in available_ped_files[:5]:
+for pedfile in available_ped_files:
     print('[{}] Processing file {}'.format(timestamp(), pedfile['file_name']))
     result = find_dict(data=freeze2_files_metadata, attr='filename', value=pedfile['file_name'])
     should_process = False
@@ -271,7 +299,47 @@ print(
 )
 
 # file data and prepare for import
+print('[{}] Removing cases where `upload=False`'.format(timestamp()))
 pedigree_data = []
 for pf in raw_ped_data:
     if pf['upload']:
         pedigree_data.append(pf)
+
+# validate PED data with phenopackets or other sources
+print('[{}] Validating Sex codes and updating ID'.format(timestamp()))
+patient_sex_codes_validation = []
+for d in pedigree_data:
+    q = find_dict(data = freeze2_subject_metadata,attr='subjectID',value=d['subjectID'])[0]
+    if q:
+        d['id'] = q['id']
+        if ('sex1' in d) and ('sex1' in q):
+            if d['sex1'] == q['sex1']['identifier']:
+                print('[{}] Sex codes are identical'.format(timestamp()))
+            if d['sex1'] != q['sex1']['identifier']:
+                print(
+                    '[{}] Sex codes for {} do not match: PED={}, RD3={}'
+                    .format(timestamp(), d['subjectID'], q['sex1']['identifier'], d['sex1'])
+                )
+                patient_sex_codes_validation.append({
+                    'subjectID': d['subjectID'],
+                    'rd3_freeze_sex1': q['sex1']['identifier'],
+                    'ped_file_sex1': d['sex1']
+                })
+    else:
+        print('[{}] Error: no matching for {} found'.format(timestamp(), d['subjectID']))
+
+# Warn if cases exist, manually verify each one and correct where applicable
+if patient_sex_codes_validation:
+    raise SystemError('Inconsistencies detected in sex codes. Manually verify each case')
+
+
+# upload data
+upload_fid = select_keys(data = pedigree_data, keys = ['id', 'fid'])
+upload_mid = select_keys(data = pedigree_data, keys = ['id', 'mid'])
+upload_pid = select_keys(data = pedigree_data, keys = ['id', 'pid']) 
+upload_clinical = select_keys(data = pedigree_data, keys = ['id','clinical_status'])
+
+rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='fid', values=upload_fid)
+rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='mid', values=upload_mid)
+rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='pid', values=upload_pid)
+rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='clinical_status', values=upload_clinical)

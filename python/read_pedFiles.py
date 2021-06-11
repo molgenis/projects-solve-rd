@@ -38,7 +38,7 @@ rd3_sex_codes={'1' : 'M', '2': 'F', 'OTHER': 'U'}
 rd3_phenotype_codes={'-9': 'N/A', '0': 'N/A', '1' : 'No', '2': 'Yes'}
 rd3_subject_All=[]
 sep=','
-rd3_session = molgenis_data_api.Session('https://solve-rd.gcc.rug.nl/api/', token=os.environ['molgenisToken'])
+rd3_session = molgenis_data_api.Session('', token=os.environ['molgenisToken'])
 subject_attributes=['identifier', 'sex1', 'fid', 'mid', 'pid', 'clinical_status', 'family_folder', 'upload', 'error_mid', 'error_pid']
 subject_IDs=[]
 
@@ -48,7 +48,7 @@ output_folder=''
 #ped_files=os.scandir(phenopacket_folder)
 
 # Files are located remotely
-ped_folder='/groups/solve-rd/tmp10/releases/freeze2/ped'
+ped_folder=''
 ped_folders= subprocess.Popen(['ssh', 'corridor+fender', 'ls', ped_folder], stdout=subprocess.PIPE, universal_newlines=True)
 
 #ped_folders.wait()

@@ -50,7 +50,7 @@ sep=','
 subject_attributes=['identifier', 'sex1', 'phenotype', 'hasNotPhenotype', 'phenopacketsID', 'disease']
 subjectInfo_attributes=['id', 'subjectnr', 'dateofBirth', 'ageOfOnset']
 
-rd3_session = molgenis_data_api.Session('https://solve-rd.gcc.rug.nl/api/',token=os.environ['molgenisToken'])
+rd3_session = molgenis_data_api.Session('',token=os.environ['molgenisToken'])
 
 # Directory and file definitions
 # If the script runs on the same system as where the files are located
@@ -61,7 +61,7 @@ md5_file=''
 #phenopacket_files=os.scandir(phenopacket_folder)
 
 # Files are located remotely
-phenopacket_folder='/groups/solve-rd/tmp10/releases/freeze2/phenopacket/'
+phenopacket_folder=''
 phenopacket_files= subprocess.Popen(['ssh', 'corridor+fender', 'ls', phenopacket_folder],
                        stdout=subprocess.PIPE, universal_newlines=True)
 
@@ -144,8 +144,8 @@ for file in pheno_files:
     ##        print(rd3_subject_All)
     ##        print(rd3_subjectInfo_All)
     ##        print(rd3_session._get_token_header_with_content_type())
-    ###        response = requests.put('https://molgenis124.gcc.rug.nl/api/' + "v2/" + quote_plus('rd3_subject') + "/sex1",
-    ##        response = requests.put('https://molgenis124.gcc.rug.nl/api/v2/rd3_subject/sex1',
+    ###        response = requests.put('' + "v2/" + quote_plus('rd3_subject') + "/sex1",
+    ##        response = requests.put('',
     ##                        headers=rd3_session._get_token_header_with_content_type(),
     ##                                     data=json.dumps({'entities' : [{'identifier': 'P0000037', 'sex1': "F"}]}))
     ##                                #data=json.dumps({'entities': rd3_subject_All}))
@@ -315,7 +315,7 @@ for file in pheno_files:
 ### Use the Molgenis Data API to push the data into the RD3 database
 ##
 #### RD3_SUBJECT ##
-##response = requests.put('https://molgenis124.gcc.rug.nl/api/' + "v2/" + quote_plus('rd3_subject'),
+##response = requests.put(' + "v2/" + quote_plus('rd3_subject'),
 ##                        headers=rd3_session._get_token_header_with_content_type(),
 ##                        data=json.dumps({'entities': rd3_subject_All}))
 ##if response.status_code == '200':
@@ -326,7 +326,7 @@ for file in pheno_files:
 ##
 ##    
 #### RD3_SUBJECTINFO ##
-##response = requests.put('https://molgenis124.gcc.rug.nl/api/' + "v2/" + quote_plus('rd3_subjectinfo'),
+##response = requests.put('' + "v2/" + quote_plus('rd3_subjectinfo'),
 ##                        headers=rd3_session._get_token_header_with_content_type(),
 ##                        data=json.dumps({'entities': rd3_subjectInfo_All}))
 ##if response.status_code == '200':

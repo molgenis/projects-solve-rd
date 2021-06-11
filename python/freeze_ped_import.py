@@ -25,7 +25,7 @@ with open('python/_config.yml', 'r') as f:
 
 # @title timestamp
 def timestamp():
-    return datetime.utcnow().strftime('%H:%H:%S.%f')[:-3]
+    return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
 
 # @title Molgenis Extra
 # @describe Add script-specific methods to molgenis.Session class
@@ -64,7 +64,6 @@ class molgenis_extra(molgenis.Session):
             else:
                 print("Failed to import batch " + str(d) +
                       " (" + str(response.status_code) + ")")
-
 
 # @title list_ped_files
 # @description from a given path, create a list of available files
@@ -141,9 +140,9 @@ def recode_sex(value):
 # @param value a string containing a PED affected_status code
 # @return a string
 def recode_affected_status(value):
-    if value in ['-9', '0']: return 'N/A'
-    elif value == '1': return 'No'
-    elif value == '2': return 'Yes'
+    if value in ['-9', '0']: return None
+    elif value == '1': return False
+    elif value == '2': return True
     else: print('ERROR: unable to recode {}'.format(value))
 
 # @title flatten attribute
@@ -200,14 +199,13 @@ print('[{}] Pulling file metadata for validation:'.format(timestamp()), end="", 
 freeze2_files_metadata = rd3.get('rd3_freeze2_file',attributes='EGA,name,md5', q='typeFile==ped')
 
 if freeze2_files_metadata:
-    print('Sucess')
+    print('Success')
 else:
     print('Failed')
 
 for freeze2_file in freeze2_files_metadata:
     freeze2_file['filename'] = os.path.basename(freeze2_file['name'])
     freeze2_file['filename'] = re.split(r'(\.[0-9]{11,}\.cip)', freeze2_file['filename'])[0]
-
 
 #//////////////////////////////////////
 
@@ -254,8 +252,8 @@ for pedfile in available_ped_files:
                     'id': d[1],
                     'subjectID': d[1],
                     'fid': d[0],
-                    'mid': d[2],
-                    'pid': d[3],
+                    'mid': d[3],
+                    'pid': d[2],
                     'sex1': recode_sex(value=d[4]),
                     'clinical_status': recode_affected_status(value=d[5]),
                     'upload': True
@@ -326,12 +324,36 @@ for d in pedigree_data:
                     'ped_file_sex1': d['sex1']
                 })
     else:
-        print('[{}] Error: no matching for {} found'.format(timestamp(), d['subjectID']))
+        print('[{}] Error: no match for {} found'.format(timestamp(), d['subjectID']))
 
 # Warn if cases exist, manually verify each one and correct where applicable
 if patient_sex_codes_validation:
     raise SystemError('Inconsistencies detected in sex codes. Manually verify each case')
 
+[print(d) for d in patient_sex_codes_validation]
+
+# del d, q
+
+# format id, mid, pid
+for d in pedigree_data:
+    subject_q = find_dict(data = freeze2_subject_metadata,attr='subjectID',value=d['subjectID'])[0]
+    if subject_q:
+        d['id'] = subject_q['id']
+    else:
+        print('[{}] Error: no match for {} found in RD3'.format(timestamp(), d['subjectID']))
+    if d['mid']:
+        mid_q = find_dict(data = freeze2_subject_metadata, attr='subjectID', value=d['mid'])[0]
+        if mid_q:
+            d['mid'] = mid_q['id']
+        else:
+            print('[{}] given maternal ID {} does not exist in RD3'.format(timestamp(), d['mid']))
+    if d['pid']:
+        pid_q = find_dict(data = freeze2_subject_metadata, attr='subjectID', value=d['pid'])[0]
+        if pid_q:
+            d['pid'] = pid_q['id']
+        else:
+            print('[{}] given paternal ID {} does not exist in RD3'.format(timestamp(), d['pid']))
+    
 
 # upload data
 upload_fid = select_keys(data = pedigree_data, keys = ['id', 'fid'])

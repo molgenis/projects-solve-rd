@@ -167,6 +167,24 @@ def cluster_read_json(path):
         proc.kill()
         return ''
 
+
+# @title cluster_run_checksum
+# @description run md5 on a file and return the value
+# @param path location of the file run the checksum
+# @return a string containing an md5 value
+def cluster_run_checksum(path):
+    proc = subprocess.Popen(
+        ['ssh', 'corridor+fender', 'md5sum', path],
+        stdout = subprocess.PIPE,
+        stdin = subprocess.PIPE,
+        stderr = subprocess.PIPE,
+        universal_newlines=True
+    )
+    proc.wait()
+    value = proc.stdout.read().split()[0]
+    proc.kill()
+    return value
+
 # @title distinct_dict
 # @description get distinct dictionnaires only
 # @param data a list containing one or more dictionaries 

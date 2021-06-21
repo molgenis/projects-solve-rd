@@ -10,120 +10,118 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import os
-import molgenis.client as molgenis
-import json
-import yaml
-import subprocess
+import python.rd3_tools as rd3tools
+# import molgenis.client as molgenis
+# import json
+# import yaml
+# import subprocess
 import re
-import requests
-from urllib.parse import quote_plus, urlparse, parse_qs
+# import requests
+# from urllib.parse import quote_plus, urlparse, parse_qs
 from datetime import datetime
 
-# read config
-with open('python/_config.yml', 'r') as f:
-    config = yaml.safe_load(f)
 
-# @title timestamp
-def timestamp():
-    return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+# read config
+config = rd3tools.load_yaml_config("python/_config.yml")
+
 
 # @title Molgenis Extra
 # @describe Add script-specific methods to molgenis.Session class
 # @param molgenis.Session required param
 # @return ...
-class molgenis_extra(molgenis.Session):
-    def batch_update_one_attr(self, entity, attr, values):
-        add = 'No new data'
-        for i in range(0, len(values), 1000):
-            add = 'Update did tot go OK'
-            """Updates one attribute of a given entity with the given values of the given ids"""
-            response = self._session.put(
-                self._url + "v2/" + quote_plus(entity) + "/" + attr,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': values[i:i+1000]})
-            )
-            if response.status_code == 200:
-                add = 'Update went OK'
-            else:
-                try:
-                    response.raise_for_status()
-                except requests.RequestException as ex:
-                    self._raise_exception(ex)
-                return response
-        return add
-    def update_table(self, data, entity):
-        for d in range(0, len(data), 1000):
-            response = self._session.post(
-                url=self._api_url + 'v2/' + entity,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': data[d:d+1000]})
-            )
-            if response.status_code == 201:
-                print("Imported batch " + str(d) +
-                      " successfully (" + str(response.status_code) + ")")
-            else:
-                print("Failed to import batch " + str(d) +
-                      " (" + str(response.status_code) + ")")
+# class molgenis_extra(molgenis.Session):
+#     def batch_update_one_attr(self, entity, attr, values):
+#         add = 'No new data'
+#         for i in range(0, len(values), 1000):
+#             add = 'Update did tot go OK'
+#             """Updates one attribute of a given entity with the given values of the given ids"""
+#             response = self._session.put(
+#                 self._url + "v2/" + quote_plus(entity) + "/" + attr,
+#                 headers=self._get_token_header_with_content_type(),
+#                 data=json.dumps({'entities': values[i:i+1000]})
+#             )
+#             if response.status_code == 200:
+#                 add = 'Update went OK'
+#             else:
+#                 try:
+#                     response.raise_for_status()
+#                 except requests.RequestException as ex:
+#                     self._raise_exception(ex)
+#                 return response
+#         return add
+#     def update_table(self, data, entity):
+#         for d in range(0, len(data), 1000):
+#             response = self._session.post(
+#                 url=self._api_url + 'v2/' + entity,
+#                 headers=self._get_token_header_with_content_type(),
+#                 data=json.dumps({'entities': data[d:d+1000]})
+#             )
+#             if response.status_code == 201:
+#                 print("Imported batch " + str(d) +
+#                       " successfully (" + str(response.status_code) + ")")
+#             else:
+#                 print("Failed to import batch " + str(d) +
+#                       " (" + str(response.status_code) + ")")
 
-# @title list_ped_files
+# @title rd3tools.cluster_list_files
 # @description from a given path, create a list of available files
 # @param path location of the files
 # @return a list of dictionaries containing file metadata
-def list_ped_files(path):
-    available_files = subprocess.Popen(
-        ['ssh', 'corridor+fender', 'ls', path],
-        stdout = subprocess.PIPE,
-        stdin = subprocess.PIPE,
-        stderr= subprocess.PIPE,
-        universal_newlines=True
-    )
-    available_files.wait()
-    data = []
-    for f in available_files.stdout:
-        data.append({
-            'file_name': f.strip(),
-            'file_path': config['paths']['cluster']['ped'] + f.strip()
-        })
-    available_files.kill()
-    print('Found', len(data), 'files')
-    return data
+# def rd3tools.cluster_list_files(path):
+#     available_files = subprocess.Popen(
+#         ['ssh', 'corridor+fender', 'ls', path],
+#         stdout = subprocess.PIPE,
+#         stdin = subprocess.PIPE,
+#         stderr= subprocess.PIPE,
+#         universal_newlines=True
+#     )
+#     available_files.wait()
+#     data = []
+#     for f in available_files.stdout:
+#         data.append({
+#             'file_name': f.strip(),
+#             'file_path': config['paths']['cluster']['ped'] + f.strip()
+#         })
+#     available_files.kill()
+#     print('Found', len(data), 'files')
+#     return data
 
 # @title read_ped_file
 # @description read ped file from a given path
 # @param path location of the PED file to read
 # @return a list of lines
-def read_ped_file(path):
-    file = subprocess.Popen(
-        ['ssh', 'corridor+fender', 'cat', path],
-        stdout = subprocess.PIPE,
-        stdin = subprocess.PIPE,
-        stderr = subprocess.PIPE,
-        universal_newlines=True
-    )
-    file.wait()
-    data= []
-    for line in file.stdout:
-        data.append(line.strip())
-    file.kill()
-    return data
+# def read_ped_file(path):
+#     file = subprocess.Popen(
+#         ['ssh', 'corridor+fender', 'cat', path],
+#         stdout = subprocess.PIPE,
+#         stdin = subprocess.PIPE,
+#         stderr = subprocess.PIPE,
+#         universal_newlines=True
+#     )
+#     file.wait()
+#     data= []
+#     for line in file.stdout:
+#         data.append(line.strip())
+#     file.kill()
+#     return data
 
 
 # @title run_ped_checksum(path):
 # @description run the md5 command on a file and return the value
 # @param path location of the file run the checksum
 # @return a string containing an md5 value
-def run_ped_checksum(path):
-    proc = subprocess.Popen(
-        ['ssh', 'corridor+fender', 'md5sum', path],
-        stdout = subprocess.PIPE,
-        stdin = subprocess.PIPE,
-        stderr = subprocess.PIPE,
-        universal_newlines=True
-    )
-    proc.wait()
-    value = proc.stdout.read().split()[0]
-    proc.kill()
-    return value
+# def run_ped_checksum(path):
+#     proc = subprocess.Popen(
+#         ['ssh', 'corridor+fender', 'md5sum', path],
+#         stdout = subprocess.PIPE,
+#         stdin = subprocess.PIPE,
+#         stderr = subprocess.PIPE,
+#         universal_newlines=True
+#     )
+#     proc.wait()
+#     value = proc.stdout.read().split()[0]
+#     proc.kill()
+#     return value
 
 # @title recode_sex
 # @description recode PED coding into RD3 terminology
@@ -151,23 +149,23 @@ def recode_affected_status(value):
 # @param name of attribute to flatten
 # @param distinct if TRUE, return unique cases only
 # @return a list of values
-def flatten_attr(data, attr, distinct=False):
-    out = []
-    for d in data:
-        tmp_attr = d.get(attr)
-        out.append(tmp_attr)
-    if distinct:
-        return list(set(out))
-    else:
-        return out
+# def flatten_attr(data, attr, distinct=False):
+#     out = []
+#     for d in data:
+#         tmp_attr = d.get(attr)
+#         out.append(tmp_attr)
+#     if distinct:
+#         return list(set(out))
+#     else:
+#         return out
 
 # @title filter list of dictionaries
 # @param data object to search
 # @param attr variable find match
 # @param value value to filter for
 # @return a list of a dictionary
-def find_dict(data, attr, value):
-    return list(filter(lambda d: d[attr] in value, data))
+# def find_dict(data, attr, value):
+#     return list(filter(lambda d: d[attr] in value, data))
 
 
 # @title select keys
@@ -175,19 +173,26 @@ def find_dict(data, attr, value):
 # @param data list of dictionaries to select
 # @param keys an array of values
 # @return a list of dictionaries
-def select_keys(data, keys):
-    return list(map(lambda x: {k: v for k, v in x.items() if k in keys}, data))
+# def select_keys(data, keys):
+#     return list(map(lambda x: {k: v for k, v in x.items() if k in keys}, data))
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # init session
-print('[{}] Initializing Molgenis Session'.format(timestamp()))
-rd3 = molgenis_extra(url=config['host'][config['env']], token=config['tokens'][config['env']])
+print('[{}] Initializing Molgenis Session'.format(rd3tools.timestamp()))
+rd3 = rd3tools.molgenis(
+    url=config['hosts'][config['run']['env']],
+    token=config['tokens'][config['env']]
+)
 
 # load patient metadata for comparision
-print('[{}] Pulling subject metadata for validation: '.format(timestamp()), end="", flush=True)
+print(
+    '[{}] Pulling subject metadata for validation: '.format(rd3tools.timestamp()),
+    end="",
+    flush=True
+)
 freeze2_subject_metadata = rd3.get('rd3_freeze2_subject', attributes='id,subjectID,sex1')
-subject_ids = flatten_attr(data=freeze2_subject_metadata, attr='subjectID')
+subject_ids = rd3tools.flatten_attr(data=freeze2_subject_metadata, attr='subjectID')
 
 if freeze2_subject_metadata:
     print('Success')
@@ -195,7 +200,7 @@ else:
     print('Failed')
 
 # load files metadata to compare md5sums
-print('[{}] Pulling file metadata for validation:'.format(timestamp()), end="", flush=True)
+print('[{}] Pulling file metadata for validation:'.format(rd3tools.timestamp()), end="", flush=True)
 freeze2_files_metadata = rd3.get('rd3_freeze2_file',attributes='EGA,name,md5', q='typeFile==ped')
 
 if freeze2_files_metadata:
@@ -210,8 +215,8 @@ for freeze2_file in freeze2_files_metadata:
 #//////////////////////////////////////
 
 # gather a list of available PED files
-print('[{}] Gathering list of PED files:'.format(timestamp()), end="", flush=True)
-available_ped_files = list_ped_files(path=config['paths']['cluster']['ped'])
+print('[{}] Gathering list of PED files:'.format(rd3tools.timestamp()), end="", flush=True)
+available_ped_files = rd3tools.cluster_list_files(path=config['paths']['cluster']['ped'])
 
 if available_ped_files:
     print('Success')
@@ -224,26 +229,36 @@ else:
 raw_ped_data = []
 starttime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
 for pedfile in available_ped_files:
-    print('[{}] Processing file {}'.format(timestamp(), pedfile['file_name']))
-    result = find_dict(data=freeze2_files_metadata, attr='filename', value=pedfile['file_name'])
+    print('[{}] Processing file {}'.format(rd3tools.timestamp(), pedfile['file_name']))
+    result = rd3tools.find_dict(
+        data=freeze2_files_metadata,
+        attr='filename',
+        value=pedfile['file_name']
+    )
     should_process = False
     if result:
-        print('[{}] Evaluating checksums with file metadata'.format(timestamp()))
-        md5_result = run_ped_checksum(path = pedfile['file_path'])
+        print('[{}] Evaluating checksums with file metadata'.format(rd3tools.timestamp()))
+        md5_result = rd3tools.cluster_run_checksum(path = pedfile['file_path'])
         if result[0]['md5'] == md5_result:
-            print('[{}] Checksum differs. Data will be processed'.format(timestamp()))
+            print(
+                '[{}] Checksum differs. Data will be processed'
+                .format(rd3tools.timestamp())
+            )
             should_process = True
         else:
-            print('[{}] Checksum is the same. Moving to next file'.format(timestamp()))
+            print(
+                '[{}] Checksum is the same. Moving to next file'
+                .format(rd3tools.timestamp())
+            )
             continue
     else:
         print(
             '[{}] File {} does not exist in current freeze'
-            .format(timestamp(), pedfile['file_name'])
+            .format(rd3tools.timestamp(), pedfile['file_name'])
         )
     if should_process:
-        print('[{}] Parsing file'.format(timestamp()))
-        raw_ped = read_ped_file(path=pedfile['file_path'])
+        print('[{}] Parsing file'.format(rd3tools.timestamp()))
+        raw_ped = rd3tools.cluster_read_file(path=pedfile['file_path'])
         data = []
         for line in raw_ped:
             d = line.split()
@@ -261,28 +276,28 @@ for pedfile in available_ped_files:
                 if ('FAM' in subject['id']) or (subject['id'] not in subject_ids):
                     print(
                         '[{}] ID {} from family {} does not exist'
-                        .format(timestamp(), subject['id'], subject['fid'])
+                        .format(rd3tools.timestamp(), subject['id'], subject['fid'])
                     )
                     subject['upload'] = False
                 if ('FAM' in subject['mid']) or (subject['mid'] == '0') or (subject['mid'] not in subject_ids) :
                         subject['error_mid']=subject['mid']
                         print(
                             '[{}] removed mid {} as it starts with `FAM`, is `0`, or it does not exist'
-                            .format(timestamp(), subject['mid'])
+                            .format(rd3tools.timestamp(), subject['mid'])
                         )
                         subject['mid']=None
                 if ('FAM' in subject['pid']) or (subject['pid'] == '0') or (subject['pid'] not in subject_ids):
                         subject['error_pid']=subject['pid']
                         print(
                             '[{}] removed pid {} as it starts with `FAM`, is `0`, or it does not exist'
-                            .format(timestamp(), subject['pid'])
+                            .format(rd3tools.timestamp(), subject['pid'])
                         )
                         subject['pid']=None
                 raw_ped_data.append(subject)
             else:
                 print(
                     '[{}] line in {} does not have six columns (has: {})'
-                    .format(timestamp(), pedfile['file_name'], len(d))
+                    .format(rd3tools.timestamp(), pedfile['file_name'], len(d))
                 )
         should_process = False
 
@@ -291,32 +306,37 @@ endtime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
 print(
     "[{}] Processed PED files in {}"
     .format(
-        timestamp(),
+        rd3tools.timestamp(),
         datetime.strptime(endtime,'%H:%M:%S.%f') - datetime.strptime(starttime, '%H:%M:%S.%f')
     )
 )
 
 # file data and prepare for import
-print('[{}] Removing cases where `upload=False`'.format(timestamp()))
+print('[{}] Removing cases where `upload=False`'.format(rd3tools.timestamp()))
 pedigree_data = []
 for pf in raw_ped_data:
     if pf['upload']:
         pedigree_data.append(pf)
 
 # validate PED data with phenopackets or other sources
-print('[{}] Validating Sex codes and updating ID'.format(timestamp()))
+print('[{}] Validating Sex codes and updating ID'.format(rd3tools.timestamp()))
 patient_sex_codes_validation = []
 for d in pedigree_data:
-    q = find_dict(data = freeze2_subject_metadata,attr='subjectID',value=d['subjectID'])[0]
+    q = rd3tools.find_dict(data = freeze2_subject_metadata,attr='subjectID',value=d['subjectID'])[0]
     if q:
         d['id'] = q['id']
         if ('sex1' in d) and ('sex1' in q):
             if d['sex1'] == q['sex1']['identifier']:
-                print('[{}] Sex codes are identical'.format(timestamp()))
+                print('[{}] Sex codes are identical'.format(rd3tools.timestamp()))
             if d['sex1'] != q['sex1']['identifier']:
                 print(
                     '[{}] Sex codes for {} do not match: PED={}, RD3={}'
-                    .format(timestamp(), d['subjectID'], q['sex1']['identifier'], d['sex1'])
+                    .format(
+                        rd3tools.timestamp(),
+                        d['subjectID'],
+                        q['sex1']['identifier'],
+                        d['sex1']
+                    )
                 )
                 patient_sex_codes_validation.append({
                     'subjectID': d['subjectID'],
@@ -324,7 +344,10 @@ for d in pedigree_data:
                     'ped_file_sex1': d['sex1']
                 })
     else:
-        print('[{}] Error: no match for {} found'.format(timestamp(), d['subjectID']))
+        print(
+            '[{}] Error: no match for {} found'
+            .format(rd3tools.timestamp(), d['subjectID'])
+        )
 
 # Warn if cases exist, manually verify each one and correct where applicable
 if patient_sex_codes_validation:
@@ -336,30 +359,51 @@ if patient_sex_codes_validation:
 
 # format id, mid, pid
 for d in pedigree_data:
-    subject_q = find_dict(data = freeze2_subject_metadata,attr='subjectID',value=d['subjectID'])[0]
+    subject_q = rd3tools.find_dict(
+        data = freeze2_subject_metadata,
+        attr='subjectID',
+        value=d['subjectID']
+    )[0]
     if subject_q:
         d['id'] = subject_q['id']
     else:
-        print('[{}] Error: no match for {} found in RD3'.format(timestamp(), d['subjectID']))
+        print(
+            '[{}] Error: no match for {} found in RD3'
+            .format(rd3tools.timestamp(), d['subjectID'])
+        )
     if d['mid']:
-        mid_q = find_dict(data = freeze2_subject_metadata, attr='subjectID', value=d['mid'])[0]
+        mid_q = rd3tools.find_dict(
+            data = freeze2_subject_metadata,
+            attr='subjectID',
+            value=d['mid']
+        )[0]
         if mid_q:
             d['mid'] = mid_q['id']
         else:
-            print('[{}] given maternal ID {} does not exist in RD3'.format(timestamp(), d['mid']))
+            print(
+                '[{}] given maternal ID {} does not exist in RD3'
+                .format(rd3tools.timestamp(), d['mid'])
+            )
     if d['pid']:
-        pid_q = find_dict(data = freeze2_subject_metadata, attr='subjectID', value=d['pid'])[0]
+        pid_q = rd3tools.find_dict(
+            data = freeze2_subject_metadata,
+            attr='subjectID',
+            value=d['pid']
+        )[0]
         if pid_q:
             d['pid'] = pid_q['id']
         else:
-            print('[{}] given paternal ID {} does not exist in RD3'.format(timestamp(), d['pid']))
+            print(
+                '[{}] given paternal ID {} does not exist in RD3'
+                .format(rd3tools.timestamp(), d['pid'])
+            )
     
 
 # upload data
-upload_fid = select_keys(data = pedigree_data, keys = ['id', 'fid'])
-upload_mid = select_keys(data = pedigree_data, keys = ['id', 'mid'])
-upload_pid = select_keys(data = pedigree_data, keys = ['id', 'pid']) 
-upload_clinical = select_keys(data = pedigree_data, keys = ['id','clinical_status'])
+upload_fid = rd3tools.select_keys(data = pedigree_data, keys = ['id', 'fid'])
+upload_mid = rd3tools.select_keys(data = pedigree_data, keys = ['id', 'mid'])
+upload_pid = rd3tools.select_keys(data = pedigree_data, keys = ['id', 'pid']) 
+upload_clinical = rd3tools.select_keys(data = pedigree_data, keys = ['id','clinical_status'])
 
 rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='fid', values=upload_fid)
 rd3.batch_update_one_attr(entity='rd3_freeze2_subject', attr='mid', values=upload_mid)

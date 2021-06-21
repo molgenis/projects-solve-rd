@@ -289,3 +289,8 @@ def select_keys(data, keys):
 # @description generate a timestamp in H:M:S.ms format
 def timestamp():
     return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+
+# @title Status Message
+# @description Prints a message with a timestamp
+def status_msg(msg):
+    print('[' + timestamp() + '] ' + str(msg))

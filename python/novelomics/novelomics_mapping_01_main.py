@@ -109,8 +109,8 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
             tmp['tissueType'] = 'Whole Blood'
         tmp['materialType'] = d.get('sample_type')
         tmp['patch'] = patch
-        tmp['organisation'] = d.get('organisation', {}).get('identifier')
-        tmp['ERN'] = d.get('ERN', {}).get('identifier')
+        tmp['organisation'] = d.get('organisation')
+        tmp['ERN'] = d.get('ERN')
         out.append(tmp)
     if distinct:
         return list(rd3tools.distinct_dict(out, lambda x: ( x['id'], x['sampleID'] ) ))
@@ -121,27 +121,21 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
 # @title update RD3 Subjects
 # @description Using a reference ID list, update patch data for matching subjects
 # @param data a list containing 1 or more dictionaries
-# @param ids a list of unique reference IDs
 # @param patch string containing a new patch ID
+# @param distinct If True, unique patientis are returned
 # @return a list containing one or more dictionaries
-def update_rd3_subject(data, ids, patch):
+def update_rd3_subject(data, patch, distinct=True):
     out = []
     for d in data:
         tmp = {}
-        # if d['subjectID'] in ids:
         tmp['id'] = d.get('id')
-        tmp['subjectID'] = d.get('subjectID')
-        tmp['patch'] = d.get('patch')
-        tmp['organisation'] = d.get('organisation', {}).get('identifier')
-        tmp['ERN'] = d.get('ERN', {}).get('identifier')
-            # if len(tmp['patch']) >= 1:
-            #     tmp_patches = rd3tools.flatten_attr(tmp['patch'], 'id')
-            #     tmp['patch'] = ','.join(map(str, tmp_patches))
-            #     if not (patch in tmp_patches):
-            #         tmp['patch'] = tmp['patch'] + "," + patch
-            # else:
-            #     tmp['patch'] = patch
+        tmp['subjectID'] = d.get('subject_id')
+        tmp['patch'] = patch
+        tmp['organisation'] = d.get('organisation')
+        tmp['ERN'] = d.get('ERN')
         out.append(tmp)
+    if distinct:
+        return list(rd3tools.distinct_dict(out, key=lambda x: x['id'] ))
     return out
 
 
@@ -158,6 +152,7 @@ def update_processed_experiment_data(data):
         attr = 'processed',
         values = update
     )
+
 
 # @title Update Processed Shipment Staging Table
 # @description For Freeze1- & 2 cases, update the processed attribute to True
@@ -184,36 +179,72 @@ def update_processed_shipment_data(metadata, data):
 
 # @title Merge Afilliation Data
 # @description merge ERN and organisation metadata with main dataset
-# @param data main dataset
-# @param metadata reference dataset containing affiliation metadata
+# @param x primary dataset in which to merge data to (experiment metadata)
+# @param y secondary dataset to merge with the main dataset (shipment)
 # @return list of dictionaries
-def merge_affiliation_data(data, metadata):
-    for dat in data:
-        result = rd3tools.find_dict(metadata, 'subjectID', dat['subject_id'])
-        if len(result):
-            dat['organisation'] = result[0]['organisation']
-            dat['ERN'] = result[0]['ERN']
-    return data
+def merge_affiliation_data(x, y):
+    out = []
+    for dat in x:
+        tmp = dat
+        tmp['organisation'] = None
+        tmp['ERN'] = None
+        result = rd3tools.find_dict(y, 'participant_subject', dat['subject_id'])
+        if result:
+            tmp['organisation'] = result[0].get('organisation')
+            tmp['ERN'] = result[0].get('ERN')
+        out.append(tmp)
+    return out
+
+
+# @title Recode ERNS
+# @description recode raw values in the ERN column to RD3 terminology
+# @param ern_ref a list containing unique ERN values
+# @param value a string containing an ERN code
+# @returns a string
+def recode_erns(data, refs, attr = 'ERN'):
+    patterns = {
+        'ERN-GENTURIS': ['Genturis', 'GENTURIS', 'genturis'],
+        'ERN-ITHACA': ['Ithaca', 'ithaca'],
+        'ERN-NMD': ['NMD'],
+        'ERN-RND': ['RND']
+    }
+    out = []
+    for d in data:
+        tmp = d
+        if not(tmp[attr] in refs):
+            for pattern in patterns:
+                if tmp[attr] in patterns[pattern]:
+                    tmp[attr] = pattern
+        out.append(tmp)
+    return out
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # init session
 rd3tools.status_msg('Processing NovelOmics Data...')
-rd3 = rd3tools.molgenis(url=config['host'][config['env']], token=config['token'])
+rd3 = rd3tools.molgenis(
+    url=config['hosts'][config['run']['env']],
+    token=config['tokens'][config['run']['env']]
+)
 
+# fetch all reference data
+rd3tools.get('Fetching RD3 reference entities')
+rd3_organisations = rd3.get('rd3_organisation')
+rd3_ERN = rd3.get('rd3_ERN')
 
 # fetch raw novelomics data from the portal 
 rd3tools.status_msg('Fetching data from the portal')
 experiment = rd3.get(
     entity = 'rd3_portal_novelomics_experiment',
-    q='processed==false',
+    # q='processed==false',
     batch_size=10000
 )
 metadata = rd3.get(
     'rd3_portal_novelomics_shipment',
-    q = 'processed==false',
+    # q = 'processed==false',
     batch_size = 10000
 )
+
 
 # determine if mapping is necessary
 should_map = False
@@ -226,29 +257,35 @@ else:
 
 # map data
 if should_map:
+    rd3tools.status_msg('Processing ERN data...')
+    ern_refs = rd3tools.flatten_attr(data=rd3_ERN, attr='identifier')
+    metadata = recode_erns(data=metadata, refs=ern_refs, attr='ERN')
     rd3tools.status_msg('Processing new data...')
+    novelomics = merge_affiliation_data(
+        x = experiment,
+        y = metadata
+    )
     novelomics_file = map_rd3_files(
-        data = experiment,
+        data = novelomics,
         sample_id_suffix = "_novelomics_original",
         patch = 'novelomics_original'
     )
     novelomics_labinfo = map_rd3_labinfo(
-        data = experiment,
+        data = novelomics,
         id_suffix = '_novelomics_original',
         sample_id_suffix = '_novelomics_original',
         patch = 'novelomics_original',
         distinct = True
     )
     novelomics_sample = map_rd3_samples(
-        data = experiment,
+        data = novelomics,
         id_suffix='_novelomics_original',
         subject_suffix="_original",
         patch='novelomics_original',
         distinct = True
     )
     novelomics_subject = update_rd3_subject(
-        data = freeze1_subjects,
-        ids = rd3_freeze1_ids,
+        data = metadata,
         patch = 'novelomics_original'
     )
     should_import_freeze_1 = True

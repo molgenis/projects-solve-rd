@@ -40,6 +40,20 @@ def map_rd3_subject(data, patch, distinct=True):
     return out
 
 
+# @title Map RD3 Subject Information
+# @description create entity for subjectinfo
+# @param data processed subject data (output from `map_rd3_subject`)
+# @return a list of dictionaries containing relevant subjectinfo data
+def map_rd3_subjectinfo(data):
+    out = []
+    for d in data:
+        out.append({
+            'id': d.get('id'),
+            'subjectID': d.get('id'),
+            'patch': d.get('patch')
+        })
+    return out
+
 # @title map new rd3 samples
 # @param data input data
 # @param id_suffix content to append to ID, e.g., "_original"
@@ -251,10 +265,11 @@ if should_map:
         data = metadata,
         patch = 'novelomics_original'
     )
+    novelomics_subjectinfo = map_rd3_subjectinfo(data = novelomics_subject)
     novelomics_sample = map_rd3_samples(
         data = novelomics,
         id_suffix='_novelomics_original',
-        subject_suffix="_original",
+        subject_suffix="_novelomics_original",
         patch='novelomics_original',
         distinct = True
     )
@@ -285,10 +300,7 @@ if should_import_novelomics:
         entity = 'rd3_novelomics_subject'
     )
     rd3.update_table(
-        data = rd3tools.select_keys(
-            data = novelomics_subject,
-            keys = ['id', 'patch']
-        ),
+        data = novelomics_subjectinfo,
         entity = 'rd3_novelomics_subjectinfo'
     )
     rd3tools.status_msg('Importing novel omics samples metadata...')
@@ -299,7 +311,7 @@ if should_import_novelomics:
     rd3tools.status_msg('Importing novel omics labinfo metadata...')
     rd3.update_table(
         data = novelomics_labinfo,
-        entity = 'rd3_novelomics_labinfo'
+        entity = 'rd3_novelomics_labinfo_wgs'
     )
     rd3tools.status_msg('Importing novel omics file metadata...')
     rd3.update_table(

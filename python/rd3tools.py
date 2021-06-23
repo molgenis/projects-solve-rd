@@ -32,18 +32,39 @@ class molgenis(molgenis.Session):
     # @param entity ID of the target entity written as 'package_entity'
     # @return a response code
     def update_table(self, data, entity):
-        for d in range(0, len(data), 1000):
+        if len(data) < 1000:
             response = self._session.post(
-                url=self._url + 'v2/' + entity,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': data[d:d+1000]})
+                url = self._url + 'v2/' + quote_plus(entity),
+                headers = self._get_token_header_with_content_type(),
+                data = json.dumps({'entities' : data})
             )
             if response.status_code == 201:
-                print("Imported batch " + str(d) +
-                      " successfully (" + str(response.status_code) + ")")
+                status_msg(
+                    'Successfully imported data (response: {})'
+                    .format(response.status_code)
+                )
             else:
-                print("Failed to import batch " + str(d) +
-                      " (" + str(response.status_code) + ")")
+                status_msg(
+                    'Failed to import data (response: {}): \nReason:{}'
+                    .format(response.status_code, response.content)
+                )
+        else:    
+            for d in range(0, len(data), 1000):
+                response = self._session.post(
+                    url=self._url + 'v2/' + entity,
+                    headers=self._get_token_header_with_content_type(),
+                    data=json.dumps({'entities': data[d:d+1000]})
+                )
+                if response.status_code == 201:
+                    status_msg(
+                        'Successfuly imported batch {} (response: {})'
+                        .format(d, response.status_code)
+                    )
+                else:
+                    status_msg(
+                        'Failed to import data (response: {}): \nReason:{}'
+                        .format(response.status_code, response.content)
+                    )
     # @title Batch Update Entity Attribute
     # @name batch_update_one_attr
     # @description import data for an attribute in groups of 1000
@@ -290,10 +311,12 @@ def lookups_prep_new(data, id_name='identifier', label_name='label', clean = Fal
     for d in data:
         new = {}
         value  = d.get('id')
+        label = d.get('label')
         if clean:
             value = '-'.join(d.get('id').split()).lower()
+            label = value
         new[id_name] = value
-        new[label_name] = d.get('label')
+        new[label_name] = label
         out.append(new)
     return out
 

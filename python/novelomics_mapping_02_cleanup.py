@@ -2,15 +2,15 @@
 #' FILE: novelomics_mapping_02_cleanup.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-05-06
-#' MODIFIED: 2021-05-06
+#' MODIFIED: 2021-06-23
 #' PURPOSE: clean up processed records
-#' STATUS: in.progress
-#' PACKAGES: molgenis.client
+#' STATUS: working
+#' PACKAGES: rd3tools
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-import os
-import molgenis.client as molgenis
+import python.rd3tools as rd3tools
+config = rd3tools.load_yaml_config('python/_config.yml')
 
 # @title pull IDs
 # @description create a list of IDs to remove based on processed status
@@ -21,36 +21,43 @@ def pull_ids(data):
             out.append(d['molgenis_id'])
     return out
 
-
-# init API config
-# os.environ['molgenisToken'] = ''
-env = 'dev'
-api = {
-    'host': {
-        'prod': 'https://solve-rd.gcc.rug.nl/api/',
-        'acc' : 'https://solve-rd-acc.gcc.rug.nl/api/',
-        'dev' : 'https://solve-rd-acc.gcc.rug.nl/api/',
-    },
-    'token': {
-        'prod': '${molgenisToken}',
-        'acc': '${molgenisToken}',
-        'dev': os.getenv('molgenisToken') if os.getenv('molgenisToken') is not None else None
-    }
-}
+#//////////////////////////////////////////////////////////////////////////////
 
 # init session
-rd3 = molgenis.Session(url=api['host'][env], token=api['token'][env])
-
+rd3tools.status_msg('Starting session...')
+rd3 = rd3tools.molgenis(
+    url = config['hosts'][config['run']['env']],
+    token = config['tokens'][config['run']['env']]
+)
 
 # fetch processed cases from staging tables
-experiment = rd3.get('rd3_portal_novelomics_experiment',q='processed==True',batch_size=10000)
-metadata = rd3.get('rd3_portal_novelomics_shipment', q='processed==True',batch_size=10000)
+rd3tools.status_msg('Fetching processed portal data...')
 
-# flatten IDs
-experiment_ids_to_remove = pull_ids(data=experiment)
-metadata_ids_to_remove = pull_ids(data=metadata)
+experiment = rd3.get(
+    entity = 'rd3_portal_novelomics_experiment',
+    q='processed==True',
+    batch_size=10000
+)
 
+metadata = rd3.get(
+    entity = 'rd3_portal_novelomics_shipment',
+    q = 'processed==True',
+    batch_size = 10000
+)
 
-# delete IDs from staging area
-rd3.delete_list(entity='rd3_portal_novelomics_experiment', entities=experiment_ids_to_remove)
-rd3.delete_list(entity='rd3_portal_novelomics_shipment', entities=metadata_ids_to_remove)
+# check results
+if metadata:
+    rd3tools.status_msg('Removing processed data from `rd3_portal_novelomics_shipment`...')
+    metadata_ids_to_remove = pull_ids(data=metadata)
+    rd3.delete_list(
+        entity = 'rd3_portal_novelomics_shipment',
+        entities = metadata_ids_to_remove
+    )
+
+if experiment:
+    rd3tools.status_msg('Removing processed data from `rd3_portal_novelomics_experiment`...')
+    experiment_ids_to_remove = pull_ids(data=experiment)
+    rd3.delete_list(
+        entity = 'rd3_portal_novelomics_experiment',
+        entities = experiment_ids_to_remove
+    )

@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-06-09
+# MODIFIED: 2021-06-23
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -15,50 +15,57 @@
 # table.
 # //////////////////////////////////////////////////////////////////////////////
 
-import os 
 from datetime import datetime
-import python.rd3_tools as rd3tools
-
+import python.rd3tools as rd3tools
 config = rd3tools.load_yaml_config('python/_config.yml')
 
-# @title evaluate patch values
-# @description for subjects with existing patch information, extract and
-#   collapse new patch information with existing
-# @param data a single dictionary containing subject metadata
-# @param patch new patch information
-# @return a dictionary with the updated patch information
-def proc_subject_patch(data, patch):
-    out = []
-    if len(data['patch']) == 1:
-        out['patch'] = data['patch'][0]['id'] + ',' + patch
-    else:
-        out['patch'] = patch
-    return out
-
-
-# @title map new freeze files
-# @description map file metadata to target EMX format
-# @param data input data
-# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
-# @param patch SolveRD3 data release
-# @return list of dictionaries
-def map_rd3_files(data, sample_id_suffix, patch):
+# @title map RD3 Subjects
+# @description Using a reference ID list, update patch data for matching subjects
+# @param data a list containing 1 or more dictionaries
+# @param patch string containing a new patch ID
+# @param distinct If True, unique patientis are returned
+# @return a list containing one or more dictionaries
+def map_rd3_subject(data, patch, distinct=True):
     out = []
     for d in data:
         tmp = {}
-        tmp['EGA'] = d.get('file_ega_id')
-        tmp['name'] = d.get('file_path') + '/' + d.get('file_name')
-        tmp['md5'] = d.get('unencrypted_md5_checksum')
-        tmp['typeFile'] = d.get('file_type')
-        # tmp['filegroupID'] = d.get('file_group_id')
-        tmp['samples'] = d.get('sample_id') + sample_id_suffix
-        tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        # tmp['run_ega_id'] = d.get('run_ega_id')
-        # tmp['experiment_ega_id'] = d.get('experiment_ega_id')
+        tmp['id'] = d.get('participant_subject') + '_' + patch
+        tmp['subjectID'] = d.get('participant_subject')
         tmp['patch'] = patch
-        tmp['dateCreated'] = datetime.today().strftime('%Y-%m-%d')
+        tmp['organisation'] = d.get('organisation')
+        tmp['ERN'] = d.get('ERN')
         out.append(tmp)
+    if distinct:
+        return list(rd3tools.distinct_dict(out, key=lambda x: x['id'] ))
     return out
+
+
+# @title map new rd3 samples
+# @param data input data
+# @param id_suffix content to append to ID, e.g., "_original"
+# @param subject_suffix A string indicating which patch in rd3_freeze*_subject to link to
+# @param patch SolveRD3 data release
+# @param distinct if True, distinct dictionaries will be returned
+# @return list of dictionaries
+def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
+    out = []
+    for d in data:
+        tmp = {}
+        tmp['id'] = d.get('sample_id') + id_suffix
+        tmp['subject'] = d.get('subject_id') + subject_suffix
+        tmp['sampleID'] = d.get('sample_id')
+        tmp['tissueType'] = d.get('tissue_type')
+        if tmp['tissueType'] == 'blood':
+            tmp['tissueType'] = 'Whole Blood'
+        tmp['materialType'] = d.get('sample_type')
+        tmp['patch'] = patch
+        tmp['organisation'] = d.get('organisation')
+        tmp['ERN'] = d.get('ERN')
+        out.append(tmp)
+    if distinct:
+        return list(rd3tools.distinct_dict(out, lambda x: ( x['id'], x['sampleID'] ) ))
+    else:
+        return out
 
 
 # @title map new labinfo
@@ -90,91 +97,27 @@ def map_rd3_labinfo(data, id_suffix, sample_id_suffix, patch, distinct=False):
     else:
         return out
 
-# @title map new rd3 samples
+
+# @title map new freeze files
+# @description map file metadata to target EMX format
 # @param data input data
-# @param id_suffix content to append to ID, e.g., "_original"
-# @param subject_suffix A string indicating which patch in rd3_freeze*_subject to link to
+# @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
 # @param patch SolveRD3 data release
-# @param distinct if True, distinct dictionaries will be returned
 # @return list of dictionaries
-def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
+def map_rd3_files(data, sample_id_suffix, patch):
     out = []
     for d in data:
         tmp = {}
-        tmp['id'] = d.get('sample_id') + id_suffix
-        tmp['subject'] = d.get('subject_id') + subject_suffix
-        tmp['sampleID'] = d.get('sample_id')
-        tmp['tissueType'] = None
-        if d.get('tissue_type') == 'blood':
-            tmp['tissueType'] = 'Whole Blood'
-        tmp['materialType'] = d.get('sample_type')
+        tmp['EGA'] = d.get('file_ega_id')
+        tmp['name'] = d.get('file_path') + '/' + d.get('file_name')
+        tmp['md5'] = d.get('unencrypted_md5_checksum')
+        tmp['typeFile'] = d.get('file_type')
+        tmp['samples'] = d.get('sample_id') + sample_id_suffix
+        tmp['experimentID'] = d.get('project_experiment_dataset_id')
         tmp['patch'] = patch
-        tmp['organisation'] = d.get('organisation')
-        tmp['ERN'] = d.get('ERN')
+        tmp['dateCreated'] = datetime.today().strftime('%Y-%m-%d')
         out.append(tmp)
-    if distinct:
-        return list(rd3tools.distinct_dict(out, lambda x: ( x['id'], x['sampleID'] ) ))
-    else:
-        return out
-
-
-# @title update RD3 Subjects
-# @description Using a reference ID list, update patch data for matching subjects
-# @param data a list containing 1 or more dictionaries
-# @param patch string containing a new patch ID
-# @param distinct If True, unique patientis are returned
-# @return a list containing one or more dictionaries
-def update_rd3_subject(data, patch, distinct=True):
-    out = []
-    for d in data:
-        tmp = {}
-        tmp['id'] = d.get('id')
-        tmp['subjectID'] = d.get('subject_id')
-        tmp['patch'] = patch
-        tmp['organisation'] = d.get('organisation')
-        tmp['ERN'] = d.get('ERN')
-        out.append(tmp)
-    if distinct:
-        return list(rd3tools.distinct_dict(out, key=lambda x: x['id'] ))
     return out
-
-
-# @title Update Processed Experiment Data
-# @description Set the value of processed Freeze1 and Freeze2 data to True
-# @param data input dataset containing a list of dictionaries
-# @return string containing data request response
-def update_processed_experiment_data(data):
-    update = []
-    for d in data:
-        update.append({'molgenis_id': d.get('molgenis_id'), 'processed': True})
-    rd3.batch_update_one_attr(
-        entity='rd3_portal_novelomics_experiment',
-        attr = 'processed',
-        values = update
-    )
-
-
-# @title Update Processed Shipment Staging Table
-# @description For Freeze1- & 2 cases, update the processed attribute to True
-# @param metadata list containing shipmeny metadata
-# @param data list of freeze IDs to update
-def update_processed_shipment_data(metadata, data):
-    records = rd3tools.select_keys(
-        data = rd3tools.find_dict(
-            data = metadata,
-            attr = 'participant_subject',
-            value = data
-        ),
-        keys = ['molgenis_id']
-    )
-    update = []
-    for r in records:
-        update.append({'molgenis_id': r.get('molgenis_id'), 'processed': True})
-    rd3.batch_update_one_attr(
-        entity='rd3_portal_novelomics_shipment',
-        attr='processed',
-        values=update
-    )
 
 
 # @title Merge Afilliation Data
@@ -218,6 +161,40 @@ def recode_erns(data, refs, attr = 'ERN'):
         out.append(tmp)
     return out
 
+
+# @title Update Portal Experiment Data
+# @description Set the value of processed Freeze1 and Freeze2 data to True
+# @param data input dataset containing a list of dictionaries
+# @return string containing data request response
+def update_portal_experiment_tbl(data):
+    update = []
+    for d in data:
+        update.append({'molgenis_id': d.get('molgenis_id'), 'processed': True})
+    rd3.batch_update_one_attr(
+        entity='rd3_portal_novelomics_experiment',
+        attr = 'processed',
+        values = update
+    )
+
+
+# @title Update Portal Shipment Staging Table
+# @description For Freeze1- & 2 cases, update the processed attribute to True
+# @param metadata list containing shipmeny metadata
+# @return a response
+def update_portal_shipment_tbl(metadata):
+    records = rd3tools.select_keys(
+        data = metadata,
+        keys = ['molgenis_id']
+    )
+    update = []
+    for r in records:
+        update.append({'molgenis_id': r.get('molgenis_id'), 'processed': True})
+    rd3.batch_update_one_attr(
+        entity='rd3_portal_novelomics_shipment',
+        attr='processed',
+        values=update
+    )
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # init session
@@ -239,6 +216,7 @@ experiment = rd3.get(
     # q='processed==false',
     batch_size=10000
 )
+
 metadata = rd3.get(
     'rd3_portal_novelomics_shipment',
     # q = 'processed==false',
@@ -260,22 +238,18 @@ if should_map:
     rd3tools.status_msg('Processing ERN data...')
     ern_refs = rd3tools.flatten_attr(data=rd3_ERN, attr='identifier')
     metadata = recode_erns(data=metadata, refs=ern_refs, attr='ERN')
+    rd3tools.status_msg('Manually fixing organisations...')
+    for m in metadata:
+        if m['organisation'] == 'Malgorzata  Dec-Cwiek':
+            m['organisation'] = 'malgorzata-dec-cwiek'
     rd3tools.status_msg('Processing new data...')
     novelomics = merge_affiliation_data(
         x = experiment,
         y = metadata
     )
-    novelomics_file = map_rd3_files(
-        data = novelomics,
-        sample_id_suffix = "_novelomics_original",
+    novelomics_subject = map_rd3_subject(
+        data = metadata,
         patch = 'novelomics_original'
-    )
-    novelomics_labinfo = map_rd3_labinfo(
-        data = novelomics,
-        id_suffix = '_novelomics_original',
-        sample_id_suffix = '_novelomics_original',
-        patch = 'novelomics_original',
-        distinct = True
     )
     novelomics_sample = map_rd3_samples(
         data = novelomics,
@@ -284,15 +258,76 @@ if should_map:
         patch='novelomics_original',
         distinct = True
     )
-    novelomics_subject = update_rd3_subject(
-        data = metadata,
+    novelomics_labinfo = map_rd3_labinfo(
+        data = novelomics,
+        id_suffix = '_novelomics_original',
+        sample_id_suffix = '_novelomics_original',
+        patch = 'novelomics_original',
+        distinct = True
+    )
+    novelomics_file = map_rd3_files(
+        data = novelomics,
+        sample_id_suffix = "_novelomics_original",
         patch = 'novelomics_original'
     )
-    should_import_freeze_1 = True
-    print('Mapped NovelOmics Files:', len(novelomics_file))
-    print('Mapped NovelOmics Labinfo:', len(novelomics_labinfo))
-    print('Mapped NovelOmics Samples:', len(novelomics_sample))
-    print('Mapped NovelOmics Subjects:', len(novelomics_subject))
+    should_import_novelomics = True
+    rd3tools.status_msg('Mapped NovelOmics Files: {}'.format(len(novelomics_file)))
+    rd3tools.status_msg('Mapped NovelOmics Labinfo: {}'.format(len(novelomics_labinfo)))
+    rd3tools.status_msg('Mapped NovelOmics Samples: {}'.format(len(novelomics_sample)))
+    rd3tools.status_msg('Mapped NovelOmics Subjects: {}'.format(len(novelomics_subject)))
+
+
+# import novel omics data if applicable
+if should_import_novelomics:
+    rd3tools.status_msg('Importing novel omics subject metadata...')
+    rd3.update_table(
+        data = novelomics_subject,
+        entity = 'rd3_novelomics_subject'
+    )
+    rd3.update_table(
+        data = rd3tools.select_keys(
+            data = novelomics_subject,
+            keys = ['id', 'patch']
+        ),
+        entity = 'rd3_novelomics_subjectinfo'
+    )
+    rd3tools.status_msg('Importing novel omics samples metadata...')
+    rd3.update_table(
+        data = novelomics_sample,
+        entity = 'rd3_novelomics_sample'
+    )
+    rd3tools.status_msg('Importing novel omics labinfo metadata...')
+    rd3.update_table(
+        data = novelomics_labinfo,
+        entity = 'rd3_novelomics_labinfo'
+    )
+    rd3tools.status_msg('Importing novel omics file metadata...')
+    rd3.update_table(
+        data = novelomics_file,
+        entity = 'rd3_novelomics_file'
+    )
+    rd3tools.status_msg('Updating Portal Tables: setting `processed to `True`')
+    update_portal_experiment_tbl(data = novelomics)
+    update_portal_shipment_tbl(metadata = metadata)
+
+# FIN!
+print('Done!! :-)')
+
+#//////////////////////////////////////////////////////////////////////////////
+
+# @title evaluate patch values
+# @description for subjects with existing patch information, extract and
+#   collapse new patch information with existing
+# @param data a single dictionary containing subject metadata
+# @param patch new patch information
+# @return a dictionary with the updated patch information
+# def proc_subject_patch(data, patch):
+#     out = []
+#     if len(data['patch']) == 1:
+#         out['patch'] = data['patch'][0]['id'] + ',' + patch
+#     else:
+#         out['patch'] = patch
+#     return out
 
 # freeze1_subjects = rd3.get('rd3_freeze1_subject',attributes= api['attribs']['subject'],batch_size=10000)
 # freeze2_subjects = rd3.get('rd3_freeze2_subject',attributes= api['attribs']['subject'],batch_size=10000)
@@ -416,69 +451,3 @@ if should_map:
 #     print('Updated Freeze2 Subjects:', len(rd3_freeze2_subject))
 # else:
 #     print('No new freeze2 records to map')
-
-
-# #//////////////////////////////////////////////////////////////////////////////
-
-# # import freeze1 data if applicable
-# if should_import_freeze_1:
-#     print('Importing Freeze1 Subjects and Subject Info data...')
-#     rd3.batch_update_one_attr(
-#         entity = 'rd3_freeze1_subject',
-#         attr ='patch',
-#         values= rd3tools.select_dict(
-#             data = rd3_freeze1_subject,
-#             keys = ['id','patch']
-#         )
-#     )
-#     rd3.batch_update_one_attr(
-#         entity = 'rd3_freeze1_subjectinfo',
-#         attr = 'patch',
-#         values = rd3tools.select_dict(
-#             data = rd3_freeze1_subject,
-#             keys = ['id', 'patch']
-#         )
-#     )
-#     print('Importing Freeze 1 Samples...')
-#     rd3.update_table(data=rd3_freeze1_sample,entity='rd3_freeze1_sample')
-#     print('Importing Freeze 1 Labinfo...')
-#     rd3.update_table(data=rd3_freeze1_labinfo, entity='rd3_freeze1_labinfo_novelomics')
-#     print('Importing Freeze1 Files...')
-#     rd3.update_table(data=rd3_freeze1_file,entity='rd3_freeze1_file')
-#     print('Updating Portal Tables: setting `processed to `True`')
-#     update_processed_experiment_data(data=rd3_freeze1)
-#     update_processed_shipment_data(metadata=metadata,data=rd3_freeze1_ids)
-
-
-# # import freeze2 data if applicable
-# if should_import_freeze_2:
-#     print('Importing Freeze2 Subjects and Subject Info data...')
-#     rd3.batch_update_one_attr(
-#         entity='rd3_freeze2_subject',
-#         attr='patch',
-#         values=rd3tools.select_dict(
-#             data = rd3_freeze2_subject,
-#             keys = ['id','patch']
-#         )
-#     )
-#     rd3.batch_update_one_attr(
-#         entity='rd3_freeze2_subjectinfo',
-#         attr='patch',
-#         values=rd3tools.select_dict(
-#             data = rd3_freeze2_subject,
-#             keys = ['id','patch']
-#         )
-#     )
-#     print('Importing Freeze 2 Samples...')
-#     rd3.update_table(data=rd3_freeze2_sample,entity='rd3_freeze2_sample')
-#     print('Importing Freeze 2 Labinfo...')
-#     rd3.update_table(data=rd3_freeze2_labinfo,entity='rd3_freeze2_labinfo_novelomics')
-#     print('Importing Freeze 2 Files...')
-#     rd3.update_table(data=rd3_freeze2_file,entity='rd3_freeze2_file')
-#     print('Updating Portal Tables: setting `processed to `True`')
-#     update_processed_experiment_data(data=rd3_freeze2)
-#     update_processed_shipment_data(metadata=metadata,data=rd3_freeze2_ids)
-
-# # FIN!
-# print('Done!! :-)')
-

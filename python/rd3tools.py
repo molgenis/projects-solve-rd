@@ -1,11 +1,11 @@
 #'////////////////////////////////////////////////////////////////////////////
-#' FILE: rd3_tools.py
+#' FILE: rd3tools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-17
-#' MODIFIED: 2021-06-17
+#' MODIFIED: 2021-06-23
 #' PURPOSE: collection of methods used across scripts
-#' STATUS: in.progress
-#' PACKAGES: *see below*
+#' STATUS: working / ongoing
+#' PACKAGES: *see imports below*
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +34,7 @@ class molgenis(molgenis.Session):
     def update_table(self, data, entity):
         for d in range(0, len(data), 1000):
             response = self._session.post(
-                url=self._api_url + 'v2/' + entity,
+                url=self._url + 'v2/' + entity,
                 headers=self._get_token_header_with_content_type(),
                 data=json.dumps({'entities': data[d:d+1000]})
             )
@@ -262,6 +262,40 @@ def load_json(path):
         data = json.load(file)
         file.close()
     return data
+
+# @title Identitfy new lookup values
+# @description using a list of new values, determine if there are
+#       new values to update
+# @param lookup RD3 lookup table
+# @param lookup_attr the attribute to look into
+# @param new a list of unique values
+# @return a list of dictionaries of 
+def lookups_find_new(lookup, lookup_attr, new):
+    refs = flatten_attr(lookup, lookup_attr)
+    out = []
+    for n in new:
+        if (n in refs) == False:
+            out.append({'id': n, 'label': n})
+    return out
+
+# @title Prepare Reference Types for Import
+# @descrition prepare new reference data for import
+# @param data list containing one or more dictionaries of new references
+# @param id_name label to apply to the ID variable (id => identifier)
+# @param label_name label to map to 'label' key (i.e., name => label)
+# @param clean if TRUE, the ID attribute will be cleaned (spaces => '-'; text => lowered)
+# @return a list of dictionaries
+def lookups_prep_new(data, id_name='identifier', label_name='label', clean = False):
+    out = []
+    for d in data:
+        new = {}
+        value  = d.get('id')
+        if clean:
+            value = '-'.join(d.get('id').split()).lower()
+        new[id_name] = value
+        new[label_name] = d.get('label')
+        out.append(new)
+    return out
 
 # @title Get missing value count by key
 # @description get number of missing values by key

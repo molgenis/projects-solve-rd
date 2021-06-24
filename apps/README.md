@@ -1,4 +1,6 @@
-# Solve-RD Custom UIs
+# RD3 Applications
+
+In RD3, there are a few custom pages. This folder contains the source code for these pages.
 
 ## UIs
 

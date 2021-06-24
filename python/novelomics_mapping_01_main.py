@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-06-23
+# MODIFIED: 2021-06-24
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -209,6 +209,53 @@ def update_portal_shipment_tbl(metadata):
         values=update
     )
 
+
+# @title triage_ids
+# @description determine if values exist in reference entities
+# @param data dataset to evalue
+# @param attr attribute to search
+# @param freeze1 freeze1 reference data (list of values)
+# @param freeze2 freeze2 reference data (list of values)
+def triage_ids(data, attr, freeze1, freeze2):
+    out = {'freeze1': [], 'freeze2': []}
+    for d in data:
+            if d.get(attr) in freeze1:
+                if not(d.get(attr) in out['freeze1']):
+                    out['freeze1'].append(d.get(attr))
+            if d.get(attr) in freeze2:
+                if not(d.get(attr) in out['freeze2']):
+                    out['freeze2'].append(d.get(attr))
+    return out
+
+
+# @title process freeze subject IDs
+# @description For IDs that have been identified in novelomics,
+#       locate them in the freeze datasets, extract, and prep
+#       for import
+# @param data freeze dataset
+# @param refIDs a list of IDs (a nested listed from `triage_ids`)
+# @param patch the current patch
+# @return a list of dictionaries
+def process_freeze_subject_ids(data, refIDs, patch):
+    out = []
+    for d in data:
+        if d['subjectID'] in refIDs:
+            tmp = {
+                'id': d.get('id'),
+                'patch': d.get('patch')
+            }
+            if len(tmp['patch']) >= 1:
+                tmp_patches = rd3tools.flatten_attr(data = tmp['patch'], attr = 'id')
+                if not(patch in tmp_patches):
+                    tmp['patch'] = ','.join(map(str, tmp_patches)) + ',' + patch
+                else:
+                    tmp['patch'] = ','.join(map(str, tmp_patches))
+            else:
+                tmp['patch'] = patch
+            out.append(tmp)
+    return out
+
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # init session
@@ -222,6 +269,8 @@ rd3 = rd3tools.molgenis(
 rd3tools.get('Fetching RD3 reference entities')
 rd3_organisations = rd3.get('rd3_organisation')
 rd3_ERN = rd3.get('rd3_ERN')
+
+#//////////////////////////////////////
 
 # fetch raw novelomics data from the portal 
 rd3tools.status_msg('Fetching data from the portal')
@@ -245,7 +294,85 @@ if experiment and metadata:
     should_map = True
 else:
     rd3tools.status_msg('No new records to process. :-)')
+    raise SystemExit('Processing is up to date')
 
+#//////////////////////////////////////
+
+# fetch freeze patient metadata
+rd3tools.status_msg('Fetched Freeze Subject metadata...')
+freeze1_subjects = rd3.get(
+    entity = 'rd3_freeze1_subject',
+    attributes= 'id,subjectID,patch',
+    batch_size=10000
+)
+freeze2_subjects = rd3.get(
+    entity = 'rd3_freeze2_subject',
+    attributes= 'id,subjectID,patch',
+    batch_size=10000
+)
+
+# flatten subject IDs
+freeze1_subject_ids = rd3tools.flatten_attr(freeze1_subjects, 'subjectID')
+freeze2_subject_ids = rd3tools.flatten_attr(freeze2_subjects, 'subjectID')
+
+
+# triage freeze data
+rd3tools.status_msg('Searching for overlapping freeze IDs...')
+subject_freeze_matches = triage_ids(
+    data = experiment,
+    attr = 'subject_id',
+    freeze1 = freeze1_subject_ids,
+    freeze2 = freeze2_subject_ids
+)
+
+# Update patch info `rd3_freeze1_subject` and `rd3_freeze1_subjectinfo`
+if subject_freeze_matches['freeze1']:
+    rd3tools.status_msg('Identified Freeze1 IDs. Processing...')
+    subject_freeze1_updates = process_freeze_subject_ids(
+        data = freeze1_subjects,
+        refIDs = subject_freeze_matches['freeze1'],
+        patch = 'novelomics_original'
+    )
+    if subject_freeze1_updates:
+        rd3tools.status_msg('Updating Freeze1 subject patch info...')
+        rd3.batch_update_one_attr(
+            entity = 'rd3_freeze1_subject',
+            attr = 'patch',
+            values = subject_freeze1_updates
+        )
+        rd3.batch_update_one_attr(
+            entity = 'rd3_freeze1_subjectinfo',
+            attr = 'patch',
+            values = subject_freeze1_updates
+        )
+    else:
+        rd3tools.status_msg('No updates found')
+
+
+# Update patch info `rd3_freeze2_subject` and `rd3_freeze2_subjectinfo`
+if subject_freeze_matches['freeze2']:
+    rd3tools.status_msg('Identified Freeze2 IDs. Processing...')
+    subject_freeze2_updates = process_freeze_subject_ids(
+        data = freeze1_subjects,
+        refIDs = subject_freeze_matches['freeze2'],
+        patch = 'novelomics_original'
+    )
+    if subject_freeze2_updates:
+        rd3tools.status_msg('Updating Freeze2 Subject patch info...')
+        rd3.batch_update_one_attr(
+            entity = 'rd3_freeze2_subject',
+            attr = 'patch',
+            values = subject_freeze2_updates
+        )
+        rd3.batch_update_one_attr(
+            entity = 'rd3_freeze2_subjectinfo',
+            attr = 'patch',
+            values = subject_freeze2_updates
+        )
+    else:
+        rd3tools.status_msg('No updates found')
+
+#//////////////////////////////////////
 
 # map data
 if should_map:
@@ -323,143 +450,4 @@ if should_import_novelomics:
     update_portal_shipment_tbl(metadata = metadata)
 
 # FIN!
-print('Done!! :-)')
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# @title evaluate patch values
-# @description for subjects with existing patch information, extract and
-#   collapse new patch information with existing
-# @param data a single dictionary containing subject metadata
-# @param patch new patch information
-# @return a dictionary with the updated patch information
-# def proc_subject_patch(data, patch):
-#     out = []
-#     if len(data['patch']) == 1:
-#         out['patch'] = data['patch'][0]['id'] + ',' + patch
-#     else:
-#         out['patch'] = patch
-#     return out
-
-# freeze1_subjects = rd3.get('rd3_freeze1_subject',attributes= api['attribs']['subject'],batch_size=10000)
-# freeze2_subjects = rd3.get('rd3_freeze2_subject',attributes= api['attribs']['subject'],batch_size=10000)
-
-# flatten subject IDs
-# freeze1_ids = rd3tools.flatten_attr(freeze1_subjects, 'subjectID')
-# freeze2_ids = rd3tools.flatten_attr(freeze2_subjects, 'subjectID')
-
-
-# Triage all records from the staging area. Use subject ID to determine if the
-# record belongs in Freeze1 or Freeze2. We don't need to do anything with new cases
-# as they don't exist in Freeze1 or 2. It's best to leave them for now until they
-# are released in a freeze.
-# print('Triaging records...')
-# rd3_freeze1 = []
-# rd3_freeze2 = []
-# rd3_new = []
-# for d in experiment:
-#     if not d.get('processed'):
-#         if d.get('subject_id') in freeze1_ids:
-#             rd3_freeze1.append(d)
-#         elif d.get('subject_id') in freeze2_ids:
-#             rd3_freeze2.append(d)
-#         else:
-#             rd3_new.append(d)
-
-# print('Freeze 1 records to process:', len(rd3_freeze1))
-# print('Freeze 2 records to process:', len(rd3_freeze2))
-# print('New records:', len(rd3_new))
-
-# # validate triage
-# if sum(map(len, [rd3_freeze1, rd3_freeze2, rd3_new])) == len(experiment):
-#     print('Triaged all records')
-# else:
-#     print('Unable to triage all data')
-
-# get unique IDs for freeze1 and freeze2 patients
-# rd3_freeze1_ids = rd3tools.flatten_attr(rd3_freeze1, 'subject_id', distinct=True)
-# rd3_freeze2_ids = rd3tools.flatten_attr(rd3_freeze2, 'subject_id', distinct=True)
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# set import flags
-# should_import_freeze_1 = False
-# should_import_freeze_2 = False
-
-# process freeze1 data
-# if len(rd3_freeze1):
-#     print('Mapping new freeze1 data...')
-#     rd3_freeze1 = merge_affiliation_data(
-#         data=rd3_freeze1,
-#         metadata=freeze1_subjects
-#     )
-#     rd3_freeze1_file = map_rd3_files(
-#         data=rd3_freeze1,
-#         sample_id_suffix="_novelomics_original",
-#         patch='novelomics_original'
-#     )
-#     rd3_freeze1_labinfo = map_rd3_labinfo(
-#         data=rd3_freeze1,
-#         id_suffix = '_novelomics_original',
-#         sample_id_suffix = '_novelomics_original',
-#         patch = 'novelomics_original',
-#         distinct = True
-#     )
-#     rd3_freeze1_sample = map_rd3_samples(
-#         data=rd3_freeze1,
-#         id_suffix='_novelomics_original',
-#         subject_suffix="_original",
-#         patch='novelomics_original',
-#         distinct = True
-#     )
-#     rd3_freeze1_subject = update_rd3_subject(
-#         data = freeze1_subjects,
-#         ids = rd3_freeze1_ids,
-#         patch = 'novelomics_original'
-#     )
-#     should_import_freeze_1 = True
-#     print('Mapped Freeze1 Files:', len(rd3_freeze1_file))
-#     print('Mapped Freeze1 Labinfo:', len(rd3_freeze1_labinfo))
-#     print('Mapped Freeze1 Samples:', len(rd3_freeze1_sample))
-#     print('Updated Freeze1 Subjects:', len(rd3_freeze1_subject))
-# else:
-#     print('No new freeze1 records to map')
-
-# # process freeze2 data
-# if len(rd3_freeze2):
-#     print('Mapping new freeze2 data...')
-#     rd3_freeze2 = merge_affiliation_data(
-#         data=rd3_freeze2,
-#         metadata=freeze2_subjects
-#     )
-#     rd3_freeze2_file = map_rd3_files(
-#         data=rd3_freeze2,
-#         sample_id_suffix='_novelomics_original',
-#         patch='novelomics_original'
-#     )
-#     rd3_freeze2_labinfo = map_rd3_labinfo(
-#         data=rd3_freeze2,
-#         id_suffix = '_novelomics_original',
-#         sample_id_suffix = '_novelomics_original',
-#         patch = 'novelomics_original',
-#         distinct = True
-#     )
-#     rd3_freeze2_sample = map_rd3_samples(
-#         data=rd3_freeze2,
-#         id_suffix='_novelomics_original',
-#         subject_suffix="_original",
-#         patch='novelomics_original',
-#         distinct = True
-#     )
-#     rd3_freeze2_subject = update_rd3_subject(
-#         data = freeze2_subjects,
-#         ids = rd3_freeze2_ids,
-#         patch = 'novelomics_original'
-#     )
-#     should_import_freeze_2 = True
-#     print('Mapped Freeze2 Files:', len(rd3_freeze2_file))
-#     print('Mapped Freeze2 Labinfo:', len(rd3_freeze2_labinfo))
-#     print('Mapped Freeze2 Samples:', len(rd3_freeze2_sample))
-#     print('Updated Freeze2 Subjects:', len(rd3_freeze2_subject))
-# else:
-#     print('No new freeze2 records to map')
+rd3tools.status_msg('Done!! :-)')

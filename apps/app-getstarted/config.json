@@ -1,7 +1,7 @@
 {
     "label": "getstarted",
     "description": "Get Started with Solve-RD",
-    "version": "v1.0.0",
+    "version": "v1.1.0",
     "apiDependency": "v2",
     "name": "getstarted",
     "includeMenuAndFooter": true,

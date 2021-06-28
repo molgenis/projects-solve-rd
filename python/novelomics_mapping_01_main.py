@@ -266,7 +266,7 @@ rd3 = rd3tools.molgenis(
 )
 
 # fetch all reference data
-rd3tools.get('Fetching RD3 reference entities')
+rd3tools.status_msg('Fetching RD3 reference entities')
 rd3_organisations = rd3.get('rd3_organisation')
 rd3_ERN = rd3.get('rd3_ERN')
 

@@ -2,14 +2,13 @@
 #' FILE: rd3tools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-17
-#' MODIFIED: 2021-06-23
+#' MODIFIED: 2021-06-28
 #' PURPOSE: collection of methods used across scripts
 #' STATUS: working / ongoing
 #' PACKAGES: *see imports below*
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-# declare imports
 import molgenis.client as molgenis
 import subprocess
 import mimetypes
@@ -69,7 +68,7 @@ class molgenis(molgenis.Session):
     # @name batch_update_one_attr
     # @description import data for an attribute in groups of 1000
     # @param self required class param
-    # @param entity ID of the target enttiy written as `package_entity`
+    # @param entity ID of the target entity written as `package_entity`
     # @param values data to import, a list of dictionaries where each dictionary
     #       is structured with two keys: the ID attribute and the attribute
     #       that you wish to update. E.g. [{'id': 'id123", 'x': 1},...]
@@ -93,6 +92,22 @@ class molgenis(molgenis.Session):
                     self._raise_exception(ex)
                 return response
         return add
+    # @title Batch Remove Data
+    # @name batch_remove
+    # @description remove data from an entity using a list of row IDs
+    # @param selef required param
+    # @param entity ID of the target entity written as `package_entity`
+    # @param data a list row IDs (must contain values of the idAttribute)
+    # @return a response code
+    def batch_remove(self, entity, data):
+        if len(data) < 1000:
+            self.delete_list(entity = entity, entities = data)
+        else:
+            for d in range(0, len(data), 1000):
+                self.delete_list(
+                    entity = entity,
+                    entities = data[d+d:1000]
+                )
     # @title Upload File
     # @name upload_file
     # @description upload file (pdf, word, etc.) into Molgenis

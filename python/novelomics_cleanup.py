@@ -12,22 +12,7 @@
 
 import python.rd3tools as rd3tools
 config = rd3tools.load_yaml_config('python/_config.yml')
-rd3 = rd3tools.molgenis(url = config['hosts']['acc'], token = config['tokens']['acc'])
-
-# @title batch_remove
-# @description batch remove IDs from entitiy
-# @param entity ID of the entity
-# @param data list of IDs used to remove rows
-# @retrun status message
-def batch_remove(entity, data):
-    if len(data) < 1000:
-        rd3.delete_list(entity = entity, entities = data)
-    else:
-        for d in range(0, len(data), 1000):
-            rd3.delete_list(
-                entity = entity,
-                entities = data[d+d:1000]
-            )
+rd3 = rd3tools.molgenis(url = config['hosts']['prod'], token = config['tokens']['prod'])
 
 #//////////////////////////////////////
 
@@ -56,10 +41,12 @@ len(freeze2_file_ids_raw)
 # flatten
 freeze1_file_ids = rd3tools.flatten_attr(data = freeze1_file_ids_raw, attr = 'EGA')
 freeze2_file_ids = rd3tools.flatten_attr(data = freeze2_file_ids_raw, attr = 'EGA')
+len(freeze1_file_ids)
+len(freeze2_file_ids)
 
 # remove
-batch_remove(entity = 'rd3_freeze1_file', data = freeze1_file_ids)
-batch_remove(entity = 'rd3_freeze2_file', data = freeze2_file_ids)
+rd3.batch_remove(entity = 'rd3_freeze1_file', data = freeze1_file_ids)
+rd3.batch_remove(entity = 'rd3_freeze2_file', data = freeze2_file_ids)
 
 #//////////////////////////////////////
 
@@ -96,8 +83,9 @@ len(freeze2_sample_ids_raw)
 # flatten
 freeze1_sample_ids = rd3tools.flatten_attr(data = freeze1_sample_ids_raw, attr = 'id')
 freeze2_sample_ids = rd3tools.flatten_attr(data = freeze2_sample_ids_raw, attr = 'id')
-
+len(freeze1_sample_ids)
+len(freeze2_sample_ids)
 # delete
-batch_remove(entity = 'rd3_freeze1_sample', data = freeze1_sample_ids)
-batch_remove(entity = 'rd3_freeze2_sample', data = freeze2_sample_ids)
+rd3.batch_remove(entity = 'rd3_freeze1_sample', data = freeze1_sample_ids)
+rd3.batch_remove(entity = 'rd3_freeze2_sample', data = freeze2_sample_ids)
 

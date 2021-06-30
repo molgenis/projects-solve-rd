@@ -347,6 +347,99 @@ def missing_count(data):
                 keys[i] += 1
     return keys
 
+# @title recode_affected_status
+# @description recode PED affected status into RD3 terminology
+# @param value a string containing a PED affected_status code
+# @return a string
+def __ped__recode__affectedstatus(value):
+    if value in ['-9', '0']: return None
+    elif value == '1': return False
+    elif value == '2': return True
+    else: status_msg('ERROR: unable to recode {}'.format(value))
+
+# @title recode_sex
+# @description recode PED coding into RD3 terminology
+# @param value a string containing PED sex code
+# @return a string
+def __ped__recode__sex(value):
+    if value == '1': return 'M'
+    elif value == '2': return 'F'
+    elif value.lower() == 'other': return "U"
+    else: status_msg('ERROR: unable to recode {}'.format(value))
+
+# @title Extract contents from a PED file by line
+# @name __ped__extract__line
+# @description Extract contents of a ped file by line
+# @param line a dict containing a single line of PED file
+#       To be used inside ped_process_file
+def __ped__extract__line(line):
+    return {
+        'id': line[1],
+        'subjectID': line[1],
+        'fid': line[0],
+        'mid': line[3],
+        'pid': line[2],
+        'sex1': __ped__recode__sex(value=line[4]),
+        'clinical_status': __ped__recode__affectedstatus(value=line[5]),
+        'upload': True
+    }
+
+# @title Validate PED Line Data
+# @name __ped__validate__line
+# @description Validate a single line of data extracted from a PED file
+# @param data a dict containing a single line of data from a PED file.
+#       This is the output from `__ped__extract__line`
+# @param ids a list of IDs to compare to
+# @param a dictionary containing validated data
+def __ped__validate__line(data, ids):
+    line = data
+    if ('FAM' in line['id']) or (line['id'] not in ids):
+        status_msg(
+            'ID {} from family {} does not exist'
+            .format(line['id'], line['fid'])
+        )
+        line['upload'] = False
+    if ('FAM' in line['mid']) or (line['mid'] == '0') or (line['mid'] not in ids) :
+            line['error_mid'] = line['mid']
+            status_msg(
+                'removed mid {} as it starts with `FAM`, is `0`, or it does not exist'
+                .format(line['mid'])
+            )
+            line['mid']=None
+    if ('FAM' in line['pid']) or (line['pid'] == '0') or (line['pid'] not in ids):
+            line['error_pid'] = line['pid']
+            status_msg(
+                'removed pid {} as it starts with `FAM`, is `0`, or it does not exist'
+                .format(line['pid'])
+            )
+            line['pid']=None
+    return line
+
+
+# @title Process Pedgree File Contents
+# @name ped_extract_contents
+# @description Read contents of pedigree file
+# @param contents output from `cluster_read_file`
+# @param ids a list of reference IDs to check against
+# @param filename string containing the name of the file (for validation)
+# @return as list of dictionaries containing processed PED data
+def ped_extract_contents(contents, ids, filename):
+    data = []
+    for line in contents:
+        d = line.split()
+        if len(d) == 6:
+            raw_line_data = __ped__extract__line(line = d)
+            proc_line_data = __ped__validate__line(
+                data = raw_line_data,
+                ids = ids
+            )
+            data.append(proc_line_data)
+        else:
+            status_msg(
+                'Line in {} does not have 6 columns. Has {}'
+                .format(filename, len(d))
+            )
+    return data
 
 # @title select keys
 # @describe reduce list of dictionaries to named keys

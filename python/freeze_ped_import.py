@@ -2,9 +2,9 @@
 #' FILE: freeze_ped_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2021-06-29
+#' MODIFIED: 2021-06-30
 #' PURPOSE: extract metadata from PED files and import into Molgenis
-#' STATUS: in.progress
+#' STATUS: working
 #' PACKAGES: molgenis.client, ...
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
@@ -14,30 +14,7 @@ import os
 import re
 from datetime import datetime
 
-# read config
 config = rd3tools.load_yaml_config("python/_config.yml")
-
-
-# @title recode_sex
-# @description recode PED coding into RD3 terminology
-# @param value a string containing PED sex code
-# @return a string
-def recode_sex(value):
-    if value == '1': return 'M'
-    elif value == '2': return 'F'
-    elif value.lower() == 'other': return "U"
-    else: rd3tools.status_msg('ERROR: unable to recode {}'.format(value))
-
-# @title recode_affected_status
-# @description recode PED affected status into RD3 terminology
-# @param value a string containing a PED affected_status code
-# @return a string
-def recode_affected_status(value):
-    if value in ['-9', '0']: return None
-    elif value == '1': return False
-    elif value == '2': return True
-    else: rd3tools.status_msg('ERROR: unable to recode {}'.format(value))
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +95,7 @@ for pedfile in available_ped_files:
     if result:
         rd3tools.status_msg('Evaluating checksums with file metadata')
         md5_result = rd3tools.cluster_run_checksum(path = pedfile['file_path'])
-        if result[0]['md5'] == md5_result:
+        if result[0]['md5'] != md5_result:
             rd3tools.status_msg('Checksum differs. Data will be processed')
             should_process = True
         else:
@@ -131,47 +108,13 @@ for pedfile in available_ped_files:
         )
     if should_process:
         rd3tools.status_msg('Parsing file')
-        raw_ped = rd3tools.cluster_read_file(path=pedfile['file_path'])
-        data = []
-        for line in raw_ped:
-            d = line.split()
-            if len(d) == 6:
-                subject = {
-                    'id': d[1],
-                    'subjectID': d[1],
-                    'fid': d[0],
-                    'mid': d[3],
-                    'pid': d[2],
-                    'sex1': recode_sex(value=d[4]),
-                    'clinical_status': recode_affected_status(value=d[5]),
-                    'upload': True
-                }
-                if ('FAM' in subject['id']) or (subject['id'] not in subject_ids):
-                    rd3tools.status_msg(
-                        'ID {} from family {} does not exist'
-                        .format(subject['id'], subject['fid'])
-                    )
-                    subject['upload'] = False
-                if ('FAM' in subject['mid']) or (subject['mid'] == '0') or (subject['mid'] not in subject_ids) :
-                        subject['error_mid']=subject['mid']
-                        rd3tools.status_msg(
-                            'removed mid {} as it starts with `FAM`, is `0`, or it does not exist'
-                            .format(subject['mid'])
-                        )
-                        subject['mid']=None
-                if ('FAM' in subject['pid']) or (subject['pid'] == '0') or (subject['pid'] not in subject_ids):
-                        subject['error_pid']=subject['pid']
-                        rd3tools.status_msg(
-                            'removed pid {} as it starts with `FAM`, is `0`, or it does not exist'
-                            .format(subject['pid'])
-                        )
-                        subject['pid']=None
-                raw_ped_data.append(subject)
-            else:
-                rd3tools.status_msg(
-                    'Line in {} does not have six columns (has: {})'
-                    .format(pedfile['file_name'], len(d))
-                )
+        contents = rd3tools.cluster_read_file(path = pedfile['file_path'])
+        data = rd3tools.ped_extract_contents(
+            contents = contents,
+            ids = subject_ids,
+            fileaname = file['file_name']
+        )
+        raw_ped_data.append(data)
         should_process = False
 
 # print summary

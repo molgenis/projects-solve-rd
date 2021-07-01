@@ -16,6 +16,7 @@ import requests
 import json
 import yaml
 import os
+import re
 
 from urllib.parse import quote_plus
 from datetime import datetime
@@ -139,11 +140,23 @@ class molgenis(molgenis.Session):
         else:
             response.raise_for_status()
 
+
+# @title Add Forward Slash
+# @name __add_forward_slash
+# @description Adds forward slash to the end of a path if missing
+# @param path a string containing a path to a given location (file, url, etc.)
+# @returns a string
+def __add__forward__slash(path):
+    return path + '/' if path[len(path)-1] != '/' else path
+
+
 # @title cluster_list_files
 # @description return a list of dictionaries containing available files
 # @param path location to directory
+# @param filter a string containing a file type used to filter results
+#       (can also be a pattern)
 # @return a list of dictionaries
-def cluster_list_files(path):
+def cluster_list_files(path, filter = None):
     available_files = subprocess.Popen(
         ['ssh', 'corridor+fender', 'ls', path],
         stdout = subprocess.PIPE,
@@ -151,15 +164,25 @@ def cluster_list_files(path):
         stderr= subprocess.PIPE,
         universal_newlines=True
     )
+    path = __add__forward__slash(path)
     data = []
     for f in available_files.stdout:
         data.append({
-            'file_name': f.strip(),
-            'file_path': path + f.strip()
+            'filename': f.strip(),
+            'filepath': path + f.strip()
         })
     available_files.kill()
-    print('Found', len(data), 'files')
-    return data
+    if filter:
+        filtered = []
+        for d in data:
+            q = re.compile(filter)
+            if re.search(q, d['filename']):
+                filtered.append(d)
+        status_msg('Found {} files'.format(len(filtered)))
+        return filtered
+    else:
+        status_msg('Found {} files'.format(len(data)))
+        return data
 
 # @title cluster_read_file
 # @description read contents of a file on the cluster; ideally for ped files
@@ -199,7 +222,7 @@ def cluster_read_json(path):
         proc.kill()
         return data
     except subprocess.TimeoutExpired:
-        print('Error: unable to fetch file ' + str(os.path.basename(path)))
+        status_msg('Error: unable to fetch file {}'.format(str(os.path.basename(path))))
         proc.kill()
         return ''
 
@@ -440,6 +463,126 @@ def ped_extract_contents(contents, ids, filename):
                 .format(filename, len(d))
             )
     return data
+
+
+# @title Recodes sex in phenopackets files
+# @describe record phenopackets sex values into RD3 terminology
+# @param value string containing a sex
+# @return a string
+def __pheno__recode__sex(value):
+    if value.lower() == 'female':
+        return 'F'
+    elif value.lower() == 'male':
+        return 'M'
+    elif value.lower() == 'unknown_sex':
+        return 'U'
+    else:
+        return value
+
+
+# @title Format date
+# @describe format date
+# @param value string containing date to recode
+# @return a string containing yyyy-mm-dd
+def __pheno__recode__date(value):
+    if value != '':
+        return re.sub(r'(T00:00:00Z)', '', value).split('-')[0]
+    else:
+        return value
+
+
+# @title unpack phenotypicFeatures
+# @description extract `phenotypicFeatures` from and separate into observed and unobserved phenotypes
+# @param phenotypicFeatures list of dictionaries from data['phenopacket']['phenotypicFeatures']
+# @return a dictionary with two lists of HPO IDs
+def __pheno__unpack__phenotypicfeatures(phenotypicFeatures):
+    phenotype = []
+    hasNotPhenotype = []
+    for pheno in phenotypicFeatures:
+        if pheno:
+            hpo_id = re.sub(r'^(HP:)', 'HP_', pheno['type']['id'])
+            if not (hpo_id in phenotype) and not (hpo_id in hasNotPhenotype):
+                if 'negated' in pheno:
+                    if pheno['negated']:
+                        hasNotPhenotype.append(hpo_id)
+                    if not pheno['negated']:
+                        phenotype.append(hpo_id)
+                else:
+                    phenotype.append(hpo_id)
+    return {'phenotype': phenotype, 'hasNotPhenotype': hasNotPhenotype}
+
+
+# @title Unpack Diseases in Phenopacket files
+# @description extract disease IDs
+# @param diseases list of dictionaries from data['phenopacket']['diseases]
+# @return a list of disease IDs
+def __pheno__unpack__diseases(diseases):
+    out = []
+    for disease in diseases:
+        code = disease['term']['id']
+        if re.search(r'^(Orphanet:)', code):
+            code = re.sub(r'^(Orphanet:)', 'ORDO_', code)
+        if re.search(r'^(OMIM:)', code):
+            code = re.sub(r'^(OMIM:)', 'MIM_', code)
+        out.append(code)
+    return out
+
+# @title Recode Phenotypic Disease Codes
+# @description If a disease code has changed, update it
+# @param codes list of disease codes
+# @param if True, codes will be collapsed into a comma separated string
+# @param a list of values or string
+def __pheno__recode_diseases(codes, collapse = False):
+    ids_to_recode = {
+        'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
+        'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
+        'MIM_607569': {'old':'MIM_607569','new':'MIM_603689'},
+        'ORDO_856': {'old': 'ORDO_856', 'new': ''}
+    }
+    out = []
+    for code in codes:
+        if code in ids_to_recode:
+            out.append(ids_to_recode[code]['new'])
+        else:
+            out.append(code)
+    if collapse:
+        return '.'.join(out)
+    else:
+        return out
+
+def pheno_extract_contents(contents, filename):
+    # init dict
+    pheno = {
+        'id': contents['phenopacket']['id'],
+        'dateofBirth': None,
+        'sex1': None,
+        'phenotype': [],
+        'hasNotPhenotype': [],
+        'disease': [],
+        'phenopacketsID': filename
+    }
+    # make sure 'subject' exists, before processing subelements
+    if 'subject' in contents['phenopacket']:
+        if 'dateOfBirth' in contents['phenopacket']['subject']:
+            pheno['dateofBirth'] = __pheno__recode__date(
+                value  = contents['phenopacket']['subject']['dateOfBirth']
+            )
+        if 'sex' in contents['phenopacket']['subject']:
+            pheno['sex1'] = __pheno__recode__sex(
+                value = contents['phenopacket']['subject']['sex']
+            )
+    if 'phenotypicFeatures' in contents['phenopacket']:
+        phenotypic_features = __pheno__unpack__phenotypicfeatures(
+            phenotypicFeatures = contents['phenopacket']['phenotypicFeatures']
+        )
+        pheno['phenotype'] = phenotypic_features['phenotype']
+        pheno['hasNotPhenotype'] = phenotypic_features['hasNotPhenotype']
+    if 'diseases' in contents['phenopacket']:
+        pheno['disease'] = __pheno__unpack__diseases(
+            diseases = contents['phenopacket']['diseases']
+        )
+    return pheno
+
 
 # @title select keys
 # @describe reduce list of dictionaries to named keys

@@ -2,24 +2,24 @@
 #' FILE: solved_status_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-05-17
-#' MODIFIED: 2021-05-27
+#' MODIFIED: 2021-07-01
 #' PURPOSE: update solved status metadata from freezes
-#' STATUS: in.progress
-#' PACKAGES: NA
-#' COMMENTS: NA
+#' STATUS: working
+#' PACKAGES: molgenis.client, json, requests, urllib.parse
+#' COMMENTS: originally used ProcessCNAGData Script
 #'////////////////////////////////////////////////////////////////////////////
 
-import os  # for local testing only
-import json
 import molgenis.client as molgenis
+from urllib.parse import quote_plus
+import json
 import requests
-from urllib.parse import quote_plus, urlparse, parse_qs
 
 
 # set local token
-# os.environ['molgenisToken'] = ''
-env = 'prod'
+host = 'https://solve-rd.gcc.rug.nl/api/'
+token = '${molgenisToken}'
 
+# extend `molgenis` class
 class molgenisExtra(molgenis.Session):
     # deze klasse bevat alle functionaliteit die ook in de normale client.Session zit
     # + de extra functionaliteit die je zelf toevoegt:
@@ -29,7 +29,7 @@ class molgenisExtra(molgenis.Session):
             add='Update did tot go OK'
             """Updates one attribute of a given entity with the given values of the given ids"""
             response = self._session.put(
-                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
+                self._url + "v2/" + quote_plus(entity) + "/" + attr,
                 headers=self._get_token_header_with_content_type(),
                 data=json.dumps({'entities': values[i:i+1000]})
             )
@@ -42,6 +42,7 @@ class molgenisExtra(molgenis.Session):
                     self._raise_exception(ex)
                 return response
         return add
+
 
 # @title Process Freeze Subjects
 # @description store the current contact, recontact and solved information
@@ -92,24 +93,6 @@ def process_freeze_subjects(data):
     return subject
 
 
-# init session
-api = {
-    'host': {
-        'prod': 'https://solve-rd.gcc.rug.nl/api/',
-        'acc' : 'https://solve-rd-acc.gcc.rug.nl/api/',
-        'dev' : 'https://solve-rd-acc.gcc.rug.nl/api/',
-    },
-    'token': {
-        'prod': '${molgenisToken}',
-        'acc': '${molgenisToken}',
-        'dev': os.getenv('molgenisToken') if os.getenv('molgenisToken') is not None else None
-    }
-}
-
-# init session
-# rd3 = molgenisExtra(url=api['host']['prod'], token=api['token'][env])
-rd3 = molgenisExtra(url=api['host']['prod'], token=os.environ['molgenisToken'])
-
 # @title Get Freeze Subjects
 # @description Pull data from `rd3_freeze*_subject`
 # @param freeze target freeze to pull data (i.e., 1, 2, ...)
@@ -125,20 +108,6 @@ def get_freeze_subjects(freeze):
     print('Total number of subjects where retracted is null, No, or Unknown', len(retracted))
     return retracted
 
-# pull data
-print('Fetching subject entities...')
-freeze1_subjects = get_freeze_subjects(freeze="1")
-freeze2_subjects = get_freeze_subjects(freeze="2")
-
-# process freeze subject data
-print("Processing subject data...")
-freeze1_subjects_processed = process_freeze_subjects(data = freeze1_subjects)
-freeze2_subjects_processed = process_freeze_subjects(data = freeze2_subjects)
-
-# Read the unprocessed data from rd3_portal_recontact_solved
-print('Fetching portal data...')
-portal_data = rd3.get('rd3_portal_recontact_solved', q='process_status=="N"', batch_size=10000)
-print('Number of new portal records', len(portal_data))
 
 # @title Process Portal Status
 def process_portal_status(data, subjects):
@@ -229,10 +198,6 @@ def process_portal_status(data, subjects):
         'updatePtlStatus': updatePtlStatus
     }
 
-### PICK UP HERE CONTINUE WITH UPDATING ENTITIES ###
-freeze1 = process_portal_status(portal_data, freeze1_subjects_processed)
-freeze2 = process_portal_status(portal_data, freeze2_subjects_processed)
-
 
 # @title Describe processed freeze data
 # @describe print summary info about the processed metadata
@@ -248,9 +213,6 @@ def describe_processed_freeze_data(data):
     print('Number of Portal remarks to be updated is', len(data['updatePtlRemark']))
     print('Number of Portal status to be updated is', len(data['updatePtlStatus']))
 
-# print descripptives by freeze
-describe_processed_freeze_data(freeze1)
-describe_processed_freeze_data(freeze2)
 
 # @title Import Data
 # @describe Import processed solved status into freeze*_subject and portal recontact
@@ -283,12 +245,52 @@ def import_data(entity, data):
     update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='remark', values=data['updatePtlRemark'])
     print(update)
 
-# update appropriate freeze table and portal
-import_data(entity='rd3_freeze1_subject', data=freeze1)
-import_data(entity='rd3_freeze2_subject', data=freeze2)
+#'////////////////////////////////////////////////////////////////////////////
 
-# # Finally check if all New portal records are processed
-portal_data = rd3.get('rd3_portal_recontact_solved', q='process_status=="N"')
+# init session
+rd3 = molgenisExtra(url = host, token = token)
+
+
+# pull data
+print('Fetching subject entities...')
+freeze1_subjects = get_freeze_subjects(freeze = '1')
+freeze2_subjects = get_freeze_subjects(freeze = '2')
+
+
+# process freeze subject data
+print('Processing subject data...')
+freeze1_subjects_processed = process_freeze_subjects(data = freeze1_subjects)
+freeze2_subjects_processed = process_freeze_subjects(data = freeze2_subjects)
+
+
+# Read the unprocessed data from rd3_portal_recontact_solved
+print('Fetching portal data...')
+portal_data = rd3.get(
+    entity = 'rd3_portal_recontact_solved',
+    q = 'process_status=="N"',
+    batch_size = 10000
+)
+print('Number of new portal records', len(portal_data))
+
+
+# process freeze data
+freeze1 = process_portal_status(data = portal_data, subjects = freeze1_subjects_processed)
+freeze2 = process_portal_status(data = portal_data, subjects = freeze2_subjects_processed)
+
+
+# print descriptives for each freeze
+describe_processed_freeze_data(data = freeze1)
+describe_processed_freeze_data(data = freeze2)
+
+
+# update appropriate freeze table and portal
+import_data(entity = 'rd3_freeze1_subject', data = freeze1)
+import_data(entity = 'rd3_freeze2_subject', data = freeze2)
+
+
+# Lastly, check if all New portal records are processed
+portal_data = rd3.get(entity = 'rd3_portal_recontact_solved', q = 'process_status=="N"')
+
 
 if len(portal_data) > 0:
     raise SystemExit('Not all new portal records are processed!!!') 

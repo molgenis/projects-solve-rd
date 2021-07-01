@@ -9,38 +9,17 @@
 # ' COMMENTS: Run in the same folder as all phenopackets files
 # '////////////////////////////////////////////////////////////////////////////
 
-import os
-import json
-import re
-import requests
-from urllib.parse import quote_plus, urlparse, parse_qs
-import molgenis.client as molgenis
+# import os
+# import json
+# import re
+# import requests
+# from urllib.parse import quote_plus, urlparse, parse_qs
+# import molgenis.client as molgenis
+import python.rd3tools as rd3tools
+
+config = rd3tools.load_yaml_config('python/_config.yml')
 
 # //////////////////////////////////////
-
-# @title Molgenis Extra
-# @describe extend class Molgenis Session
-# @param molgenis.Session required Session object
-class molgenis_extra(molgenis.Session):
-    def batch_update_one_attr(self, entity, attr, values):
-        add = 'No new data'
-        for i in range(0, len(values), 1000):
-            add = 'Update did tot go OK'
-            """Updates one attribute of a given entity with the given values of the given ids"""
-            response = self._session.put(
-                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': values[i:i+1000]})
-            )
-            if response.status_code == 200:
-                add = 'Update went OK'
-            else:
-                try:
-                    response.raise_for_status()
-                except requests.RequestException as ex:
-                    self._raise_exception(ex)
-                return response
-        return add
 
 # @title read_phenopacket
 # @description read phenopacket file
@@ -174,26 +153,22 @@ def unpack_phenopacket(data, filename):
 
 
 # init molgenis sesssion
-# os.environ['molgenisToken'] = ''
-env = 'acc'
-api = {
-    'host': {
-        'prod': 'https://solve-rd.gcc.rug.nl/api/',
-        'acc': 'https://solve-rd-acc.gcc.rug.nl/api/'
-    },
-    'token': os.getenv('molgenisToken') if os.getenv('molgenisToken') is not None else None
-}
-
-# init session
-rd3 = molgenis_extra(url=api['host'][env], token=api['token'])
+rd3 = rd3tools.molgenis(
+    url = config['hosts'][config['run']['env']],
+    token = config['tokens'][config['run']['env']]
+)
 
 # pull freeze2 data
-freeze2 = rd3.get(entity='rd3_freeze2_subject',attributes='id,subjectID', batch_size=10000)
+freeze2 = rd3.get(
+    entity = config['releases'][config['run']['release']]['subject'],
+    attributes = 'id,subjectID',
+    batch_size = 10000
+)
 freeze2_ids = flatten_attr(freeze2, 'id')
 
 # get HPO and disease codes
-hpo_codes_raw = rd3.get(entity='rd3_phenotype', batch_size=10000)
-disease_codes_raw = rd3.get(entity='rd3_disease', batch_size=10000)
+hpo_codes_raw = rd3.get(entity = 'rd3_phenotype', batch_size = 10000)
+disease_codes_raw = rd3.get(entity = 'rd3_disease', batch_size = 10000)
 
 hpo_codes = flatten_attr(hpo_codes_raw, 'id')
 disease_codes = flatten_attr(disease_codes_raw, 'id')
@@ -203,13 +178,15 @@ disease_codes = flatten_attr(disease_codes_raw, 'id')
 
 # load and parse phenopackets
 # also run a check to make sure IDs exist in RD3
-files = os.listdir()
+files = rd3tools.cluster_list_files(
+    path = config['releases']['base'] + config['releases'][config['run']['release']]['phenopacket']
+)
 hpo_codes_not_found = []
 disease_codes_not_found = []
 unavailable = []
 phenopackets = []
 for file in files:
-    f = read_phenopacket(file)
+    f = rd3tools.cluster_read_json(path = file)
     # p = unpack_phenopacket(data=f, filename=file)
     p = {
         'id': f['phenopacket']['id'] + '_original',

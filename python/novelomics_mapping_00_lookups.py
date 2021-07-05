@@ -30,6 +30,7 @@ experiment = rd3.get(
 shipment = rd3.get(
     entity = 'rd3_portal_novelomics_shipment',
     attributes = 'organisation,ERN',
+    q = 'processed==false',
     batch_size=10000
 )
 

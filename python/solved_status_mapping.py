@@ -2,7 +2,7 @@
 #' FILE: solved_status_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-05-17
-#' MODIFIED: 2021-07-01
+#' MODIFIED: 2021-07-13
 #' PURPOSE: update solved status metadata from freezes
 #' STATUS: working
 #' PACKAGES: molgenis.client, json, requests, urllib.parse
@@ -166,19 +166,28 @@ def process_portal_status(data, subjects):
                         if ptlRemark == None: ptlRemark='Contact info updated'
                         else: ptlRemark = ptlRemark +  ' Contact info updated'
                         ptlStatus = 'P'
-                        updateContact.append({'id': id, 'contact': contactNew})
+                        if {'id': id, 'contact': contactNew} not in updateContact:
+                            updateContact.append({'id': id, 'contact': contactNew})
+                        else:
+                            print('Duplicate portal record for subject', id, 'with contact', contactNew)
                     if recontactNew != None:
                         if ptlRemark == None: ptlRemark='Recontact info updated'
                         else: ptlRemark = ptlRemark + ' and recontact info updated'
                         ptlStatus='P'
-                        updateRecontact.append({'id': id, 'recontact': recontactNew})
+                        if {'id': id, 'recontact': recontactNew} not in updateRecontact:
+                            updateRecontact.append({'id': id, 'recontact': recontactNew})
+                        else:
+                            print('Duplicate portal record for subject', id, 'with recontact', recontactNew)
                     if solvedNew != None:
                         if ptlRemark == None: ptlRemark = 'Solved Status updated'
                         else: ptlRemark = ptlRemark + ' and solved status updated'
                         ptlStatus = 'P'
-                        updateSolved.append({'id': id, 'solved': solvedNew})
-                        updateDate.append({'id': id, 'date_solved': dateNew})
-                        updateRemark.append({'id': id, 'remarks': remarkNew})
+                        if {'id': id, 'solved': solvedNew} not in updateSolved:
+                            updateSolved.append({'id': id, 'solved': solvedNew})
+                            updateDate.append({'id': id, 'date_solved': dateNew})
+                            updateRemark.append({'id': id, 'remarks': remarkNew})
+                        else:
+                            print('Duplicate portal record for subject', id, 'with solved', solvedNew)
             if ptlRemark != None:
                 updatePtlHistory.append({'id': d['id'], 'history': 'Y'})
                 updatePtlRemark.append({'id': d['id'], 'remark': ptlRemark})
@@ -197,7 +206,6 @@ def process_portal_status(data, subjects):
         'updatePtlRemark': updatePtlRemark,
         'updatePtlStatus': updatePtlStatus
     }
-
 
 # @title Describe processed freeze data
 # @describe print summary info about the processed metadata
@@ -235,15 +243,6 @@ def import_data(entity, data):
     print('Updating remarks...')
     update=rd3.batch_update_one_attr(entity=entity, attr='remarks', values= data['updateRemark'])
     print(update)
-    print('Updating portal history...')
-    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='history', values=data['updatePtlHistory'])
-    print(update)
-    print('Updating portal status...')
-    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='process_status', values=data['updatePtlStatus'])
-    print(update)
-    print('Updating portal remarks...')
-    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='remark', values=data['updatePtlRemark'])
-    print(update)
 
 #'////////////////////////////////////////////////////////////////////////////
 
@@ -251,47 +250,51 @@ def import_data(entity, data):
 rd3 = molgenisExtra(url = host, token = token)
 
 
-# pull data
-print('Fetching subject entities...')
-freeze1_subjects = get_freeze_subjects(freeze = '1')
-freeze2_subjects = get_freeze_subjects(freeze = '2')
-
-
-# process freeze subject data
-print('Processing subject data...')
-freeze1_subjects_processed = process_freeze_subjects(data = freeze1_subjects)
-freeze2_subjects_processed = process_freeze_subjects(data = freeze2_subjects)
-
-
 # Read the unprocessed data from rd3_portal_recontact_solved
 print('Fetching portal data...')
 portal_data = rd3.get(
     entity = 'rd3_portal_recontact_solved',
-    q = 'process_status=="N"',
+    q = 'process_status=="N" and date_solved=="2021-04-16"',
     batch_size = 10000
 )
 print('Number of new portal records', len(portal_data))
 
-
-# process freeze data
-freeze1 = process_portal_status(data = portal_data, subjects = freeze1_subjects_processed)
-freeze2 = process_portal_status(data = portal_data, subjects = freeze2_subjects_processed)
-
-
-# print descriptives for each freeze
-describe_processed_freeze_data(data = freeze1)
-describe_processed_freeze_data(data = freeze2)
-
-
-# update appropriate freeze table and portal
-import_data(entity = 'rd3_freeze1_subject', data = freeze1)
-import_data(entity = 'rd3_freeze2_subject', data = freeze2)
+# process freezes
+nFreezes = 2
+for freezeNr in range(1, nFreezes):
+    # pull freeze subject data
+    print('Fetching subject entities...')
+    freeze_subjects = get_freeze_subjects(freeze = str(freezeNr))
+    # process freeze subject data 
+    print('Processing subject data...')
+    freeze_subjects_processed = process_freeze_subjects(data = freeze_subjects)
+    # process freeze data
+    # determine which cases have changed
+    # combines all results into a dictionary with many nested lists of dictionaries
+    freeze = process_portal_status(
+        data = portal_data,
+        subjects = freeze_subjects_processed
+    )
+    # print descriptives for each freeze
+    describe_processed_freeze_data(data = freeze)
+    # update appropriate freeze table and portal
+    # this runs batch attr update for all columns
+    entity = 'rd3_freeze' + str(freezeNr) + '_subject'
+    import_data(entity = entity, data = freeze)
+    # If all went fine => update the portal status, remark and history column
+    print('Updating portal history...')
+    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='history', values=freeze['updatePtlHistory'])
+    print(update)
+    print('Updating portal status...')
+    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='process_status', values=freeze['updatePtlStatus'])
+    print(update)
+    print('Updating portal remarks...')
+    update=rd3.batch_update_one_attr(entity='rd3_portal_recontact_solved', attr='remark', values=freeze['updatePtlRemark'])
+    print(update)
 
 
 # Lastly, check if all New portal records are processed
 portal_data = rd3.get(entity = 'rd3_portal_recontact_solved', q = 'process_status=="N"')
-
-
 if len(portal_data) > 0:
     raise SystemExit('Not all new portal records are processed!!!') 
 

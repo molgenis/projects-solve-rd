@@ -519,12 +519,14 @@ def __pheno__unpack__phenotypicfeatures(phenotypicFeatures):
 def __pheno__unpack__diseases(diseases):
     out = []
     for disease in diseases:
-        code = disease['term']['id']
-        if re.search(r'^(Orphanet:)', code):
-            code = re.sub(r'^(Orphanet:)', 'ORDO_', code)
-        if re.search(r'^(OMIM:)', code):
-            code = re.sub(r'^(OMIM:)', 'MIM_', code)
-        out.append(code)
+        if 'term' in disease:
+            if 'id' in disease['term']:
+                code = disease['term']['id']
+                if re.search(r'^(Orphanet:)', code):
+                    code = re.sub(r'^(Orphanet:)', 'ORDO_', code)
+                if re.search(r'^(OMIM:)', code):
+                    code = re.sub(r'^(OMIM:)', 'MIM_', code)
+                out.append(code)
     return out
 
 # @title Recode Phenotypic Disease Codes

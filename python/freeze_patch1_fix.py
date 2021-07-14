@@ -2,7 +2,7 @@
 #' FILE: freeze_patch1_fix.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-30
-#' MODIFIED: 2021-06-30
+#' MODIFIED: 2021-07-14
 #' PURPOSE: pull patch1 data and updates cases
 #' STATUS: in.progress
 #' PACKAGES: rd3tools
@@ -11,9 +11,13 @@
 
 import python.rd3tools as rd3tools
 import re
+from datetime import datetime
 config = rd3tools.load_yaml_config('python/_config.yml')
 
-
+# @name process__filename
+# @description extract subjectID from filepath
+# @param data list of dictionaries containing filenames and path
+# @return a list of dictionaries with filename, filepath, subjectID
 def process__filename(data):
     for d in data:
         match = re.search(r'^(P[0-9]{7})', d.get('filename'))
@@ -22,7 +26,11 @@ def process__filename(data):
         else:
             d['subjectID'] = None
 
-
+# @name process__filematches
+# @description determine if an ID from one object exists in another object
+# @param data the main dataset containg IDs you want to use to search another object
+# @param ref object to search through
+# @param label name of the attribute to create
 def process__filematches(data, ref, label = 'status'):
     ids = rd3tools.flatten_attr(data = ref, attr = 'subjectID')
     for d in data:
@@ -51,21 +59,33 @@ process__filename(data = pheno_files_f1p1)
 process__filematches(data = pheno_files_f1, ref = pheno_files_f1p1, label = 'inPatch1')
 process__filematches(data = pheno_files_f1p1, ref = pheno_files_f1, label = 'inFreeze1')
 
+# get counts
+len(pheno_files_f1)
+len(pheno_files_f1p1)
+sum(d.get('inPatch1') == 'yes' for d in pheno_files_f1)
+sum(d.get('inFreeze1') == 'yes' for d in pheno_files_f1p1)
+
+
+# using phenopacket files, look for changes in the files
+starttime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
 patch_1_ids = []
-for p in pheno_files_f1p1[:100]:
+for p in pheno_files_f1p1[7550:]:
+    rd3tools.status_msg('Processing data for {}...'.format(p['subjectID']))
     if p['inFreeze1']:
-        rd3tools.status_msg('Processing data for {}...'.format(p['subjectID']))
+        # pull matching dictionary in Freeze1 original dataset
+        rd3tools.status_msg('ID exists in Freeze1 Original')
         result = rd3tools.find_dict(
             data = pheno_files_f1,
             attr = 'subjectID',
             value = p['subjectID']
-        )[0]
+        )
+        # make sure result exists before evaluating file contents
         if result:
-            f1_contents = rd3tools.cluster_read_json(path = result['filepath'])
+            f1_contents = rd3tools.cluster_read_json(path = result[0]['filepath'])
             p1_contents = rd3tools.cluster_read_json(path = p['filepath'])
             f1 = rd3tools.pheno_extract_contents(
                 contents = f1_contents,
-                filename = result['filename']
+                filename = result[0]['filename']
             )
             p1 = rd3tools.pheno_extract_contents(
                 contents = p1_contents,
@@ -148,16 +168,45 @@ for p in pheno_files_f1p1[:100]:
             .format(p['subjectID'])
         )
 
+endtime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
+rd3tools.status_msg(
+    'Completed processing in {}'
+    .format(
+        datetime.strptime(endtime,'%H:%M:%S.%f') - datetime.strptime(starttime, '%H:%M:%S.%f')
+    )
+)
 
 
 #//////////////////////////////////////
 
+# update data in RD3
+patch_1_updates = []
+for d in patch_1_ids:
+    patch_1_updates.append({
+        'id': d.get('id') + '_original',
+        'patch': 'freeze1_original,freeze1_patch1'
+    })
 
 # start molgenis session
 rd3 = rd3tools.molgenis(
     url = config['hosts']['acc'],
     token = config['tokens']['acc']
 )
+
+# push
+rd3.batch_update_one_attr(
+    entity = "rd3_freeze1_subject",
+    attr = 'patch',
+    values = patch_1_updates
+)
+
+rd3.batch_update_one_attr(
+    entity = "rd3_freeze1_subjectinfo",
+    attr = 'patch',
+    values = patch_1_updates
+)
+
+#//////////////////////////////////////
 
 # pull metadata from RD3
 freeze_subjects = rd3.get(

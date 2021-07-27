@@ -1,15 +1,5 @@
 #!/bin/bash
 
-#SBATCH --job-name=EGA_to_catalogue
-#SBATCH --output=logs/EGA_to_catalogue_%j.out
-#SBATCH --error=logs/EGA_to_catalogue_%j.err
-#SBATCH --time=23:59:00
-#SBATCH --cpus-per-task 4
-#SBATCH --mem 15
-#SBATCH --open-mode=append
-#SBATCH --export=NONE
-#SBATCH --get-user-env=60L
-
 set -e
 set -u
 
@@ -28,38 +18,51 @@ TIMESTAMP_LAST_WEEK=$(date +%Y-%m-%d -d "${TIMESTAMP} -7 days")
 FILE_TODAY="list_ega.${TIMESTAMP}"
 FILE_LAST_WEEK="list_ega.${TIMESTAMP_LAST_WEEK}"
 
+logFile="${HOME}/logs/log_${TIMESTAMP}"
+
+
+# Cleanup files and logs older than 50 days, except for .tsv file
+# Print files that will be deleted to log file
+find "${HOME}/files/"* ! -path "${filecsv}" -type f -mtime +50 -print > "${logFile}";
+find "${HOME}/files/"* ! -path "${filecsv}" -type f -mtime +50 -exec rm {} \;
+
+find "${HOME}/logs/"* -type f -mtime +50 -print > "${logFile}";
+find "${HOME}/logs/"* -type f -mtime +50 -exec rm {} \;
+
 
 # Load modules 
 module load PythonPlus/3.7.4-foss-2018b-v19.08.1
 module load pyEGA3/v3.0.44-Python-3.7.4
 module list
 
+
 # Get EGA file
 if [[ -e "${HOME}/credentials.hpc.json" ]]
 then
-	pyega3 -cf ${HOME}/credentials.hpc.json files 'EGAD00001005352' > "${filePath}/${FILE_TODAY}_original"	
+	pyega3 -cf ${HOME}/credentials.hpc.json files 'EGAD00001005352' >> "${filePath}/${FILE_TODAY}_original"	
 else
-	echo "Missing file: credentials.hpc.json"
+	echo "Missing file: credentials.hpc.json" > ${logFile}
 	exit 1
 fi
 
 # Remove header and footer
 if [[ -e "${filePath}/${FILE_TODAY}_original" ]]
 then
-	head -n -2 "${filePath}/${FILE_TODAY}_original" > "${filePath}/${FILE_TODAY}_without_header"
-	tail -n +7 "${filePath}/${FILE_TODAY}_without_header" > "${filePath}/${FILE_TODAY}_without_footer"
+	head -n 11 "${filePath}/${FILE_TODAY}_original" > "${filePath}/${FILE_TODAY}_without_header"
+	tail -n 1 "${filePath}/${FILE_TODAY}_without_header" > "${filePath}/${FILE_TODAY}_without_footer"
 	mv "${filePath}/${FILE_TODAY}_without_footer" "${filePath}/${FILE_TODAY}"
 else
-	echo "File ${filePath}/${FILE_TODAY}_original does not exist"
+	echo "File ${filePath}/${FILE_TODAY}_original does not exist" >> ${logFile}
 	exit 1
 fi
+
 
 # Get diffs between sorted and unique files of today and last week
 if [[ -e "${filePath}/${FILE_LAST_WEEK}" ]]
 then
 	comm -13 <(sort -u "${filePath}/${FILE_LAST_WEEK}") <(sort -u "${filePath}/${FILE_TODAY}") > "${filePath}/new_samples_${TIMESTAMP}"
 else
-        echo "File to compare with: ${filePath}/${FILE_LAST_WEEK} does not exist"
+        echo "File to compare with: ${filePath}/${FILE_LAST_WEEK} does not exist" >> ${logFile}
         exit 1
 fi
 
@@ -68,7 +71,7 @@ if [[ -s "${filePath}/new_samples_${TIMESTAMP}" ]]
 then
 	cat "${filePath}/new_samples_${TIMESTAMP}" | awk '{print $1}' > "${filePath}/new_samples_${TIMESTAMP}_col1"
 else
-	echo "No changes between the files of ${TIMESTAMP_LAST_WEEK} and ${TIMESTAMP}". Nothing to upload...
+	echo "No changes between the files of ${TIMESTAMP_LAST_WEEK} and ${TIMESTAMP}. Nothing to upload..." >> ${logFile}
 	exit 0
 fi
 
@@ -157,5 +160,5 @@ then
         TOKEN=${CURLRESPONSE:10:32}
         curl -H "x-molgenis-token:${TOKEN}" -X POST -F"file=@${filecsv}" -FentityTypeId='rd3_freeze1_file' -Faction=add_update_existing -Fnotify=false -FmetadataAction=ignore https://${MOLGENISSERVER}/plugin/importwizard/importFile
 else
-	echo "curl couldn't connect to host, skipped the uploading of the rd3 file to ${MOLGENISSERVER}"
+	echo "curl couldn't connect to host, skipped the uploading of the rd3 file to ${MOLGENISSERVER}" >> ${logFile}
 fi

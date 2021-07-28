@@ -1,3 +1,7 @@
+# This script is located in the home folder of the solve-rd-ateambot on the Fender cluster.
+# It receives the newest samples from the EGA and uploads it to the catalogue if they do not yet exist.
+
+
 #!/bin/bash
 
 set -e
@@ -8,9 +12,9 @@ mkdir -p "${HOME}/logs/"
 mkdir -p "${HOME}/files/"
 
 # Variables
-filePath="${HOME}/files/"
 header="EGA\tname\tmd5\ttypeFile\texperimentID\tdateCreated\tflag\textraInfo\tfilepath_sandbox"
-filecsv="${filePath}/rd3_file.tsv"
+path_to_files="${HOME}/files/"
+file_to_be_uploaded="${path_to_files}/rd3_file.tsv"
 
 TIMESTAMP=$(date +%Y-%m-%d)
 TIMESTAMP_LAST_WEEK=$(date +%Y-%m-%d -d "${TIMESTAMP} -7 days")
@@ -20,15 +24,13 @@ FILE_LAST_WEEK="list_ega.${TIMESTAMP_LAST_WEEK}"
 
 logFile="${HOME}/logs/log_${TIMESTAMP}"
 
-
 # Cleanup files and logs older than 50 days, except for .tsv file
 # Print files that will be deleted to log file
-find "${HOME}/files/"* ! -path "${filecsv}" -type f -mtime +50 -print > "${logFile}";
-find "${HOME}/files/"* ! -path "${filecsv}" -type f -mtime +50 -exec rm {} \;
+find "${HOME}/files/"* ! -path "${file_to_be_uploaded}" -type f -mtime +50 -print > "${logFile}";
+find "${HOME}/files/"* ! -path "${file_to_be_uploaded}" -type f -mtime +50 -exec rm {} \;
 
 find "${HOME}/logs/"* -type f -mtime +50 -print > "${logFile}";
 find "${HOME}/logs/"* -type f -mtime +50 -exec rm {} \;
-
 
 # Load modules 
 module load PythonPlus/3.7.4-foss-2018b-v19.08.1
@@ -39,37 +41,35 @@ module list
 # Get EGA file
 if [[ -e "${HOME}/credentials.hpc.json" ]]
 then
-	pyega3 -cf ${HOME}/credentials.hpc.json files 'EGAD00001005352' >> "${filePath}/${FILE_TODAY}_original"	
+	pyega3 -cf ${HOME}/credentials.hpc.json files 'EGAD00001005352' >> "${path_to_files}/${FILE_TODAY}_original"	
 else
 	echo "Missing file: credentials.hpc.json" > ${logFile}
 	exit 1
 fi
 
-# Remove header and footer
-if [[ -e "${filePath}/${FILE_TODAY}_original" ]]
+# Remove header and footer from original file
+if [[ -e "${path_to_files}/${FILE_TODAY}_original" ]]
 then
-	head -n 11 "${filePath}/${FILE_TODAY}_original" > "${filePath}/${FILE_TODAY}_without_header"
-	tail -n 1 "${filePath}/${FILE_TODAY}_without_header" > "${filePath}/${FILE_TODAY}_without_footer"
-	mv "${filePath}/${FILE_TODAY}_without_footer" "${filePath}/${FILE_TODAY}"
+	grep '^EGA*' "${path_to_files}/${FILE_TODAY}_original" > "${path_to_files}/${FILE_TODAY}"
 else
-	echo "File ${filePath}/${FILE_TODAY}_original does not exist" >> ${logFile}
+	echo "File ${path_to_files}/${FILE_TODAY}_original does not exist" >> ${logFile}
 	exit 1
 fi
 
 
 # Get diffs between sorted and unique files of today and last week
-if [[ -e "${filePath}/${FILE_LAST_WEEK}" ]]
+if [[ -e "${path_to_files}/${FILE_LAST_WEEK}" ]]
 then
-	comm -13 <(sort -u "${filePath}/${FILE_LAST_WEEK}") <(sort -u "${filePath}/${FILE_TODAY}") > "${filePath}/new_samples_${TIMESTAMP}"
+	comm -13 <(sort -u "${path_to_files}/${FILE_LAST_WEEK}") <(sort -u "${path_to_files}/${FILE_TODAY}") > "${path_to_files}/new_samples_${TIMESTAMP}"
 else
-        echo "File to compare with: ${filePath}/${FILE_LAST_WEEK} does not exist" >> ${logFile}
+        echo "File to compare with: ${path_to_files}/${FILE_LAST_WEEK} does not exist" >> ${logFile}
         exit 1
 fi
 
 # Get only the sample name column to compare
-if [[ -s "${filePath}/new_samples_${TIMESTAMP}" ]]
+if [[ -s "${path_to_files}/new_samples_${TIMESTAMP}" ]]
 then
-	cat "${filePath}/new_samples_${TIMESTAMP}" | awk '{print $1}' > "${filePath}/new_samples_${TIMESTAMP}_col1"
+	cat "${path_to_files}/new_samples_${TIMESTAMP}" | awk '{print $1}' > "${path_to_files}/new_samples_${TIMESTAMP}_col1"
 else
 	echo "No changes between the files of ${TIMESTAMP_LAST_WEEK} and ${TIMESTAMP}. Nothing to upload..." >> ${logFile}
 	exit 0
@@ -83,17 +83,17 @@ do
     samples[$index]="${line}"
     index=$(($index+1))
 
-done<"${filePath}/new_samples_${TIMESTAMP}_col1"
+done<"${path_to_files}/new_samples_${TIMESTAMP}_col1"
 
 
 # Remove lines from file and Print header + new samples with all extra columns to new file
-> "${filecsv}"
-> "${filePath}/new_samples_input"
-echo -e "${header}" > "${filecsv}"
+> "${file_to_be_uploaded}"
+> "${path_to_files}/new_samples_input"
+echo -e "${header}" > "${file_to_be_uploaded}"
 
 for i in "${samples[@]}"
 do
-	grep "${i}" "${filePath}/new_samples_${TIMESTAMP}" >> "${filePath}/new_samples_input"
+	grep "${i}" "${path_to_files}/new_samples_${TIMESTAMP}" >> "${path_to_files}/new_samples_input"
 done
 
 
@@ -146,9 +146,9 @@ do
         fi
 	
 	MD5="$(echo "${LINE}" | awk '{print $4}')"
-	echo -e "${EGANO}\t${filepath}\t${MD5}\t${ext}\t${fileID}\t${TIMESTAMP}\t\t\t${filepath_sandbox}" >> "${filecsv}"
+	echo -e "${EGANO}\t${filepath}\t${MD5}\t${ext}\t${fileID}\t${TIMESTAMP}\t\t\t${filepath_sandbox}" >> "${file_to_be_uploaded}"
 
-done <"${filePath}/new_samples_input"
+done <"${path_to_files}/new_samples_input"
 
 
 # Upload new samples to catalogue
@@ -158,7 +158,7 @@ if curl -H "Content-Type: application/json" -X POST -d "{"username"="${USERNAME}
 then
 	CURLRESPONSE=$(curl -H "Content-Type: application/json" -X POST -d "{"username"="${USERNAME}", "password"="${PASSWORD}"}" https://${MOLGENISSERVER}/api/v1/login)
         TOKEN=${CURLRESPONSE:10:32}
-        curl -H "x-molgenis-token:${TOKEN}" -X POST -F"file=@${filecsv}" -FentityTypeId='rd3_freeze1_file' -Faction=add_update_existing -Fnotify=false -FmetadataAction=ignore https://${MOLGENISSERVER}/plugin/importwizard/importFile
+        curl -H "x-molgenis-token:${TOKEN}" -X POST -F"file=@${file_to_be_uploaded}" -FentityTypeId='rd3_freeze1_file' -Faction=add_update_existing -Fnotify=false -FmetadataAction=ignore https://${MOLGENISSERVER}/plugin/importwizard/importFile
 else
 	echo "curl couldn't connect to host, skipped the uploading of the rd3 file to ${MOLGENISSERVER}" >> ${logFile}
 fi

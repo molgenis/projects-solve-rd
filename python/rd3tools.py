@@ -2,7 +2,7 @@
 #' FILE: rd3tools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-17
-#' MODIFIED: 2021-06-28
+#' MODIFIED: 2021-08-02
 #' PURPOSE: collection of methods used across scripts
 #' STATUS: working / ongoing
 #' PACKAGES: *see imports below*
@@ -18,7 +18,7 @@ import yaml
 import os
 import re
 
-from urllib.parse import quote_plus
+from urllib.parse import SplitResultBytes, quote_plus
 from datetime import datetime
 
 # @title molgenis
@@ -215,7 +215,6 @@ def cluster_read_json(path):
         stderr = subprocess.PIPE,
         universal_newlines=True
     )
-    proc.wait()
     try:
         raw = proc.communicate(timeout=15)
         data = json.loads(raw[0])
@@ -225,7 +224,6 @@ def cluster_read_json(path):
         status_msg('Error: unable to fetch file {}'.format(str(os.path.basename(path))))
         proc.kill()
         return ''
-
 
 # @title cluster_run_checksum
 # @description run md5 on a file and return the value

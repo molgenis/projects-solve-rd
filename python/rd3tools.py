@@ -600,5 +600,6 @@ def timestamp():
 
 # @title Status Message
 # @description Prints a message with a timestamp
-def status_msg(msg):
-    print('[' + timestamp() + '] ' + str(msg))
+def status_msg(*args):
+    msg = ' '.join(map(str, args))
+    print('\033[94m[' + timestamp() + '] \033[0m' + msg)

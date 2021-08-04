@@ -329,12 +329,24 @@ del file, raw, data, line
 
 # compare files
 for p in ped_p1[:1]:
+    p['isPatch1'] = False
     r = rd3tools.find_dict(ped_f1, 'id', p['id'])
     if r:
         f = r[0]
-        
-
-
-
+        if str(p['mid'] != 'None'):
+            if str(f['mid'] == 'None'):
+                p['isPatch1'] = True
+        if str(p['pid'] != 'None'):
+            if str(f['pid'] == 'None'):
+                p['isPatch1'] = True
+        if str(p['sex1'] != 'None'):
+            if str(f['sex1'] == 'None'):
+                p['isPatch1'] = True
+        if str(p['clinical_status'] != 'None'):
+            if str(f['clinical_status'] == 'None'):
+                p['isPatch1'] = True
+            else:
+                if f['clinical_status'] != p['clinical_status']:
+                    p['isPatch1'] = True
 
 

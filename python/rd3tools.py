@@ -2,7 +2,7 @@
 #' FILE: rd3tools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-17
-#' MODIFIED: 2021-08-04
+#' MODIFIED: 2021-08-06
 #' PURPOSE: collection of methods used across scripts
 #' STATUS: working / ongoing
 #' PACKAGES: *see imports below*
@@ -622,3 +622,19 @@ def timestamp():
 def status_msg(*args):
     msg = ' '.join(map(str, args))
     print('\033[94m[' + timestamp() + '] \033[0m' + msg)
+
+
+# @title Write CSV
+# @name write_csv
+# @description save data to file
+# @param path location of output file
+# @param data dat ato write to file
+# @return None
+def write_csv(path, data):
+    import csv
+    headers = list(data[0].keys())
+    with open(path, 'w') as file:
+        writer = csv.DictWriter(file, fieldnames = headers)
+        writer.writeheader()
+        writer.writerows(data)
+    file.close()

@@ -2,7 +2,7 @@
 #' FILE: rd3tools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-17
-#' MODIFIED: 2021-08-02
+#' MODIFIED: 2021-08-06
 #' PURPOSE: collection of methods used across scripts
 #' STATUS: working / ongoing
 #' PACKAGES: *see imports below*
@@ -18,7 +18,7 @@ import yaml
 import os
 import re
 
-from urllib.parse import SplitResultBytes, quote_plus
+from urllib.parse import quote_plus
 from datetime import datetime
 
 # @title molgenis
@@ -237,7 +237,6 @@ def cluster_run_checksum(path):
         stderr = subprocess.PIPE,
         universal_newlines=True
     )
-    proc.wait()
     value = proc.stdout.read().split()[0]
     proc.kill()
     return value
@@ -511,28 +510,34 @@ def __pheno__unpack__phenotypicfeatures(phenotypicFeatures):
 
 
 # @title Unpack Diseases in Phenopacket files
-# @description extract disease IDs
-# @param diseases list of dictionaries from data['phenopacket']['diseases]
-# @return a list of disease IDs
-def __pheno__unpack__diseases(diseases):
-    out = []
-    for disease in diseases:
-        if 'term' in disease:
-            if 'id' in disease['term']:
-                code = disease['term']['id']
-                if re.search(r'^(Orphanet:)', code):
-                    code = re.sub(r'^(Orphanet:)', 'ORDO_', code)
-                if re.search(r'^(OMIM:)', code):
-                    code = re.sub(r'^(OMIM:)', 'MIM_', code)
-                out.append(code)
-    return out
+# @description extract disease IDs and Onset codes
+# @param data list of dictionaries from data['phenopacket']['diseases]
+# @return a dictionary of disease IDs and onset code(s)
+def __pheno__unpack__diseases(data):
+    dx = []
+    onset = []
+    for d in data:
+        if 'term' in d:
+            if 'id' in d['term']:
+                code = d['term']['id']
+                if re.search(r'^((Orphanet:)|(ORDO:))', code):
+                    code = re.sub(r'^((Orphanet:)|(ORDO:))', 'ORDO_', code)
+                if re.search(r'^((OMIM:)|(MIM:))', code):
+                    code = re.sub(r'^((OMIM:)|(MIM:))', 'MIM_', code)
+                dx.append(code)
+        if 'classOfOnset' in d:
+            if 'id' in d['classOfOnset']:
+                code = d['classOfOnset']['id']
+                code = re.sub(r'^(HP:)', 'HP_', code)
+                onset.append(code)
+    return {'dx': dx, 'onset': onset}
 
 # @title Recode Phenotypic Disease Codes
 # @description If a disease code has changed, update it
 # @param codes list of disease codes
 # @param if True, codes will be collapsed into a comma separated string
 # @param a list of values or string
-def __pheno__recode_diseases(codes, collapse = False):
+def __pheno__recode__diseases(codes, collapse = False):
     ids_to_recode = {
         'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
         'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
@@ -546,12 +551,19 @@ def __pheno__recode_diseases(codes, collapse = False):
         else:
             out.append(code)
     if collapse:
-        return '.'.join(out)
+        return ','.join(out)
     else:
         return out
 
-def pheno_extract_contents(contents, filename):
-    # init dict
+
+# @title Extract Phenopackets Contents
+# @name pheno_extract_contents
+# @description extract phenopacket data into dictionary
+# @param contents returned object from `cluster_read_json`
+# @param filename name of the phenopackets file
+# @param recode_dx_codes if True, invalid diagnostic codes will be recoded
+# @return a dictionary
+def pheno_extract_contents(contents, filename, recode_dx_codes=False):
     pheno = {
         'id': contents['phenopacket']['id'],
         'dateofBirth': None,
@@ -561,7 +573,7 @@ def pheno_extract_contents(contents, filename):
         'disease': [],
         'phenopacketsID': filename
     }
-    # make sure 'subject' exists, before processing subelements
+    # process `subject` metdata:
     if 'subject' in contents['phenopacket']:
         if 'dateOfBirth' in contents['phenopacket']['subject']:
             pheno['dateofBirth'] = __pheno__recode__date(
@@ -571,16 +583,23 @@ def pheno_extract_contents(contents, filename):
             pheno['sex1'] = __pheno__recode__sex(
                 value = contents['phenopacket']['subject']['sex']
             )
+    # process `phenotypicFeatures`
     if 'phenotypicFeatures' in contents['phenopacket']:
         phenotypic_features = __pheno__unpack__phenotypicfeatures(
             phenotypicFeatures = contents['phenopacket']['phenotypicFeatures']
         )
         pheno['phenotype'] = phenotypic_features['phenotype']
         pheno['hasNotPhenotype'] = phenotypic_features['hasNotPhenotype']
+    # process `diseases`: append if results exist
     if 'diseases' in contents['phenopacket']:
-        pheno['disease'] = __pheno__unpack__diseases(
-            diseases = contents['phenopacket']['diseases']
-        )
+        dx_data =  __pheno__unpack__diseases(contents['phenopacket']['diseases'])
+        if len(dx_data['dx']) > 0:
+            dx_codes = dx_data['dx']
+            if recode_dx_codes:
+                dx_codes = __pheno__recode__diseases(dx_codes)
+            pheno['disease'] = ','.join(dx_codes)
+        if len(dx_data['onset']) > 0:
+            pheno['ageOfOnset'] = ','.join(dx_data['onset'])
     return pheno
 
 
@@ -603,3 +622,19 @@ def timestamp():
 def status_msg(*args):
     msg = ' '.join(map(str, args))
     print('\033[94m[' + timestamp() + '] \033[0m' + msg)
+
+
+# @title Write CSV
+# @name write_csv
+# @description save data to file
+# @param path location of output file
+# @param data dat ato write to file
+# @return None
+def write_csv(path, data):
+    import csv
+    headers = list(data[0].keys())
+    with open(path, 'w') as file:
+        writer = csv.DictWriter(file, fieldnames = headers)
+        writer.writeheader()
+        writer.writerows(data)
+    file.close()

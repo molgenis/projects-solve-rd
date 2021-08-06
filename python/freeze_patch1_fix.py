@@ -9,10 +9,14 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
+
 import python.rd3tools as rd3tools
 import re
 from datetime import datetime
 config = rd3tools.load_yaml_config('python/_config.yml')
+
+def print_dict(data):
+    for d in data: print(d)
 
 # @name process__filename
 # @description extract subjectID from filepath
@@ -57,13 +61,13 @@ def ped__extract__id(data):
 
 # start molgenis session
 rd3 = rd3tools.molgenis(
-    url = config['hosts']['prod'],
-    token = config['tokens']['prod']
+    url = config['hosts']['acc'],
+    token = config['tokens']['acc']
 )
 
 freeze_subjects = rd3.get(
     entity = config['releases']['freeze1']['subject'],
-    attributes='id,subjectID,sex1'
+    attributes='id,subjectID,fid,mid,pid,sex1,clinical_status'
 )
 
 subject_ids = rd3tools.flatten_attr(data = freeze_subjects, attr = 'subjectID')
@@ -319,7 +323,9 @@ del file, raw, data, line
 
 
 # compare files
-for p in ped_p1:
+ped_processed = []
+for d in ped_p1:
+    p = d
     rd3tools.status_msg('Processing', p['id'])
     p['isPatch1'] = 'no'
     p['new_mid'] = 'no'
@@ -369,116 +375,122 @@ for p in ped_p1:
             p['isPatch1'] = 'yes'
             p['new_clinical_status'] = 'yes'
             p['new_file'] = 'yes'
+    ped_processed.append(p)
 
+del d, p, r, f
 
 # pull cases to update
-update_p1 = rd3tools.find_dict(ped_p1, 'isPatch1', 'yes')
-rd3tools.status_msg('Detected patch1 Cases:', len(update_p1))
+ped_filtered = rd3tools.find_dict(ped_processed, 'isPatch1', 'yes')
+rd3tools.status_msg('Detected patch1 Cases:', len(ped_filtered))
 
-len(rd3tools.find_dict(update_p1, 'new_mid', 'yes'))
-len(rd3tools.find_dict(update_p1, 'new_pid', 'yes'))
-len(rd3tools.find_dict(update_p1, 'new_file', 'yes'))
-len(rd3tools.find_dict(update_p1, 'new_clinical_status', 'yes'))
-len(rd3tools.find_dict(update_p1, 'new_sex1', 'yes'))
+len(rd3tools.find_dict(ped_filtered, 'new_mid', 'yes'))
+len(rd3tools.find_dict(ped_filtered, 'new_pid', 'yes'))
+len(rd3tools.find_dict(ped_filtered, 'new_file', 'yes'))
+len(rd3tools.find_dict(ped_filtered, 'new_clinical_status', 'yes'))
+len(rd3tools.find_dict(ped_filtered, 'new_sex1', 'yes'))
+
+# find duplicates
+duplicates = []
+update_p1 = []
+for d in ped_filtered:
+    r = rd3tools.find_dict(ped_filtered, 'id', d['id'])
+    if len(r) > 1:
+        duplicates.append(d)
+    else:
+        update_p1.append(d)
+
+del d, r
+
+rd3tools.status_msg('Duplicate Cases', len(duplicates))
+rd3tools.status_msg('Single cases:', len(update_p1))
 
 
-# recode ID
+# compare results with RD3 metadata
+update_fid = []
+update_mid = []
+update_pid = []
+update_clinical = []
 for d in update_p1:
-    d['patch'] = 'freeze1_original,freeze1_patch1'
-    d['id'] = d['id'] + '_original'
+    r = rd3tools.find_dict(freeze_subjects, 'subjectID', d['id'])
+    if r:
+        f = r[0]
+        # check 'fid'
+        # if (d['fid'] is not None) and not('fid' in f):
+        #     update_fid.append({
+        #         'id': d['id'] + '_original',
+        #         'fid': d['fid']
+        #     })
+        # if (d['fid'] is not None) and ('fid' in f):
+        #     if d['fid'] != f['fid']:
+        #         rd3tools.status_msg('FIDs differ for', d['id'])
+        #//////////////////////////////
+        # check 'mid'
+        if (d['mid'] is not None) and (not 'mid' in f):
+            if d['mid'] in subject_ids:
+                update_mid.append({
+                    'id': d['id'] + '_original',
+                    'mid': d['mid'] + '_original'
+                })
+            else:
+                rd3tools.status_msg(
+                    'For', d['id'], ", mid", d['mid'], 'does not exist'
+                )
+        if (d['mid'] is not None) and 'mid' in f:
+            if d['mid'] != f['mid']['subjectID']:
+                rd3tools.status_msg('MIDs differ for', d['id'])
+        #//////////////////////////////
+        # check 'pid'
+        if (d['pid'] is not None) and not ('pid' in f):
+            if d['pid'] in subject_ids:
+                update_pid.append({
+                    'id': d['id'] + '_original',
+                    'pid': d['pid'] + '_original'
+                })
+            else:
+                rd3tools.status_msg(
+                    'For', d['id'], "pid", d['pid'], 'does not exist'
+                )
+        if (d['pid'] is not None) and ('pid' in f):
+            if d['pid'] != f['pid']['subjectID']:
+                rd3tools.status_msg('PIDs differ for', d['id'])
+        #//////////////////////////////
+        # check 'clinical status'
+        # if (d['clinical_status'] is not None) and not ('clinical_status' in f):
+        #     update_clinical.append({
+        #         'id': d['id'] + '_original',
+        #         'clinical_status': d['clinical_status']
+        #     })
+        # if (d['clinical_status'] is not None) and ('clinical_status' in f):
+        #     if d['clinical_status'] != f['clinical_status']:
+        #         rd3tools.status_msg('Change in status for', d['id'])
+
+# search for cases that were flagged
+rd3tools.find_dict(update_p1, 'id', '')
+rd3tools.find_dict(freeze_subjects, 'subjectID', '')
+
+print_dict(update_fid)
+print_dict(update_mid)
+print_dict(update_pid)
+print_dict(update_clinical)
+
+update_patch_ids = list(set(
+    rd3tools.flatten_attr(update_fid, 'id') +
+    rd3tools.flatten_attr(update_mid, 'id') +
+    rd3tools.flatten_attr(update_pid, 'id') +
+    rd3tools.flatten_attr(update_clinical, 'id')
+))
 
 # pull attributes
-update_patch_ids = rd3tools.select_keys(
-    data = update_p1,
-    keys = ['id', 'patch']
-)
+update_patch = []
+for p in update_patch_ids:
+    update_patch.append({
+        'id': p, 'patch': 'freeze1_original,freeze1_patch1'
+    })
 
-# select new mid cases
-update_mid = rd3tools.select_keys(
-    data = rd3tools.find_dict(
-        data = update_p1,
-        attr = 'new_mid',
-        value = 'yes'
-    ),
-    keys = ['id', 'mid']
-)
-
-# select new pid cases
-update_pid = rd3tools.select_keys(
-    data = rd3tools.find_dict(
-        data = update_p1,
-        attr = 'new_pid',
-        value = 'yes'
-    ),
-    keys = ['id', 'pid']
-)
-
-# select new clinical status
-update_clinical = rd3tools.select_keys(
-    data = rd3tools.find_dict(
-        data = update_p1,
-        attr = 'new_clinical_status',
-        value = 'yes'
-    ),
-    keys = ['id', 'clinical_status']
-)
 
 # import
-rd3.batch_update_one_attr(
-    entity = 'rd3_freeze1_subject',
-    attr = 'patch',
-    values = update_patch_ids
-)
-
-rd3.batch_update_one_attr(
-    entity = 'rd3_freeze1_subject',
-    attr = 'mid',
-    values = update_mid
-)
-
-rd3.batch_update_one_attr(
-    entity = 'rd3_freeze1_subject',
-    attr = 'pid',
-    values = update_pid
-)
-
-rd3.batch_update_one_attr(
-    entity = 'rd3_freeze1_subject',
-    attr = 'clinical_status',
-    values = update_clinical
-)
-
-
-# write csv
-def write_csv(path, data):
-    import csv
-    headers = list(data[0].keys())
-    with open(path, 'w') as file:
-        writer = csv.DictWriter(file, fieldnames = headers)
-        writer.writeheader()
-        writer.writerows(data)
-    file.close()
-
-write_csv(
-    path = 'data/patch1_updates.csv',
-    data = rd3tools.select_keys(
-        data = update_p1,
-        keys = [
-            'id',
-            'subjectID',
-            'fid',
-            'mid',
-            'pid',
-            'sex1',
-            'clinical_status',
-            'upload',
-            'isPatch1',
-            'new_mid',
-            'new_pid',
-            'new_file',
-            'new_clinical_status',
-            'new_sex1',
-            'patch'
-        ]
-    )
-)
+rd3.batch_update_one_attr('rd3_freeze1_subject', 'fid', update_fid)
+rd3.batch_update_one_attr('rd3_freeze1_subject', 'mid', update_mid)
+rd3.batch_update_one_attr('rd3_freeze1_subject', 'pid', update_pid)
+rd3.batch_update_one_attr('rd3_freeze1_subject', 'clinical_status', update_clinical)
+rd3.batch_update_one_attr('rd3_freeze1_subject', 'patch', update_patch)

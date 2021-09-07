@@ -1,17 +1,13 @@
 Script to syncronize directories from Fender with Gearshift and Cher-ami. 
 
 #
-##  current crontab on fender
-#
-
-#
 ## rsyncs every night at 5AM and 6AM to cher-ami, detail in etc/datf.cfg,ditf.cfg
-1 5 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; /admin/solve-rd-dm/synchronize/rsync.sh -g solve-rd -l TRACE -r ditf.cfg"
-2 6 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; /admin/solve-rd-dm/synchronize/rsync.sh -g solve-rd -l TRACE -r datf.cfg"
+1 5 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -l TRACE -r ditf.cfg"
+2 6 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -l TRACE -r datf.cfg"
 
 #
 ## rsyncs every night at 1AM to gearshift, details in etc/sandbox.cfg
-0 1 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; /admin/solve-rd-dm/synchronize/rsync.sh -g solve-rd -l TRACE -r sandbox.cfg"
+0 1 * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -l TRACE -r sandbox.cfg"
 
 #
 ## rsync share dir from sftp every 15 minutes.
@@ -26,5 +22,6 @@ Script to syncronize directories from Fender with Gearshift and Cher-ami.
 10-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d euro-nmd -l FATAL -r ditf-share.cfg"
 11-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d genturis -l FATAL -r ditf-share.cfg"
 12-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d ithaca -l FATAL -r ditf-share.cfg"
-13-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d rnd -l FATAL -r ditf-share.cfg"
-14-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d udn-spain -l FATAL -r ditf-share.cfg"
+13-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d rita -l FATAL -r ditf-share.cfg"
+14-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d rnd -l FATAL -r ditf-share.cfg"
+15-59/15 * * * * /bin/bash -c "export SOURCE_HPC_ENV="True"; ~/synchronize/rsync.sh -g solve-rd -d udn-spain -l FATAL -r ditf-share.cfg"

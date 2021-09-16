@@ -1,0 +1,74 @@
+name: rd3_portal_freeze
+label: Freeze
+description: Intermediate tables for RD3 releases
+version: 0.9000
+date: 2021-09-16
+
+
+defaults:
+  auto: false
+  dataType: string
+  idAttribute: false
+  nillable: true
+
+
+entities:
+  - name: freeze2
+    label: Freeze 2
+    description: Staging table for the freeze2_original
+    attributes:
+      - name: id
+        description: auto generated molgenis ID 
+        dataType: string
+        idAttribute: true
+        auto: true
+        nillable: false
+      - name: organisation_name
+        description: name of the organisation. E.g. University Medical Center Groningen
+      - name: organisation_identifier
+        description: identifier of the organisation. E.g. UMCG¬†  
+      - name: samples_tissueType
+        description: Tissue Types
+      - name: samples_id
+        description: unique identifier (sampleID + patch)
+      - name: samples_alternativeIdentifier
+        description: alternative identifier used by sample provider 
+      - name: samples_subject
+        label: samples_subject
+        description: reference to the subject from which samples was extracted
+      - name: samples_organisation
+        description: Name of the organisation. E.g. University Medical Center Groningen  
+      - name: samples_ERN
+        description: ERN 
+      - name: labinfo_library
+        description: link to more information about the library used in experiment
+      - name: labinfo_sequencer
+        description: sequencer info 
+      - name: labinfo_seqType
+        description: sequencing technique types (e.g., WGS, WXS)
+      - name: labinfo_id
+        description:  Unique identifier (experimentID + patch)
+      - name: labinfo_sample
+        description:  all samples run in this condition, using the same barcode
+      - name: labinfo_capture
+        description: enrichment kit
+      - name: labinfo_libraryType
+        description: library source, e.g., Genomic/Transcriptomic
+      - name: subject_id
+        description: Unique identifier (subjectID + patch)
+      - name: subject_organisation
+        description: name of the organisation that submitted the subject
+      - name: subject_ERN
+        description: ERN
+      - name: subject_solved
+        description: solved case for solve-RD (true/false)
+      - name: subject_date_solved
+        description: Date case was solved
+      - name: subject_matchMakerPermission
+        description: permission is given for match making (boolean)
+      - name: subject_recontact
+        description: Recontact is allowed in case of incidental findings
+      - name: processed
+        description: If True, the record has been processed
+        dataType: bool
+        defaultValue: false

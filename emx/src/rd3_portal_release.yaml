@@ -1,21 +1,43 @@
-name: rd3_portal_freeze
-label: Freeze
+# RD3 Portal Freeze
+#
+# The table `rd3_portal_freeze` is a staging table for new RD3 releases. Data
+# is pushed into this table from external sources, and then processed using
+# a Molgenis job (that runs a python script).
+#
+# To create a table for a new release, update the following attributes in
+# the entities section: `name`, `label`, and `description`
+#
+# ```yaml
+# entities:
+#   - name: freeze<freeze_number> # e.g., "freeze3"
+#     label: Freeze <freeze_number> # e.g., "Freeze 3"
+#     description: Staging table for Freeze <freeze_number> data
+# ```
+#
+
+name: rd3_portal_release
+label: Freezes
 description: Intermediate tables for RD3 releases
-version: 0.9000
+parent: rd3_portal
+version: 1.0.0
 date: 2021-09-16
 
-
+# Defaults:
+# Set default attribute options. By default, all rows are given an
+# auto-generated ID.
 defaults:
   auto: false
   dataType: string
   idAttribute: false
   nillable: true
 
-
+# Entities:
+# Create a new entity for new freezes. Attributes will be the same across
+# releases unless otherwise specified.
 entities:
   - name: freeze2
     label: Freeze 2
-    description: Staging table for the freeze2_original
+    description: Staging table for Freeze 2 data (2021-03-15)
     attributes:
       - name: id
         description: auto generated molgenis ID 

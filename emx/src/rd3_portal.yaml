@@ -1,0 +1,15 @@
+# RD3 Portal
+#
+# This file contains the base EMX markup for the `rd3_portal` EMX package. This
+# model can be used in other portal tables so that the files can be imported
+# with ease. Add the `rd3_portal.yaml` into the list of files when creating a
+# new instance of the emxconverter
+#
+# ```python
+# from emxconvert.convert import Convert
+# c = Convert(files = ['emx/src/rd3_portal.yaml', ...])
+# ```
+#
+name: rd3_portal
+label: RD3 Portal Data
+description: RD3 portal, containing data submitted by CNAG

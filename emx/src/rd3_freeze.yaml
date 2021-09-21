@@ -5,8 +5,8 @@
 # <freeze_number> with the new release number.
 #
 name: rd3_freeze<freeze_number>
-label: Freeze <freeze_number>
-description: RD3 Freeze <freeze_number>
+label: RD3 Freeze<freeze_number>
+description: RD3 Freeze<freeze_number>
 parent: rd3
 date: 2022-01-01
 
@@ -54,12 +54,12 @@ entities:
         label: MaternalID
         description: Maternal ID (MID)
         dataType: xref
-        xref: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_freeze<freeze_number>_subject
       - name: pid
         label: PaternalID
         description: Paternal ID (PID)
         dataType: xref
-        xref: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_freeze<freeze_number>_subject
       - name: clinical_status
         label: Affected status
         description: whether it is an affected individual (main disease) Yes/No
@@ -131,7 +131,7 @@ entities:
       - name: patch
         label: Patch
         description: Patch to which the subject belongs
-        dataType: categoricalmref
+        dataType: categorical_mref
         refEntity: rd3_patch
       - name: patch_comment
         label: Patch Comment
@@ -156,7 +156,7 @@ entities:
         label: SubjectID
         description: Unique identifier of the subject
         dataType: xref
-        xref: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_freeze<freeze_number>_subject
         nillable: false
         readOnly: true
       - name: dateofBirth
@@ -190,7 +190,7 @@ entities:
       - name: patch
         label: Patch
         description: Patch to which the subject belongs
-        dataType: categoricalmref
+        dataType: categorical_mref
         refEntity: rd3_patch
       - name: patch_comment
         label: Patch Comment
@@ -272,7 +272,7 @@ entities:
       - name: patch
         label: Patch
         description: Patch to which the sample belongs
-        dataType: categoricalmref
+        dataType: categorical_mref
         refEntity: rd3_patch
       - name: patch_comment
         label: Patch Comment
@@ -352,7 +352,7 @@ entities:
       - name: patch
         label: Patch
         description: Patch to which the labinfo belongs
-        dataType: categoricalmref
+        dataType: categorical_mref
         refEntity: rd3_patch
       - name: patch_comment
         label: Patch Comment
@@ -395,7 +395,7 @@ entities:
       - name: patch
         label: Patch
         description: Patch to which the file belongs
-        dataType: categoricalmref
+        dataType: categorical_mref
         refEntity: rd3_patch
       - name: patch_comment
         label: Patch Comment
@@ -412,3 +412,51 @@ entities:
       - name: filepath_sandbox
         label: Filepath Sandbox
         description: Filepath Sandbox
+        
+  # RD3: jobs
+  - name: job
+    label: Freeze<freeze_number> Jobs
+    description: Jobs used to process sampledata within Freeze<freeze_number>
+    attributes:
+      - name: status
+        label: status
+        description: status of job (running, completed, or error)
+        dataType: enum
+        enumOptions: completed,error,running
+      - name: identifier
+        label: identifier
+        description: unique identifier job
+        nillable: false
+        unique: true
+        visible: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+      - name: run
+        label: run
+        description: job is part of run
+        dataType: xref
+        refEntity: rd3_run
+        nillable: false
+      - name: log
+        label: log
+        description: uri referencing to logfile
+      - name: inputfile
+        label: inputfile
+        description: inputfile, link to file used in job
+        dataType: mref
+        refEntity: rd3_freeze<freeze_number>_file
+      - name: outputfile
+        label: outputfile
+        description: file produced with job
+        dataType: mref
+        refEntity: rd3_freeze<freeze_number>_file
+      - name: jobstart
+        label: jobstart
+        description: start date and time of job
+        dataType: datetime
+      - name: jobend
+        label: jobend
+        description: end date and time of job
+        dataType: datetime

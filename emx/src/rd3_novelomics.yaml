@@ -1,0 +1,92 @@
+
+# RD3 Novel Omics EMX
+#
+# The EMX structure for the novel omics subpackage is largely based on the
+# main RD3 tables (e.g., Freeze1, Freeze2, etc.). This model may expand over
+# time, but for now the labinfo table has been replaced by the `labinfo_wgs`.
+#
+# In the main emx structre, you must render the `rd3_freeze.yaml` file and
+# merge with this file.
+#
+name: rd3_novelomics
+label: RD3 Novel Omics
+description: Novelomics Metadata
+parent: rd3
+
+
+defaults:
+  aggregateable: false
+  auto: false
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  lookupAttribute: false
+  nillable: true
+  visible: true
+  unique: false
+
+
+# Define Entities:
+# Only define entities that differ from the base EMX  
+entities:
+  - name: labinfo_wgs
+    label: Novelomics WGS Labinfo
+    description: information of process in lab (barcodes, sequencer,etc) linked to sample(s)
+    attributes:
+      - name: id
+        label: id
+        description: Unique identifier (experimentID + patch)
+        dataType: string
+        nillable: false
+        unique: true
+        visible: true
+        idAttribute: true
+        readOnly: true
+      - name: experimentID
+        label: experimentID
+        description: Experiment ID
+        nillable: false
+        labelAttribute: true
+        lookupAttribute: true
+      - name: sample
+        label: sample
+        description: all sample run in this condition, using same barcode
+        dataType: mref
+        refEntity: rd3_novelomics_sample
+      - name: capture
+        label: Enrichment kit
+        description: Enrichment kit
+      - name: libraryType
+        label: Library Source
+        description: Library Source, e.g Genomic/Transcriptomic
+        dataType: categorical
+        refEntity: rd3_libraryType
+      - name: library
+        label: library
+        description: link to more information about the library used in experiment
+        dataType: mref
+        refEntity: rd3_library
+      - name: sequencingCentre
+        label: Sequencing Centre
+        description: Centre where sample was sequenced
+      - name: sequencer
+        label: sequencer
+        description: sequencerinfo
+      - name: seqType
+        label: seqType
+        description: sequencing technique types (e.g. WXS, WGS)
+        dataType: xref
+        refEntity: rd3_seqType
+      - name: retracted
+        label: Retracted Experiment
+        description: Is this experiment removed (retracted) or not
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+      - name: patch
+        label: Patch
+        description: Patch to which the labinfo belongs
+        dataType: categorical_mref
+        refEntity: rd3_patch
+      - name: patch_comment
+        label: Patch Comment
+        description: Patch Comment

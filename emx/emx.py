@@ -50,7 +50,7 @@ def setEmxRelease(data, releaseNumr: str = None, releaseTitle: str = None):
 # See `emx/src/rd3_portal_release.yaml` for additional notes
 
 convertPortalReleaseEmx = Convert(files = [
-    'emx/src/rd3_portal.yaml', # import portal first
+    'emx/src/base_rd3_portal.yaml', # import portal first
     'emx/src/rd3_portal_release.yaml'
 ])
 
@@ -72,7 +72,7 @@ convertPortalReleaseEmx.write(
 
 convertPortalNovelomicsEmx = Convert(
     files = [
-        'emx/src/rd3_portal.yaml',
+        'emx/src/base_rd3_portal.yaml',
         'emx/src/rd3_portal_novelomics.yaml'
     ]
 )

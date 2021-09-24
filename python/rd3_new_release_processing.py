@@ -10,12 +10,14 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import python.rd3tools as rd3tools
-from datatable import dt, f, ifelse, sort, by, first
+from datatable import dt,f
+import functools
+import operator
 
 
 # Init Molgenis Session
 rd3tools.status_msg('Initializing Molgenis session...')
-rd3 = rd3tools.molgenis(url = '')
+rd3 = rd3tools.molgenis(url = 'https://solve-rd-acc.gcc.rug.nl/api/')
 rd3.login('', '')
 
 
@@ -118,10 +120,10 @@ subjects = release[
         'subjectID': f.samples_subject,
         'organisation': f.subject_organisation,
         'ERN': f.subject_ERN,
-        'solved': ifelse(
+        'solved': dt.ifelse(
             f.subject_solved == 'unsolved',
             False,
-            ifelse(
+            dt.ifelse(
                 f.subject_solved == 'solved',
                 True,
                 f.subject_solved
@@ -132,8 +134,8 @@ subjects = release[
         'recontact': f.subject_recontact,
         'patch': 'freeze2_original'
     },
-    sort('id')
-][:, first(f[1:]), by(f.id)]
+    dt.sort('id')
+][:, dt.first(f[1:]), dt.by(f.id)]
 
 
 # ~ b ~
@@ -141,6 +143,7 @@ subjects = release[
 # There isn't much to add at this point as most of the data in this
 # table comes from other sources or has never been collected.
 subjectInfo = subjects[:, ['id', 'subjectID', 'patch']]
+
 
 # ~ c ~
 # Create Samples
@@ -157,8 +160,9 @@ samples = release[
         'ERN': f.samples_ERN,
         'patch': 'freeze2_original'
     },
-    sort('id')
+    dt.sort('id')
 ]
+
 
 # ~ d ~
 # Create Labinfo table
@@ -166,20 +170,20 @@ labinfo = release[
     :,
     {
         'id': f.labinfo_sample + '_original',
-        'experimentID': f.labinfo_sample + '_original',
+        'experimentID': f.labinfo_sample,
         'sample': 'VS' + f.labinfo_sample + '_original',
         'capture': f.labinfo_capture,
-        'libraryType': ifelse(
+        'libraryType': dt.ifelse(
             f.labinfo_libraryType == 'genomics',
             'Genomic',
             f.labinfo_libraryType
         ),
         'library': f.labinfo_library,
         # 'sequencer': f.labinfo_sequencer, # if available
-        'seqType': ifelse(
+        'seqType': dt.ifelse(
             f.labinfo_seqType == 'Whole Exome Sequencing',
             'WXS',
-            ifelse(
+            dt.ifelse(
                 f.labinfo_seqType == 'Whole Genome Sequencing with or without PCR',
                 'WGS',
                 f.labinfo_seqType
@@ -188,6 +192,30 @@ labinfo = release[
         'patch': 'freeze2_original'
     }
 ]
+
+
+# ~ e ~
+# Pull Molgenis IDs
+# Create a dataset of all molgenis IDs that were used in the previous steps.
+# This will allow us to update the portal table with new IDs.
+# subjects[:, f.subjectID].to_list()[0]
+# samples[:, f.sampleID].to_list()[0]
+# labinfo[:, f.experimentID].to_list()[0]
+portalUpdates = release[
+    functools.reduce(
+        operator.or_, (
+            f.subject_id == id for id in subjects[:, f.subjectID].to_list()[0]
+        )
+    ), {
+        'id': f.id,
+        'processed': True 
+    }
+]
+
+if len(portalUpdates) != len(release):
+    raise SystemError(
+        'Error in release mapping: not records were processed'
+    )
 
 
 #//////////////////////////////////////
@@ -210,3 +238,9 @@ rd3.update_table(subjects, 'rd3_freeze2_subject')
 rd3.update_table(subjectInfo, 'rd3_freeze2_subjectinfo')
 rd3.update_table(samples, 'rd3_freeze2_samples')
 rd3.update_table(labinfo, 'rd3_freeze2_labinfo')
+
+rd3.batch_update_one_attr(
+    entity = 'rd3_portal_release_freeze2',
+    attr = 'processed',
+    values = portalUpdates
+)

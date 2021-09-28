@@ -18,7 +18,6 @@
 import molgenis.client as molgenis
 from datetime import datetime
 from urllib.parse import quote_plus
-from datetime import datetime
 import json
 import requests
 
@@ -194,6 +193,52 @@ def select_keys(data, keys):
     return list(map(lambda x: {k: v for k, v in x.items() if k in keys}, data))
 
 
+def lookups_find_new(lookup, lookup_attr, new):
+    """Find new lookup values
+    
+    Given a list of new values and old values, determine if there are any
+    new values.
+    
+    @param lookup_attr the attribute to look into
+    @param lookup RD3 lookup table
+    @param new a list of unique values
+    
+    @return a list of dictionaries of 
+    """
+    refs = flatten_attr(lookup, lookup_attr)
+    out = []
+    for n in new:
+        if (n in refs) == False:
+            out.append({'id': n, 'label': n})
+    return out
+
+
+def lookups_prep_new(data, id_name='identifier', label_name='label', clean = False):
+    """Prepare Reference Types for Import
+    
+    Prepare data for import into Molgenis
+    
+    @param data list containing one or more dictionaries of new references
+    @param id_name label to apply to the ID variable (id => identifier)
+    @param label_name label to map to 'label' key (i.e., name => label)
+    @param clean if TRUE, the ID attribute will be cleaned (spaces => '-'; text => lowered)
+    
+    @return a list of dictionaries
+    """
+    out = []
+    for d in data:
+        new = {}
+        value  = d.get('id')
+        label = d.get('label')
+        if clean:
+            value = '-'.join(d.get('id').split()).lower()
+            label = value
+        new[id_name] = value
+        new[label_name] = label
+        out.append(new)
+    return out
+
+
 def map_rd3_subject(data, patch, distinct=True):
     """Map RD3 Subjects
 
@@ -236,7 +281,6 @@ def map_rd3_subjectinfo(data):
             'patch': d.get('patch')
         })
     return out
-
 
 
 def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
@@ -474,11 +518,13 @@ def process_freeze_subject_ids(data, refIDs, patch):
 
 #//////////////////////////////////////////////////////////////////////////////
 
+# ~ 0 ~
 # init session
-host = ''
+host = 'https://solve-rd-acc.gcc.rug.nl/api/'
 token = ''
-status_msg('Processing NovelOmics Data...')
-rd3 = molgenis(url = host, token = token)
+status_msg('Starting new molgenis session...')
+# rd3 = molgenis(url = host, token = token) # for prod and acc
+rd3 = molgenis(url = host) # for local dev
 rd3.login('', '') # for local dev
 
 # fetch all reference data
@@ -487,9 +533,11 @@ rd3_organisations = rd3.get('rd3_organisation')
 rd3_ERN = rd3.get('rd3_ERN')
 ern_refs = flatten_attr(data = rd3_ERN, attr = 'identifier')
 
+
 #//////////////////////////////////////
 
-# fetch raw novelomics data from the portal 
+# ~ 1 ~
+# Fetch Portal Data
 status_msg('Fetching data from the portal')
 
 metadata = rd3.get(

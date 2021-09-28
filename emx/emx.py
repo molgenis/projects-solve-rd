@@ -41,6 +41,29 @@ def setEmxRelease(data, releaseNumr: str = None, releaseTitle: str = None):
                 )
 
 
+# write attributes as csv template
+def writeEmxCsvTemplate(entities: list = None, attributes: list = None, outDir: str = '.'):
+    """Write EMX CSV Templates
+    
+    Write the emx attributes as an CSV template.
+    
+    @param entities EMX entities in a package
+    @param attributes EMX attributes
+    @param outDir location to save file (default: '.', i.e., current)
+    """
+    for entity in entities:
+        pkgEntity = entity['package'] + '_' + entity['name']
+        filteredAttributes = list(filter(lambda d: d['entity'] in pkgEntity, attributes))
+
+        attribs = []
+        for elem in filteredAttributes:
+            attribs.append(elem['name'])
+
+        file = outDir + '/' + pkgEntity + '.csv'
+        with open(file, 'w') as stream:
+            stream.write(','.join(attribs))
+        stream.close()
+
 #//////////////////////////////////////
 
 
@@ -87,6 +110,14 @@ convertPortalNovelomicsEmx.write(
     format = 'xlsx',
     outDir = 'emx/dist/'
 )
+
+
+# generate CSV templates
+writeEmxCsvTemplate(
+    entities = convertPortalNovelomicsEmx.entities,
+    attributes = convertPortalNovelomicsEmx.attributes,
+    outDir = 'templates'
+)        
 
 
 #//////////////////////////////////////

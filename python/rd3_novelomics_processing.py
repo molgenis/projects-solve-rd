@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-09-29
+# MODIFIED: 2021-09-30
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -35,6 +35,12 @@ def status_msg(*args):
     print('\033[94m[' + timestamp + '] \033[0m' + msg)
     
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# EXTEND THE MOLGENIS CLASS
+# Add the following methods for pushing data into RD3
+# - update_table: batch update a table
+# - batch_update_one_attr: batch update an attribute 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class molgenis(molgenis.Session):
     """molgenis
     
@@ -300,6 +306,7 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
         tmp['id'] = d.get('sample_id') + id_suffix
         tmp['subject'] = d.get('subject_id') + subject_suffix
         tmp['sampleID'] = d.get('sample_id')
+        tmp['alternativeIdentifier'] = d.get('alternativeIdentifier', None)
         tmp['tissueType'] = d.get('tissue_type')
         if tmp['tissueType'] == 'blood':
             tmp['tissueType'] = 'Whole Blood'
@@ -314,8 +321,8 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
         return out
 
 
-def map_rd3_labinfo(data, id_suffix, sample_id_suffix, patch, distinct=False):
-    """Map new RD3 labinfo
+def map_rd3_labinfo_wgs(data, id_suffix, sample_id_suffix, patch, distinct=False):
+    """Map new RD3 WGS labinfo
     
     @param data input data
     @param id_suffix content to append to ID, e.g., "_original"
@@ -339,6 +346,32 @@ def map_rd3_labinfo(data, id_suffix, sample_id_suffix, patch, distinct=False):
         tmp['sequencingCentre'] = d.get('sequencing_center')
         tmp['sequencer'] = d.get('platform_model')
         tmp['seqType'] = d.get('library_strategy')
+        tmp['patch'] = patch
+        out.append(tmp)
+    if distinct:
+        return list(distinct_dict(out, lambda x: ( x['id'], x['experimentID'] )))
+    else:
+        return out
+
+
+def map_rd3_labinfo_rnaseq(data, id_suffix, sample_id_suffix, patch, distinct = False):
+    """Map new RD3 RNAseq labinfo
+    
+    @param data input data
+    @param id_suffix content to append to ID, e.g., "_original"
+    @param sample_id_suffix string to append to sample ID so that mrefs are properly linked
+    @param patch SolveRD3 data release
+    @param distinct if True, distinct dictionaries will be returned
+    
+    @return list of dictionaries
+    """
+    out = []
+    for d in data:
+        tmp = {}
+        tmp['id'] = d.get('project_experiment_dataset_id') + id_suffix
+        tmp['experimentID'] = d.get('project_experiment_dataset_id')
+        tmp['sample'] = d.get('sample_id') + sample_id_suffix
+        
         tmp['patch'] = patch
         out.append(tmp)
     if distinct:
@@ -398,8 +431,9 @@ def recode_erns(data, refs, attr = 'ERN'):
     """Recode ERNS
     Recode raw values in the ERN column to RD3 terminology
 
-    @param ern_ref a list containing unique ERN values
-    @param value a string containing an ERN code
+    @param data input data
+    @param refs a list containing unique ERN values
+    @param attr name of the key to validate
 
     @returns string
     """
@@ -417,7 +451,39 @@ def recode_erns(data, refs, attr = 'ERN'):
                 if tmp[attr] in patterns[pattern]:
                     tmp[attr] = pattern
                 else:
-                    raise ValueError('Error in recode_erns: {} does not exist'.format(tmp[attr]))
+                    raise ValueError(
+                        'Error in recode_erns: {} does not exist'
+                        .format(tmp[attr])
+                    )
+        out.append(tmp)
+    return out
+
+
+def recode_orgs(data, refs, attr = "organisation"):
+    """Recode Organisations
+    Recode raw values in the organisation column to RD3 terminology
+    
+    @param data input data
+    @param refs a reference list containing unique organisation codes
+    @param attr name of the key to validate
+    
+    @return list of dictionaries
+    """
+    patterns = {
+        'malgorzata-dec-cwiek': ['Malgorzata  Dec-Cwiek']
+    }
+    out = []
+    for d in data:
+        tmp = d
+        if not(tmp[attr] in refs):
+            for pattern in patterns:
+                if tmp[attr] in patterns[pattern]:
+                    tmp[attr] = pattern
+                else:
+                    raise ValueError(
+                        'Error in recode_orgs: {} does not exist'
+                        .format(tmp[attr])
+                    )
         out.append(tmp)
     return out
 
@@ -518,60 +584,91 @@ def process_freeze_subject_ids(data, refIDs, patch):
     return out
 
 
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 0 ~
-# init session
-# host = 'http://localhost/api/'
-host = 'https://solve-rd-acc.gcc.rug.nl/api/'
-token = ''
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Configure Molgenis Session
+# When using in production, make sure token is declared using '{molgenisToken}'
+# and the host is set to 'http://localhost/api/'.
+#
+# If running locally, use the `login` method and manually set the host url.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 status_msg('Starting new molgenis session...')
-# rd3 = molgenis(url = host, token = token) # for prod and acc
-rd3 = molgenis(url = host) # for local dev
-rd3.login('', '') # for local dev
+rd3 = molgenis(url = 'http://localhost/api/', token = '{molgenisToken}')
 
-# fetch all reference data
-status_msg('Fetching RD3 reference entities')
-rd3_organisations = rd3.get('rd3_organisation')
-rd3_ERN = rd3.get('rd3_ERN')
+# for local use
+# rd3 = molgenis(url = 'https://solve-rd-acc.gcc.rug.nl/api/')
+# rd3.login('', '') # for local dev
 
-org_refs = flatten_attr(data = rd3_organisations, attr = 'identifier')
-ern_refs = flatten_attr(data = rd3_ERN, attr = 'identifier')
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# FETCH PORTAL DATA
+#
+# Not only do we need to pull the novelomics metadata, we also need to pull
+# data from the main RD3 tables and several reference entities. The subsequent
+# steps will do the following.
+#
+# 1. Identify cases that exist in the novelomics release and in the freezes.
+#   (We will need to update the patch information for these cases)
+# 2. Validate ERN codes
+# 3. Validate Organisation codes
+# 4. Pull metadata from the subject tables in order to map to other tables
+#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+status_msg('Fetching required data from RD3')
+
+# pull `rd3_portal_novelomics_shipment`
+all_metadata = rd3.get('rd3_portal_novelomics_shipment', batch_size = 10000)
+metadata = find_dict(all_metadata, 'processed', 'false')
 
 
-#//////////////////////////////////////
-
-# ~ 1 ~
-# Fetch Portal Data
-status_msg('Fetching data from the portal')
-
-metadata = rd3.get(
-    'rd3_portal_novelomics_shipment',
-    q = 'processed==false',
-    batch_size = 10000
-)
-
+# pull `rd3_portal_novelomics_experiment`
 experiment = rd3.get(
     entity = 'rd3_portal_novelomics_experiment',
     q='processed==false',
     batch_size=10000,
 )
 
-# find existing novelomics metadata
+# pull `rd3_novelomics_subject` and flatten IDs
 rd3_novelomics_subject = rd3.get(
     entity = 'rd3_novelomics_subject',
     attributes = 'id,subjectID,patch,ERN,organisation',
     batch_size = 10000
 )
-existing_novelomics_subjects = flatten_attr(
-    data = rd3_novelomics_subject,
-    attr = 'subjectID'
-)
+
+existing_novelomics_subjects = flatten_attr(rd3_novelomics_subject, 'subjectID')
 
 
-# determine if mapping is necessary
+# pull `rd3_<freeze>_subject`
+rd3_subjects = {
+    'freeze1': rd3.get(
+        entity = 'rd3_freeze1_subject',
+        attributes = 'id,subjectID,patch',
+        batch_size = 10000
+    ),
+    'freeze2': rd3.get(
+        entity = 'rd3_freeze2_subject',
+        attributes = 'id,subjectID,patch',
+        batch_size = 10000
+    )    
+}
+
+# pull `rd3_organisation` and `rd3_ERN` and flatten
+rd3_ERN = rd3.get('rd3_ERN')
+rd3_organisations = rd3.get('rd3_organisation')
+ern_refs = flatten_attr(data = rd3_ERN, attr = 'identifier')
+org_refs = flatten_attr(data = rd3_organisations, attr = 'identifier')
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# DETERMINE IF MAPPING IS NECESSARY
+#
+# Since this script is setup as a regular job, there may not always be new
+# data to process. This script uses a few flags to determine which dataset
+# needs to be processed and imported.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 should_map_expr = False
 should_map_meta = False
+should_import_novelomics_subject = False
+should_import_novelomics_experiment = False
+
 if experiment and metadata:
     status_msg('New experiment and sample metadata available for processing')
     should_map_expr = True
@@ -585,86 +682,69 @@ elif not experiment and metadata:
 else:
     status_msg('Everything is up to date :-)')
 
-#//////////////////////////////////////
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
 # ~ 1 ~
-# Process Sample+Patient Metadata
-
-should_import_novelomics_subject = False
-should_import_novelomics_experiment = False
-
+# PROCESS PATIENT METADATA
+#
+# The processing and importing of patient metadata were seperated. It was
+# reported that the sample IDs and experiment IDs in the sample manifest
+# were not always correct. This could be due to a number of reasons. Rather
+# than creating extensive mappings, it was decided to process patients
+# independent of samples and experiment metadata.
+#
 # If data is available to map, prepare for import into `rd3_novelomics`.
-# This step works in the following steps
+# This step works in the following steps.
 #
-# 1. Pulls existing novelomics subjects to determine if there are new subjects
+# 1. Pull existing novelomics subjects to determine if there are new subjects
 # 2. New cases are checked for matching entries in other releases (freezes)
-# 3. The patch metadata for matches is updated
-# 4. New cases are mapped to RD3 terminology (i.e., `rd3_novelomics_subject`)
-# 5. Data is imported into molgenis in the next step
+# 3. The patch information is updated for any matches
+# 4. New cases are mapped to RD3 terminology
+# 
+# Data is imported into molgenis in the next step and if the import flags are
+# set to True.
 #
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if should_map_meta:
     status_msg('Starting sample metadata processing...')    
     
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # IDENTIFY NEW PARTICIPANTS
     # First, we need to determine if the subject is a new to the novelomics release
     # or if they already exist. We do not need to reregister if this is case.
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     status_msg('Finding new records...')
-
     for subject in metadata:
         if subject['participant_subject'] in existing_novelomics_subjects:
             subject['exists'] = 'yes'
         else:
             subject['exists'] = 'no'
 
-    new_metadata = find_dict(
-        data = metadata,
-        attr = 'exists',
-        value = 'no'
-    )
+    # create subsets
+    new_metadata = find_dict(data = metadata, attr = 'exists', value = 'no')
+    old_metadata = find_dict(data = metadata, attr = 'exists', value = 'yes')
 
-    old_metadata = find_dict(
-        data = metadata,
-        attr = 'exists',
-        value = 'yes'
-    )
-
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # PROCESS NEW METADATA
-    # If there are unprocessed records in `rd3_portal_novelomics_shipment`, then
-    # we can process this data.
+    # For new participants, we can "register" them in `rd3_novelomics_subject`.
+    # In addition, there are a few other things we need to do.
+    #
+    # 1. Determine if they exist in another freeze (freeze1, freeze2, etc.)
+    # 2. Validate ERN and Organistion codes
+    # 3. Build `rd3_novelomics_subject` and `rd3_novelomics_subjectinfo`
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if new_metadata:
         status_msg('New subjects detected...')
-        
-        # determine if new novelomics subjects exist in another RD3 release
-        # If they do, we need to update the patch information. Pull subjectID and patch
-        # from other releases.
-        #
-        # Note: for future releases, make sure this script is updated accordingly.
-        status_msg('Fetching Freeze Subject metadata...')
 
-        new_metadata_ids = flatten_attr(
-            data = new_metadata,
-            attr = 'participant_subject'
-        )
-
-        freeze1_subjects = rd3.get(
-            entity = 'rd3_freeze1_subject',
-            attributes = 'id,subjectID,patch',
-            batch_size = 10000
-        )
-    
-        freeze2_subjects = rd3.get(
-            entity = 'rd3_freeze2_subject',
-            attributes = 'id,subjectID,patch',
-            batch_size = 10000
-        )
-
-        # Isolate other release IDs
-        freeze1_subject_ids = flatten_attr(freeze1_subjects, 'subjectID')
-        freeze2_subject_ids = flatten_attr(freeze2_subjects, 'subjectID')
-
+        # create a list of IDs for all current releases
+        new_metadata_ids = flatten_attr(new_metadata, 'participant_subject')
+        freeze1_subject_ids = flatten_attr(rd3_subjects['freeze1'], 'subjectID')
+        freeze2_subject_ids = flatten_attr(rd3_subjects['freeze2'], 'subjectID')
         
         # triage novelomics participant IDs - Do they exist in another release?
-        status_msg('Searching for overlapping freeze IDs...')
+        # For new releases, update the function `triage_ids`
+        status_msg('Triaging IDs: searching for IDs that exist in other RD3 releases')
         subject_freeze_matches = triage_ids(
             data = metadata,
             attr = 'subject_id',
@@ -672,126 +752,117 @@ if should_map_meta:
             freeze2 = freeze2_subject_ids
         )
         
-        # If ID triage identified freeze 1 IDs, update patch info `rd3_freeze1_subject`
-        # and `rd3_freeze1_subjectinfo`
-        if subject_freeze_matches['freeze1']:
-            status_msg(
-                'Identified {} Freeze1 IDs. Processing...'
-                .format(len(subject_freeze_matches['freeze1']))
-            )
-            subject_freeze1_updates = process_freeze_subject_ids(
-                data = freeze1_subjects,
-                refIDs = subject_freeze_matches['freeze1'],
-                patch = 'novelomics_original'
-            )
-            if subject_freeze1_updates:
-                status_msg('Updating Freeze1 subject patch info...')
-                rd3.batch_update_one_attr(
-                    entity = 'rd3_freeze1_subject',
-                    attr = 'patch',
-                    values = subject_freeze1_updates
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # For all freeze matches, pull the patch information and add current
+        # novelomics release information
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        for freeze in subject_freeze_matches:
+            if subject_freeze_matches[freeze]:
+                status_msg(
+                    'In {}: identified {} IDs. Will update patch information...'
+                    .format(freeze, len(subject_freeze_matches[freeze]))
                 )
-                rd3.batch_update_one_attr(
-                    entity = 'rd3_freeze1_subjectinfo',
-                    attr = 'patch',
-                    values = subject_freeze1_updates
+                
+                # prep data with new patch info
+                subject_freeze_updates = process_freeze_subject_ids(
+                    data = rd3_subjects[freeze],
+                    refIDs = subject_freeze_matches[freeze],
+                    patch = 'novelomics_original'
                 )
-            else:
-                status_msg('No updates found')
+                
+                # Are there any matches?
+                if subject_freeze_updates:
+                    entityBasename = 'rd3_' + freeze + '_subject'
+                    
+                    # update `rd3_<freeze>_subject`
+                    rd3.batch_update_one_attr(
+                        entity = entityBasename,
+                        attr = 'patch',
+                        values = subject_freeze_updates
+                    )
+                    
+                    # update `rd3_<freeze>_subjectinfo`
+                    rd3.batch_update_one_attr(
+                        entity = entityBasename + 'info',
+                        attr = 'patch',
+                        values = subject_freeze_updates
+                    )
+                else:
+                    status_msg('Updating patch information is not needed')
+                        
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # VALIDATE ERNS AND ORGANISATIONS
+        #
+        # Before we can import data, we need to make sure ERN and Organisation codes
+        # are valid. If a code does not exist any of the RD3 reference tables
+        # an error will be thrown.
+        # 
+        # If this happens, you will need to determine if...
+        #   1) the code entered correctly or if it closely resembles an existing code
+        #   2) the code is new
+        # 
+        # If the first item is the case, add the variation to the list of patterns
+        # in the relevant function or create a new pattern.
+        #
+        # If the code is new, add a new entry in the relevant RD3 lookup table.
+        # New ERN codes shouldn't be the case as there is a set number of ERNs.
+        # Organisation codes are more likely to be new.
+        #
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        status_msg('Validating ERN and Organisation codes')
+        experiment = recode_erns(new_metadata, ern_refs, 'ERN')
+        experiment = recode_orgs(new_metadata, org_refs, 'organisation')
         
         
-        # If ID triage identified freeze 2 IDs, update patch info `rd3_freeze2_subject`
-        # and `rd3_freeze2_subjectinfo`
-        if subject_freeze_matches['freeze2']:
-            status_msg('Identified Freeze2 IDs. Processing...')
-            subject_freeze2_updates = process_freeze_subject_ids(
-                data = freeze1_subjects,
-                refIDs = subject_freeze_matches['freeze2'],
-                patch = 'novelomics_original'
-            )
-            if subject_freeze2_updates:
-                status_msg('Updating Freeze2 Subject patch info...')
-                rd3.batch_update_one_attr(
-                    entity = 'rd3_freeze2_subject',
-                    attr = 'patch',
-                    values = subject_freeze2_updates
-                )
-                rd3.batch_update_one_attr(
-                    entity = 'rd3_freeze2_subjectinfo',
-                    attr = 'patch',
-                    values = subject_freeze2_updates
-                )
-            else:
-                status_msg('No updates found')
-        
-        #//////////////////////////////
-        
-        # Validate ERNs
-        # This is the most important step, it is important to fix any incorrect ERN
-        # codes. There are some known patterns that can be recoded, but anything else
-        # must be investigated further.
-        status_msg('Processing ERN data...')
-        
-        new_erns = flatten_attr(new_metadata, 'ERN', distinct = True)
-        for e in new_erns:
-            if e not in ern_refs:
-                raise ValueError('Error in ERNS: {} does not exist'.format(e))
-        
-        new_metadata = recode_erns(
-            data = new_metadata,
-            refs = ern_refs,
-            attr = 'ERN'
-        )
-        
-        #//////////////////////////////
-
-        # Fix organisations
-        # Some organisation codes may need to be recoded and checked before import
-        status_msg('Manually fixing organisations...')
-        
-        new_orgs = flatten_attr(new_metadata, 'organisation', distinct = True)
-        for org in new_orgs:
-            if org not in org_refs:
-                raise ValueError('Error in Organisations: {} does not exist'.format(org))
-        
-        # Manually recode organisations
-        for n in new_metadata:
-            if n['organisation'] == 'Malgorzata  Dec-Cwiek':
-                n['organisation'] = 'malgorzata-dec-cwiek'
-
-        
-        #//////////////////////////////
-        
-        # Map data for subject and subjectinfo tables
-        novelomics_subject = map_rd3_subject(
-            data = new_metadata,
-            patch = 'novelomics_original'
-        )
-
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # BUILD NOVELOMICS SUBJECT TABLES
+        # Most of the metadata will come from the PED and Phenopacket files, but
+        # we will "register" new participants here. These tables are:
+        # - `rd3_novelomics_subject`
+        # - `rd3_novelomics_subjectinfo`
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        novelomics_subject = map_rd3_subject(data = new_metadata, patch = 'novelomics_original')
         novelomics_subjectinfo = map_rd3_subjectinfo(data = novelomics_subject)
 
-        # update flags and set import status
-        status_msg('Mapped NovelOmics Subjects: {}'.format(len(novelomics_subject)))
+        # update flags: set import status
         should_import_novelomics_subject = True
+        status_msg('Mapped NovelOmics Subjects: {}'.format(len(novelomics_subject)))
 
     else:
         status_msg('No new subjects to register')
 
-#//////////////////////////////////////
 
-# ~ 2 ~
-# Process Experiment Metadata
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# PROCESS EXPERIMENT METADATA
+#
+# If there is new experiment metadata available, we can process and prepare the
+# data for import into RD3. This process does the following.
+#
+# 1. Merges patient metadata that are only available in the shipment manifest
+# 2. Validates ERN and organisation codes
+# 3. Creates subsets based on experiment type
+# 4. Build RD3 tables: samples, labinfo_*, and files
+#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if should_map_expr:
     status_msg('Processing experiment metadata...')
     
-    # Process new experiment data
-    # For new experiment metadata, we need to find and merge subject/sample
-    # metadata necessary for populating the labinfo tables. This information
-    # can be found in RD3 or in the new metadata to process
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # PROCESS NEW EXPERIMENT DATA
+    #
+    # For new experiment metadata, we need to find and merge some subject and
+    # sample attributes to the labinfo tables. This information can be found
+    # in the shipment metadata data.
+    #
+    # The attributes that we need are:
+    #   - alternativeIdentifier: this is `CNAG_barcode` (RNAseq data only)
+    #   - ERN: associated ERN
+    #   - organisation: submitting institution 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     for e in experiment:
-        
-        # find in existing participants
+
+        # Check in existing participants
         if e['subject_id'] in existing_novelomics_subjects:
             result = find_dict(
                 data = rd3_novelomics_subject,
@@ -799,7 +870,7 @@ if should_map_expr:
                 value = e['subject_id']
             )[0]
             
-        # or check in the processed dataset defined aboved
+        # Check in the new dataset (processed above)
         if new_metadata_ids:
             if e['subject_id'] in new_metadata_ids:
                 result = find_dict(
@@ -808,47 +879,55 @@ if should_map_expr:
                     value = e['subject_id']
                 )[0]
                 
-        # merge result data
+        # merge attributes
+        barcode = find_dict(all_metadata, 'sample_id', e['sample_id'])
+        e['alternativeIdentifier'] = barcode.get('CNAG_barcode', None)
         e['ERN'] = result.get('ERN', {}).get('identifier')
         e['organisation'] = result.get('organisation',{}).get('identifier')
-        e['alternativeIdentifier'] = result.get('CNAG_barcode')
         
-    #////////////////////////////////////////
-    
-    # Recode ERNS
-    # Like the participant and sample metadata, ERN values need to be recoded.
-    # All unknown cases will throw an error
-    
-    new_erns = flatten_attr(new_metadata, 'ERN', distinct = True)
-    for e in new_erns:
-        if e not in ern_refs:
-            raise ValueError('Error in ERNS: {} does not exist'.format(e))
-    
-    experiment = recode_erns(
-        data = experiment,
-        refs = ern_refs,
-        attr = 'ERN'
-    )
-    
-    del e
-    
-    #////////////////////////////////////////
-    
-    # Recode Organisations
-    # In addition to ERNs, unknown organisations should be identified and recoded
-    # where applicable
-    status_msg('Manually fixing organisations...')
-    for e in experiment:
-        if e['organisation'] == 'Malgorzata  Dec-Cwiek':
-            e['organisation'] = 'malgorzata-dec-cwiek'
             
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # VALIDATE ERNS AND ORGANISATIONS
+    #
+    # Before we can import data, we need to make sure ERN and Organisation codes
+    # are valid. If a code does not exist any of the RD3 reference tables
+    # an error will be thrown.
+    # 
+    # If this happens, you will need to determine if...
+    #   1) the code entered correctly or if it closely resembles an existing code
+    #   2) the code is new
+    # 
+    # If the first item is the case, add the variation to the list of patterns
+    # in the relevant function or create a new pattern.
+    #
+    # If the code is new, add a new entry in the relevant RD3 lookup table.
+    # New ERN codes shouldn't be the case as there is a set number of ERNs.
+    # Organisation codes are more likely to be new.
+    #
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    status_msg('Validating ERN and Organisation codes')
+    experiment = recode_erns(experiment, ern_refs, 'ERN')
+    experiment = recode_orgs(experiment, org_refs, 'organisation')
+
     
-    #////////////////////////////////////////
-    
-    # Build RD3 tables
-    # Create samples, labinfo, and files
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # BUILD RD3 TABLES
+    #
+    # At this point, we can start mapping the data into the proper RD3
+    # structure (samples, labinfo, files, etc.). However, we need to create
+    # subsets of the data based on seqType. In RD3, we have created tables
+    # for WGS experiment data and RNAseq data. The data requirements are much
+    # different and it was decided to split these tables. The rest of the
+    # tables can be processed as normal.
+    # 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     status_msg('Processing new data...')
     
+    # create subsets based on experiment type
+    experiment_wgs = find_dict(experiment, 'experiment_type', 'SR-WGS')
+    experiment_rnaseq = find_dict(experiment, 'experiment_type', 'RNA-seq')
+    
+    # build `rd3_novelomics_samples`
     novelomics_sample = map_rd3_samples(
         data = experiment,
         id_suffix='_novelomics_original',
@@ -856,38 +935,54 @@ if should_map_expr:
         patch='novelomics_original',
         distinct = True
     )
+    
+    # build `rd3_novelomics_labinfo_wgs` (if available)
+    if experiment_wgs:
+        novelomics_labinfo_wgs = map_rd3_labinfo_wgs(
+            data = experiment_wgs,
+            id_suffix = '_novelomics_original',
+            sample_id_suffix = '_novelomics_original',
+            patch = 'novelomics_original',
+            distinct = True
+        )
+    
+    # build `rd3_novelomics_labinfo_rnaseq` (if available)
+    if experiment_rnaseq:
+        novelomics_labinfo_rnaseq = ""
 
-    novelomics_labinfo = map_rd3_labinfo(
-        data = experiment,
-        id_suffix = '_novelomics_original',
-        sample_id_suffix = '_novelomics_original',
-        patch = 'novelomics_original',
-        distinct = True
-    )
-
+    # build `rd3_novelomics_file`
     novelomics_file = map_rd3_files(
         data = experiment,
         sample_id_suffix = "_novelomics_original",
         patch = 'novelomics_original'
     )
     
-    
     # Update flags and print summaries
     should_import_novelomics = True
-    status_msg('Mapped NovelOmics Files: {}'.format(len(novelomics_file)))
-    status_msg('Mapped NovelOmics Labinfo: {}'.format(len(novelomics_labinfo)))
     status_msg('Mapped NovelOmics Samples: {}'.format(len(novelomics_sample)))
+    status_msg('Mapped NovelOmics Labinfo (WGS): {}'.format(len(novelomics_labinfo_wgs)))
+    status_msg('Mapped NovelOmics Labinfo (RNAseq): {}'.format(len(novelomics_labinfo_rnaseq)))
+    status_msg('Mapped NovelOmics Files: {}'.format(len(novelomics_file)))
 
 else:
     status_msg('No experiment metadata available for processing :)')
 
 
-#//////////////////////////////////////
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# IMPORT DATA
+#
+# Based on the flags and the objects that were created, we can import new
+# data into the main RD3 Novel omics tables. Subject metadata is processed
+# and imported separately given the discrepancies with the identifiers.
+#
+# Using the import flags, the processed datasets will be imported into the
+# corresponding RD3 novelomics table and the processed status in the portal
+# will be set to `True`.
+#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# ~ 3 ~
-# Import Metadata where applicable
-
-# If there new participant metadata is available, import data into RD3
+# import subjects
 if should_import_novelomics_subject:
     status_msg('Importing novel omics metadata...')
     
@@ -903,14 +998,20 @@ else:
     status_msg('No new subject metadata to import')
 
 
-# import novel omics data if applicable
+# import samples, labinfo_*, and files
 if should_import_novelomics_experiment:
     status_msg('Importing novel omics metadata...')
     
     # import into RD3 Novelomics tables
     rd3.update_table(novelomics_sample, 'rd3_novelomics_sample')
-    rd3.update_table(novelomics_labinfo,'rd3_novelomics_labinfo_wgs')
     rd3.update_table(novelomics_file, 'rd3_novelomics_file')
+    
+    # import labinfo tables where applicable
+    if novelomics_labinfo_wgs:
+        rd3.update_table(novelomics_labinfo_wgs,'rd3_novelomics_labinfo_wgs')
+
+    if novelomics_labinfo_rnaseq:
+        rd3.update_table(novelomics_labinfo_rnaseq, 'rd3_novelomics_labinfo_rnaseq')
     
     # update portal status
     update_portal_experiment_tbl(data = experiment)

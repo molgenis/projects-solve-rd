@@ -32,8 +32,8 @@ def status_msg(*args):
     """
     msg = ' '.join(map(str, args))
     timestamp = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-    print('\033[94m[' + timestamp + '] \033[0m' + msg)
-    
+    print('\033[94m[' + timestamp + '] \033[0m' + msg)   
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # EXTEND THE MOLGENIS CLASS
@@ -294,7 +294,7 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
     
     @param data input data
     @param id_suffix content to append to ID, e.g., "_original"
-    @param subject_suffix A string indicating which patch in rd3_freeze*_subject to link to
+    @param subject_suffix string indicating which patch in rd3_freeze*_subject links to
     @param patch SolveRD3 data release
     @param distinct if True, distinct dictionaries will be returned
     
@@ -302,18 +302,20 @@ def map_rd3_samples(data, id_suffix, subject_suffix, patch, distinct=False):
     """
     out = []
     for d in data:
-        tmp = {}
-        tmp['id'] = d.get('sample_id') + id_suffix
-        tmp['subject'] = d.get('subject_id') + subject_suffix
-        tmp['sampleID'] = d.get('sample_id')
-        tmp['alternativeIdentifier'] = d.get('alternativeIdentifier', None)
-        tmp['tissueType'] = d.get('tissue_type')
+        tmp = {
+            'id': d.get('sample_id') + id_suffix,
+            'subject': d.get('subject_id') + subject_suffix,
+            'sampleID': d.get('sample_id'),
+            'alternativeIdentifier': d.get('alternativeIdentifier', None),
+            'tissueType': d.get('tissue_type'),
+            'materialType': d.get('sample_type'),
+            'patch': patch,
+            'batch': d.get('project_batch_id', None),
+            'organisation': d.get('organisation'),
+            'ERN': d.get('ERN')
+        }
         if tmp['tissueType'] == 'blood':
             tmp['tissueType'] = 'Whole Blood'
-        tmp['materialType'] = d.get('sample_type')
-        tmp['patch'] = patch
-        tmp['organisation'] = d.get('organisation')
-        tmp['ERN'] = d.get('ERN')
         out.append(tmp)
     if distinct:
         return list(distinct_dict(out, lambda x: ( x['id'], x['sampleID'] ) ))
@@ -334,19 +336,20 @@ def map_rd3_labinfo_wgs(data, id_suffix, sample_id_suffix, patch, distinct=False
     """
     out = []
     for d in data:
-        tmp = {}
-        tmp['id'] = d.get('project_experiment_dataset_id') + id_suffix
-        tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['sample'] = d.get('sample_id') + sample_id_suffix
-        tmp['capture'] = d.get('library_selection')
-        tmp['libraryType'] = d.get('library_source').title()
-        tmp['library'] = None
+        tmp = {
+            'id': d.get('project_experiment_dataset_id') + id_suffix,
+            'experimentID': d.get('project_experiment_dataset_id'),
+            'sample': d.get('sample_id') + sample_id_suffix,
+            'capture': d.get('library_selection'),
+            'libraryType': d.get('library_source').title(),
+            'library': None,
+            'sequencingCentre': d.get('sequencing_center'),
+            'sequencer': d.get('platform_model'),
+            'seqType': d.get('library_strategy'),
+            'patch': patch
+        }
         if d.get('library_layout') == 'PAIRED':
             tmp['library'] = '1'
-        tmp['sequencingCentre'] = d.get('sequencing_center')
-        tmp['sequencer'] = d.get('platform_model')
-        tmp['seqType'] = d.get('library_strategy')
-        tmp['patch'] = patch
         out.append(tmp)
     if distinct:
         return list(distinct_dict(out, lambda x: ( x['id'], x['experimentID'] )))
@@ -367,12 +370,13 @@ def map_rd3_labinfo_rnaseq(data, id_suffix, sample_id_suffix, patch, distinct = 
     """
     out = []
     for d in data:
-        tmp = {}
-        tmp['id'] = d.get('project_experiment_dataset_id') + id_suffix
-        tmp['experimentID'] = d.get('project_experiment_dataset_id')
-        tmp['sample'] = d.get('sample_id') + sample_id_suffix
+        tmp = {
+            'id': d.get('project_experiment_dataset_id') + id_suffix,
+            'experimentID': d.get('project_experiment_dataset_id'),
+            'sample': d.get('sample_id') + sample_id_suffix,
+            'patch': patch
+        }
         
-        tmp['patch'] = patch
         out.append(tmp)
     if distinct:
         return list(distinct_dict(out, lambda x: ( x['id'], x['experimentID'] )))
@@ -592,7 +596,7 @@ def process_freeze_subject_ids(data, refIDs, patch):
 # If running locally, use the `login` method and manually set the host url.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 status_msg('Starting new molgenis session...')
-rd3 = molgenis(url = 'http://localhost/api/', token = '{molgenisToken}')
+rd3 = molgenis(url = 'http://localhost/api/', token = '${molgenisToken}')
 
 # for local use
 # rd3 = molgenis(url = 'https://solve-rd-acc.gcc.rug.nl/api/')
@@ -617,7 +621,7 @@ status_msg('Fetching required data from RD3')
 
 # pull `rd3_portal_novelomics_shipment`
 all_metadata = rd3.get('rd3_portal_novelomics_shipment', batch_size = 10000)
-metadata = find_dict(all_metadata, 'processed', 'false')
+metadata = list(filter(lambda x: x['processed'], all_metadata))
 
 
 # pull `rd3_portal_novelomics_experiment`
@@ -870,8 +874,16 @@ if should_map_expr:
                 value = e['subject_id']
             )[0]
             
+        # was participant metadata processed above?
+        try:
+            new_metadata_ids
+        except NameError:
+            status = False
+        else:
+            status = True
+
         # Check in the new dataset (processed above)
-        if new_metadata_ids:
+        if status:
             if e['subject_id'] in new_metadata_ids:
                 result = find_dict(
                     data = new_metadata,
@@ -881,7 +893,7 @@ if should_map_expr:
                 
         # merge attributes
         barcode = find_dict(all_metadata, 'sample_id', e['sample_id'])
-        e['alternativeIdentifier'] = barcode.get('CNAG_barcode', None)
+        e['alternativeIdentifier'] = barcode[0].get('CNAG_barcode', None)
         e['ERN'] = result.get('ERN', {}).get('identifier')
         e['organisation'] = result.get('organisation',{}).get('identifier')
         
@@ -945,10 +957,18 @@ if should_map_expr:
             patch = 'novelomics_original',
             distinct = True
         )
+        status_msg(
+            'Mapped NovelOmics Labinfo (WGS): {}'
+            .format(len(novelomics_labinfo_wgs))
+        )
     
     # build `rd3_novelomics_labinfo_rnaseq` (if available)
     if experiment_rnaseq:
-        novelomics_labinfo_rnaseq = ""
+        novelomics_labinfo_rnaseq = []
+        status_msg(
+            'Mapped NovelOmics Labinfo (RNAseq): {}'
+            .format(len(novelomics_labinfo_rnaseq))
+        )
 
     # build `rd3_novelomics_file`
     novelomics_file = map_rd3_files(
@@ -960,8 +980,6 @@ if should_map_expr:
     # Update flags and print summaries
     should_import_novelomics = True
     status_msg('Mapped NovelOmics Samples: {}'.format(len(novelomics_sample)))
-    status_msg('Mapped NovelOmics Labinfo (WGS): {}'.format(len(novelomics_labinfo_wgs)))
-    status_msg('Mapped NovelOmics Labinfo (RNAseq): {}'.format(len(novelomics_labinfo_rnaseq)))
     status_msg('Mapped NovelOmics Files: {}'.format(len(novelomics_file)))
 
 else:

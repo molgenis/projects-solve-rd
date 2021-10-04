@@ -11,8 +11,8 @@ name: rd3_portal_novelomics
 label: Novel Omics
 description: Staging tables for novel omics sample and experiment metadata
 parent: rd3_portal
-version: 1.1.0
-date: 2021-09-28
+version: 1.2.0
+date: 2021-10-04
 
 # set defaults for both tables
 defaults:

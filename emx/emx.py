@@ -64,7 +64,8 @@ def writeEmxCsvTemplate(entities: list = None, attributes: list = None, outDir: 
             stream.write(','.join(attribs))
         stream.close()
 
-#//////////////////////////////////////
+
+#//////////////////////////////////////////////////////////////////////////////
 
 
 # ~ 0 ~
@@ -88,7 +89,7 @@ convertPortalReleaseEmx.write(
     outDir = 'emx/dist/'
 )
 
-#//////////////////////////////////////
+#//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
 # Compile EMX for RD3 Portal Novelomics 
@@ -117,33 +118,33 @@ writeEmxCsvTemplate(
     entities = convertPortalNovelomicsEmx.entities,
     attributes = convertPortalNovelomicsEmx.attributes,
     outDir = 'templates'
-)        
+)
 
 
-#//////////////////////////////////////
+#//////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~
 # Convert EMX for RD3 Portal Demographics Table
 
-convertPortalDemographicsEmx = Convert(
-    files = [
-        'emx/src/rd3_portal_demographics.yaml'
-    ]
-)
+# convertPortalDemographicsEmx = Convert(
+#     files = [
+#         'emx/src/rd3_portal_demographics.yaml'
+#     ]
+# )
 
-convertPortalDemographicsEmx.convert()
-convertPortalDemographicsEmx.packages
-convertPortalDemographicsEmx.entities
-convertPortalDemographicsEmx.attributes
+# convertPortalDemographicsEmx.convert()
+# convertPortalDemographicsEmx.packages
+# convertPortalDemographicsEmx.entities
+# convertPortalDemographicsEmx.attributes
 
-convertPortalDemographicsEmx.write(
-    name = 'rd3_portal_demographics',
-    format = 'xlsx',
-    outDir = 'emx/dist/'
-)
+# convertPortalDemographicsEmx.write(
+#     name = 'rd3_portal_demographics',
+#     format = 'xlsx',
+#     outDir = 'emx/dist/'
+# )
 
 
-#//////////////////////////////////////
+#//////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~ 
 # Convert EMX for RD3 Release (i.e., new freeze)
@@ -151,14 +152,14 @@ convertPortalDemographicsEmx.write(
 convertFreezeEmx = Convert(
     files = [
         'emx/src/base_rd3.yaml',
-        'emx/src/rd3_freeze.yaml'
+        'emx/src/base_rd3_freeze.yaml'
     ]
 )
 
 convertFreezeEmx.convert()
-convertFreezeEmx.packages
-convertFreezeEmx.entities
-convertFreezeEmx.attributes
+# convertFreezeEmx.packages
+# convertFreezeEmx.entities
+# convertFreezeEmx.attributes
 
 # recode RD3 release: use freezeN as pattern
 # rNumr = "freeze3"
@@ -172,28 +173,34 @@ setEmxRelease(convertFreezeEmx.packages, releaseNumr = rNumr, releaseTitle = rNa
 setEmxRelease(convertFreezeEmx.entities, releaseNumr = rNumr, releaseTitle = rName)
 setEmxRelease(convertFreezeEmx.attributes, releaseNumr = rNumr, releaseTitle = rName)
 
-#//////////////////
-#
-# Optional: render novel omics data model
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# OPTIONAL: NOVELOMICS RELEASES
+# since models are split across multiple files, the following steps will merge
+# the novelomics models with the main release model.
+
+# convert yaml
 convertNovelomicsEmx = Convert(files = ['emx/src/rd3_novelomics.yaml'])
 convertNovelomicsEmx.convert()
-convertNovelomicsEmx.entities
-convertNovelomicsEmx.attributes
+# convertNovelomicsEmx.packages
+# convertNovelomicsEmx.entities
+# convertNovelomicsEmx.attributes
 
-# Optional: remove existing labinfo entries and merge EMX structures 
+# remove existing `labinfo` entities
 convertFreezeEmx.entities = [
     d for d in convertFreezeEmx.entities if not ('labinfo' == d.get('name'))
 ]
+
+# remove all `labinfo` attributes
 convertFreezeEmx.attributes = [
-    d for d in convertFreezeEmx.attributes if not ('rd3_novelomics_labinfo' == d.get('entity'))
+    d for d in convertFreezeEmx.attributes if not (
+        'rd3_novelomics_labinfo' == d.get('entity')
+    )
 ]
 
-# Optional: Merge EMX structures
+# Merge EMX structures
 convertFreezeEmx.entities = convertFreezeEmx.entities + convertNovelomicsEmx.entities
 convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx.attributes
-
-#//////////////////
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Save model
 convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'emx/dist/')

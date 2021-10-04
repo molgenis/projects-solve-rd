@@ -8,7 +8,8 @@ name: rd3_freeze<freeze_number>
 label: RD3 Freeze<freeze_number>
 description: RD3 Freeze<freeze_number>
 parent: rd3
-date: 2022-01-01
+# date: 2022-01-01
+# version: 1.0.0
 
 defaults:
   aggregateable: false
@@ -275,6 +276,9 @@ entities:
         label: anatomicalLocation
         dataType: xref
         refEntity: rd3_anatomicalLocation
+      - name: batch
+        label: Batch Number
+        description: Sample batch number
       - name: patch
         label: Patch
         description: Patch to which the sample belongs

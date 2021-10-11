@@ -70,7 +70,7 @@ class molgenis(molgenis.Session):
         """
         if len(data) < 1000:
             response = self._session.post(
-                url = self._url + 'v2/' + quote_plus(entity),
+                url = self._api_url + 'v2/' + quote_plus(entity),
                 headers = self._get_token_header_with_content_type(),
                 data = json.dumps({'entities' : data})
             )
@@ -87,7 +87,7 @@ class molgenis(molgenis.Session):
         else:    
             for d in range(0, len(data), 1000):
                 response = self._session.post(
-                    url=self._url + 'v2/' + entity,
+                    url=self._api_url + 'v2/' + entity,
                     headers=self._get_token_header_with_content_type(),
                     data=json.dumps({'entities': data[d:d+1000]})
                 )
@@ -121,7 +121,7 @@ class molgenis(molgenis.Session):
             add = 'Update did tot go OK'
             """Updates one attribute of a given entity with the given values of the given ids"""
             response = self._session.put(
-                self._url + "v2/" + quote_plus(entity) + "/" + attr,
+                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
                 headers=self._get_token_header_with_content_type(),
                 data=json.dumps({'entities': values[i:i+1000]})
             )

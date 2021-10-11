@@ -1,0 +1,96 @@
+# RD3 Portal Freeze
+#
+# The table `rd3_portal_freeze` is a staging table for new RD3 releases. Data
+# is pushed into this table from external sources, and then processed using
+# a Molgenis job (that runs a python script).
+#
+# To create a table for a new release, update the following attributes in
+# the entities section: `name`, `label`, and `description`
+#
+# ```yaml
+# entities:
+#   - name: freeze<freeze_number> # e.g., "freeze3"
+#     label: Freeze <freeze_number> # e.g., "Freeze 3"
+#     description: Staging table for Freeze <freeze_number> data
+# ```
+#
+
+name: rd3_portal_release
+label: Freezes
+description: Intermediate tables for RD3 releases
+parent: rd3_portal
+version: 1.0.0
+date: 2021-09-16
+
+# Defaults:
+# Set default attribute options. By default, all rows are given an
+# auto-generated ID.
+defaults:
+  auto: false
+  dataType: string
+  idAttribute: false
+  nillable: true
+
+# Entities:
+# Create a new entity for new freezes. Attributes will be the same across
+# releases unless otherwise specified.
+entities:
+  - name: freeze2
+    label: Freeze 2
+    description: Staging table for Freeze 2 data (2021-03-15)
+    attributes:
+      - name: id
+        description: auto generated molgenis ID 
+        dataType: string
+        idAttribute: true
+        auto: true
+        nillable: false
+      - name: organisation_name
+        description: name of the organisation. E.g. University Medical Center Groningen
+      - name: organisation_identifier
+        description: identifier of the organisation. E.g. UMCG¬†  
+      - name: samples_tissueType
+        description: Tissue Types
+      - name: samples_id
+        description: unique identifier (sampleID + patch)
+      - name: samples_alternativeIdentifier
+        description: alternative identifier used by sample provider 
+      - name: samples_subject
+        label: samples_subject
+        description: reference to the subject from which samples was extracted
+      - name: samples_organisation
+        description: Name of the organisation. E.g. University Medical Center Groningen  
+      - name: samples_ERN
+        description: ERN 
+      - name: labinfo_library
+        description: link to more information about the library used in experiment
+      - name: labinfo_sequencer
+        description: sequencer info 
+      - name: labinfo_seqType
+        description: sequencing technique types (e.g., WGS, WXS)
+      - name: labinfo_id
+        description:  Unique identifier (experimentID + patch)
+      - name: labinfo_sample
+        description:  all samples run in this condition, using the same barcode
+      - name: labinfo_capture
+        description: enrichment kit
+      - name: labinfo_libraryType
+        description: library source, e.g., Genomic/Transcriptomic
+      - name: subject_id
+        description: Unique identifier (subjectID + patch)
+      - name: subject_organisation
+        description: name of the organisation that submitted the subject
+      - name: subject_ERN
+        description: ERN
+      - name: subject_solved
+        description: solved case for solve-RD (true/false)
+      - name: subject_date_solved
+        description: Date case was solved
+      - name: subject_matchMakerPermission
+        description: permission is given for match making (boolean)
+      - name: subject_recontact
+        description: Recontact is allowed in case of incidental findings
+      - name: processed
+        description: If True, the record has been processed
+        dataType: bool
+        defaultValue: false

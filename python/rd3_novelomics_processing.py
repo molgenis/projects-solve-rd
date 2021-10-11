@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2021-09-30
+# MODIFIED: 2021-10-11
 # PURPOSE: process novel omics into Solve RD
 # STATUS: working
 # DEPENDENCIES: molgenis.client, os, json, datetime, time
@@ -12,7 +12,7 @@
 # At the moment, this script covers Freeze 1 & 2. If new data does not exist
 # in either freeze, then records are pushed into a 'holding' table. This script
 # will likely need to be updated to pull and process data from the 'holding'
-# table.
+# table. If more freezes are added, adjust the script accordingly.
 # //////////////////////////////////////////////////////////////////////////////
 
 import molgenis.client as molgenis
@@ -21,7 +21,12 @@ from urllib.parse import quote_plus
 import json
 import requests
 
+# set molgenis.client info
+host = 'http://localhost/api/'
+token = '${molgenisToken}'
 
+
+# generic timestamped messages
 def status_msg(*args):
     """Status Message
     
@@ -32,7 +37,8 @@ def status_msg(*args):
     """
     msg = ' '.join(map(str, args))
     timestamp = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-    print('\033[94m[' + timestamp + '] \033[0m' + msg)   
+    print('[{}] {}'.format(timestamp, msg))
+    # print('\033[94m[' + timestamp + '] \033[0m' + msg)   
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -596,7 +602,7 @@ def process_freeze_subject_ids(data, refIDs, patch):
 # If running locally, use the `login` method and manually set the host url.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 status_msg('Starting new molgenis session...')
-rd3 = molgenis(url = 'http://localhost/api/', token = '${molgenisToken}')
+rd3 = molgenis(url = host, token = token)
 
 # for local use
 # rd3 = molgenis(url = 'https://solve-rd-acc.gcc.rug.nl/api/')
@@ -833,7 +839,10 @@ if should_map_meta:
         status_msg('Mapped NovelOmics Subjects: {}'.format(len(novelomics_subject)))
 
     else:
-        status_msg('No new subjects to register')
+        status_msg(
+            'No new subjects to register. The {} subjects detected already exist in RD3. These are likely new samples which will be processed in the experiment step.'
+            .format(len(old_metadata))
+        )
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -963,12 +972,12 @@ if should_map_expr:
         )
     
     # build `rd3_novelomics_labinfo_rnaseq` (if available)
-    if experiment_rnaseq:
-        novelomics_labinfo_rnaseq = []
-        status_msg(
-            'Mapped NovelOmics Labinfo (RNAseq): {}'
-            .format(len(novelomics_labinfo_rnaseq))
-        )
+    # if experiment_rnaseq:
+    #     novelomics_labinfo_rnaseq = []
+    #     status_msg(
+    #         'Mapped NovelOmics Labinfo (RNAseq): {}'
+    #         .format(len(novelomics_labinfo_rnaseq))
+    #     )
 
     # build `rd3_novelomics_file`
     novelomics_file = map_rd3_files(
@@ -978,7 +987,7 @@ if should_map_expr:
     )
     
     # Update flags and print summaries
-    should_import_novelomics = True
+    should_import_novelomics_experiment = True
     status_msg('Mapped NovelOmics Samples: {}'.format(len(novelomics_sample)))
     status_msg('Mapped NovelOmics Files: {}'.format(len(novelomics_file)))
 
@@ -1028,8 +1037,8 @@ if should_import_novelomics_experiment:
     if novelomics_labinfo_wgs:
         rd3.update_table(novelomics_labinfo_wgs,'rd3_novelomics_labinfo_wgs')
 
-    if novelomics_labinfo_rnaseq:
-        rd3.update_table(novelomics_labinfo_rnaseq, 'rd3_novelomics_labinfo_rnaseq')
+    # if novelomics_labinfo_rnaseq:
+        # rd3.update_table(novelomics_labinfo_rnaseq, 'rd3_novelomics_labinfo_rnaseq')
     
     # update portal status
     update_portal_experiment_tbl(data = experiment)

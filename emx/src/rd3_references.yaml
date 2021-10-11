@@ -1,0 +1,53 @@
+
+
+entities:
+  - name: storageConditions
+    label: Storage Conditions
+    description:
+    attributes:
+      - name: id
+        idAttribute: true
+        dataType: string
+      - name: value
+    data:
+      - id: ffpe
+        value: Formalin Fixed Paraffin Embedded
+        
+  - name: strandedProtocol
+    label: Stranded Protocol
+    description:
+    attributes:
+      - name: id
+        idAttribute: true
+        dataType: string
+      - name: value
+        dataType: string
+        labelAttribute: true
+        lookupAttribute: true
+    data:
+      - id: unstranded
+        value: Unstranded
+      - id: first-strand
+        value: First Strand
+      - id: second-strand
+        value: Second Strand
+        
+  - name: genomeReference
+    label: Genome Reference
+    description:
+    attributes:
+      - name: id
+        dataType: string
+        idAttribute: true
+        nillable: false
+        auto: false
+        unique: true
+      - name: value
+        dataType: string
+        labelAttribute: true
+        lookupAttribute: true
+    data:
+      - id:
+        value: 
+        reference: ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
+      

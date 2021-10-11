@@ -8,7 +8,8 @@ name: rd3_freeze<freeze_number>
 label: RD3 Freeze<freeze_number>
 description: RD3 Freeze<freeze_number>
 parent: rd3
-date: 2022-01-01
+# date: 2022-01-01
+# version: 1.0.0
 
 defaults:
   aggregateable: false
@@ -163,10 +164,6 @@ entities:
         label: Date of Birth
         description: Date of birth (YYYY) (COMMON DATA ELEMENTS 2.1)
         dataType: int
-      - name: ageAtSampling
-        label: ageAtSampling
-        description: age at sampling/ First contact with specialised centre (COMMON DATA ELEMENTS 4.1)
-        dataType: int
       - name: ageOfDeath
         label: ageOfDeath
         description: if deceased, age of death (COMMON DATA ELEMENTS 3.2)
@@ -223,6 +220,10 @@ entities:
         description: reference to the subject from which samples was extracted
         dataType: xref
         refEntity: rd3_freeze<freeze_number>_subject
+      - name: ageAtSampling
+        label: ageAtSampling
+        description: age at sampling/ First contact with specialised centre (COMMON DATA ELEMENTS 4.1)
+        dataType: int
       - name: sex1
         label: Claimed sex
         description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
@@ -233,10 +234,16 @@ entities:
         description: Computed sex (based on Y- chromosome)
         dataType: categorical
         refEntity: rd3_sex
+      - name: tissueStatus
+        label: Tissue Status
+        description: An indication whether or not the tissue is affected
+        dataType: bool
       - name: tissueType
         label: Tissue Types
         dataType: xref
         refEntity: rd3_tissueType
+      - name: extractedProtocol
+        label: Extracted Protocol 
       - name: materialType
         label: materialType
         description: material type. E.g. DNA
@@ -269,6 +276,9 @@ entities:
         label: anatomicalLocation
         dataType: xref
         refEntity: rd3_anatomicalLocation
+      - name: batch
+        label: Batch Number
+        description: Sample batch number
       - name: patch
         label: Patch
         description: Patch to which the sample belongs

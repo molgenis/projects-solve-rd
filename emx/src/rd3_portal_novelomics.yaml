@@ -11,8 +11,8 @@ name: rd3_portal_novelomics
 label: Novel Omics
 description: Staging tables for novel omics sample and experiment metadata
 parent: rd3_portal
-version: 1.2.0
-date: 2021-10-04
+version: 1.3.0
+date: 2021-10-11
 
 # set defaults for both tables
 defaults:
@@ -77,6 +77,9 @@ entities:
       - name: run_ega_id
       - name: experiment_ega_id
       - name: sample_ega_id
+      - name: date_created
+        description: Date the data was uploaded into RD3
+        dataTime: datetime
       - name: processed
         dataType: bool
         defaultValue: false
@@ -99,6 +102,9 @@ entities:
       - name: organisation
       - name: ERN
       - name: CNAG_barcode
+      - name: date_created
+        description: Date the data was uploaded into RD3
+        dataTime: datetime
       - name: processed
         dataType: bool
         defaultValue: false

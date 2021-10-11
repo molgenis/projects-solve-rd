@@ -79,7 +79,8 @@ entities:
       - name: sample_ega_id
       - name: date_created
         description: Date the data was uploaded into RD3
-        dataTime: datetime
+        dataType: datetime
+        auto: true
       - name: processed
         dataType: bool
         defaultValue: false
@@ -104,7 +105,8 @@ entities:
       - name: CNAG_barcode
       - name: date_created
         description: Date the data was uploaded into RD3
-        dataTime: datetime
+        dataType: datetime
+        auto: true
       - name: processed
         dataType: bool
         defaultValue: false

@@ -2,9 +2,9 @@
 #' FILE: freeze_patch1_fix.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-30
-#' MODIFIED: 2021-08-04
+#' MODIFIED: 2021-09-08
 #' PURPOSE: pull patch1 data and updates cases
-#' STATUS: in.progress
+#' STATUS: working
 #' PACKAGES: rd3tools
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
@@ -60,17 +60,20 @@ def ped__extract__id(data):
 # Init Molgenis and grab metadata
 
 # start molgenis session
-rd3 = rd3tools.molgenis(
-    url = config['hosts']['acc'],
-    token = config['tokens']['acc']
-)
+rd3 = rd3tools.molgenis(config['hosts']['prod'], token = config['tokens']['prod'])
 
 freeze_subjects = rd3.get(
     entity = config['releases']['freeze1']['subject'],
     attributes='id,subjectID,fid,mid,pid,sex1,clinical_status'
 )
+retracted_subjects = rd3.get(
+    entity = config['releases']['freeze1']['subject'],
+    attributes = 'id,subjectID,retracted',
+    q = 'retracted=="Y"'
+)
 
 subject_ids = rd3tools.flatten_attr(data = freeze_subjects, attr = 'subjectID')
+retracted_ids = rd3tools.flatten_attr(data = retracted_subjects, attr = 'subjectID')
 
 
 #'/////////////////////////////////////////////////////////////////////////////
@@ -143,6 +146,9 @@ for p in pheno_files_f1p1:
             if p1['dateofBirth']:
                 rd3tools.status_msg('Evaluating `dateofBirth`...')
                 if f1['dateofBirth']:
+                    if (p1['dateofBirth'] != '') and ('dateofBirth' not in f1):
+                        rd3tools.status_msg('Detected new sex value (likely P1)')
+                        likely_p1 += 1
                     if (p1['dateofBirth'] != '') and (f1['dateofBirth'] == ''):
                         rd3tools.status_msg('Detected new sex value (likely P1)')
                         likely_p1 += 1
@@ -157,6 +163,9 @@ for p in pheno_files_f1p1:
             if p1['sex1']:
                 rd3tools.status_msg('Evaluting values in `sex1`...')
                 if f1['sex1']:
+                    if (p1['sex1'] != '') and ('sex1' not in f1):
+                        rd3tools.status_msg('Detected new sex value (likely P1)')
+                        likely_p1 += 1
                     if (p1['sex1'] != '') and (f1['sex1'] == ''):
                         rd3tools.status_msg('Detected new sex value (likely P1)')
                         likely_p1 += 1
@@ -172,6 +181,9 @@ for p in pheno_files_f1p1:
             if p1['phenotype']:
                 rd3tools.status_msg('Evaluating phenotype codes...')
                 if f1['phenotype']:
+                    if p1['phenotype'] and ('phenotype' not in f1):
+                        rd3tools.status_msg('Phenotype lengths differ (likely P1)')
+                        likely_p1 += 1
                     if len(p1['phenotype']) > len(f1['phenotype']):
                         rd3tools.status_msg('Phenotype lengths differ (likely P1)')
                         likely_p1 += 1
@@ -188,6 +200,9 @@ for p in pheno_files_f1p1:
             if p1['disease']:
                 rd3tools.status_msg('Evaluating disease codes...')
                 if f1['disease']:
+                    if p1['disease'] and ('disease' not in f1):
+                        rd3tools.status_msg('Disease code lists differ (likely P1)')
+                        likely_p1 += 1
                     if len(p1['disease']) > len(f1['disease']):
                         rd3tools.status_msg('Disease code lists differ (likely P1)')
                         likely_p1 += 1
@@ -204,6 +219,9 @@ for p in pheno_files_f1p1:
             if 'ageOfOnset' in p1:
                 rd3tools.status_msg('Evaluating onset code...')
                 if 'ageOfOnset' in f1:
+                    if p1['ageOfOnset'] and ('ageOfOnset' not in f1):
+                        rd3tools.status_msg('Onset code is new (likely P1)')
+                        likely_p1 += 1
                     if p1['ageOfOnset'] != f1['ageOfOnset']:
                         rd3tools.status_msg('Onset code is new (likely P1)')
                         likely_p1 += 1
@@ -221,11 +239,14 @@ for p in pheno_files_f1p1:
                 'Unable to find matching entry for {} despite `inFreeze1 = True`'
                 .format(p['subjectID'])
             )
+            rd3tools.status_msg('Likely p1')
+            patch_1_ids.append(p['subjectID'])    
     else:
         rd3tools.status_msg(
-            'File for {} not in `freeze1_original`'
+            'File for {} not in `freeze1_original`. Therefore, it is pure Patch1.'
             .format(p['subjectID'])
         )
+        patch_1_ids.append(p['subjectID'])
 
 endtime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
 rd3tools.status_msg(
@@ -238,10 +259,12 @@ rd3tools.status_msg(
 # update data in RD3
 patch_1_updates = []
 for d in patch_1_ids:
-    patch_1_updates.append({
-        'id': d.get('id') + '_original',
-        'patch': 'freeze1_original,freeze1_patch1'
-    })
+    id = d.get('id') if 'id' in d else d
+    if id not in retracted_ids:
+        patch_1_updates.append({
+            'id': id + '_original',
+            'patch': 'freeze1_original,freeze1_patch1'
+        })
 
 # push
 rd3.batch_update_one_attr(
@@ -336,20 +359,61 @@ for d in ped_p1:
     r = rd3tools.find_dict(ped_f1, 'id', p['id'])
     if r:
         f = r[0]
-        if p['mid'] is not None and f['mid'] is None:
-            rd3tools.status_msg('New maternal ID detected')
-            p['isPatch1'] = 'yes'
-            p['new_mid'] = 'yes'
-        if p['pid'] is not None and f['pid'] is None:
-            rd3tools.status_msg('New paternal ID detected')
-            p['isPatch1'] = 'yes'
-            p['new_pid'] = 'yes'
-        if p['sex1'] is not None and f['sex1'] is None:
-            rd3tools.status_msg('New sex code detected')
-            p['isPatch1'] = 'yes'
-            p['new_sex'] = 'yes'
-        if p['clinical_status'] is not None:
-            if f['clinical_status'] is None:
+        # check for new maternal ID
+        if p['mid']:
+            if 'mid' not in f:
+                rd3tools.status_msg('New maternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_mid'] = 'yes'
+            elif f['mid'] is None:
+                rd3tools.status_msg('New maternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_mid'] = 'yes'
+            elif p['mid'] != f['mid']:
+                rd3tools.status_msg('New maternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_mid'] = 'yes'
+        
+        #//////////////////////////////
+        # check for new paternal ID
+        if p['pid']:
+            if 'pid' not in f:
+                rd3tools.status_msg('New paternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_pid'] = 'yes'
+            elif f['pid'] is None:
+                rd3tools.status_msg('New paternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_pid'] = 'yes'
+            elif p['pid'] != f['pid']:
+                rd3tools.status_msg('New paternal ID detected')
+                p['isPatch1'] = 'yes'
+                p['new_pid'] = 'yes'
+        
+        #//////////////////////////////
+        # check for new sex values
+        if p['sex1']: 
+            if 'sex1' not in f:
+                rd3tools.status_msg('New sex code detected')
+                p['isPatch1'] = 'yes'
+                p['new_sex1'] = 'yes'
+            elif f['sex1'] is None:
+                rd3tools.status_msg('New sex code detected')
+                p['isPatch1'] = 'yes'
+                p['new_sex1'] = 'yes'
+            elif p['sex1'] != f['sex1']:
+                rd3tools.status_msg('New sex code detected')
+                p['isPatch1'] = 'yes'
+                p['new_sex1'] = 'yes'
+        
+        #//////////////////////////////
+        # check clinical status
+        if p['clinical_status']:
+            if 'clinical_status' not in f:
+                rd3tools.status_msg('New clinical status detected')
+                p['isPatch1'] = 'yes'
+                p['new_clinical_status'] = 'yes'
+            elif f['clinical_status'] is None:
                 rd3tools.status_msg('New clinical status detected')
                 p['isPatch1'] = 'yes'
                 p['new_clinical_status'] = 'yes'
@@ -359,19 +423,19 @@ for d in ped_p1:
                 p['new_cinical_status'] = 'yes'
     else:
         rd3tools.status_msg('New file detected')
-        if p['mid'] is not None:
+        if p['mid']:
             p['isPatch1'] = 'yes'
             p['new_mid'] = 'yes'
             p['new_file'] = 'yes'
-        if p['pid'] is not None:
+        if p['pid']:
             p['isPatch1'] = 'yes'
             p['new_pid'] = 'yes'
             p['new_file'] = 'yes'
-        if p['sex1'] is not None:
+        if p['sex1']:
             p['isPatch1'] = 'yes'
             p['sex1'] = 'yes'
             p['new_file'] = 'yes'
-        if p['clinical_status'] is not None:
+        if p['clinical_status']:
             p['isPatch1'] = 'yes'
             p['new_clinical_status'] = 'yes'
             p['new_file'] = 'yes'

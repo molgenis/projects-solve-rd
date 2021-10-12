@@ -204,3 +204,21 @@ convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx
 
 # Save model
 convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'emx/dist/')
+
+
+#//////////////////////////////////////////////////////////////////////////////
+
+# ~ 4 ~
+# GENERAL PORTAL TABLES
+
+convertPortal = Convert(files = ['emx/src/rd3_portal_cluster.yaml'])
+convertPortal.convert()
+convertPortal.packages
+convertPortal.entities
+convertPortal.attributes
+
+convertPortal.write(
+    name = 'rd3_portal_cluster',
+    format = 'xlsx',
+    outDir = 'emx/dist/'
+)

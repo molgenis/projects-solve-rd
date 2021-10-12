@@ -1,8 +1,8 @@
 #'////////////////////////////////////////////////////////////////////////////
-#' FILE: solved_status_mapping.py
+#' FILE: rd3_solvedstatus_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-05-17
-#' MODIFIED: 2021-09-08
+#' MODIFIED: 2021-10-12
 #' PURPOSE: update solved status metadata from freezes
 #' STATUS: working
 #' PACKAGES: molgenis.client, json, requests, urllib.parse
@@ -17,7 +17,7 @@ import requests
 
 
 # set local token
-host = 'https://solve-rd.gcc.rug.nl/api/'
+host = 'http://localhost/api/'
 token = '${molgenisToken}'
 
 # extend `molgenis` class

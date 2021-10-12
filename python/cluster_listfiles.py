@@ -2,22 +2,28 @@
 #' FILE: cluster_listfiles.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-10-11
-#' MODIFIED: 2021-10-11
+#' MODIFIED: 2021-10-12
 #' PURPOSE: list and push phenopacket/ped files to RD3
-#' STATUS: in.progress
-#' PACKAGES: NA
+#' STATUS: working
+#' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
+# set job info
+wd = ''
+host = ''
+usr = ''
+pwd = ''
+
+# imports
 from urllib.parse import quote_plus
 import molgenis.client as molgenis
 from datetime import datetime
+import pandas as pd
 import hashlib
 import re
 import os
 import json
-
-
 
 def status_msg(*args):
     """Status Message
@@ -55,7 +61,7 @@ class molgenis(molgenis.Session):
         """
         if len(data) < 1000:
             response = self._session.post(
-                url = self._url + 'v2/' + quote_plus(entity),
+                url = self._api_url + 'v2/' + quote_plus(entity),
                 headers = self._get_token_header_with_content_type(),
                 data = json.dumps({'entities' : data})
             )
@@ -72,7 +78,7 @@ class molgenis(molgenis.Session):
         else:    
             for d in range(0, len(data), 1000):
                 response = self._session.post(
-                    url=self._url + 'v2/' + entity,
+                    url=self._api_url + 'v2/' + entity,
                     headers=self._get_token_header_with_content_type(),
                     data=json.dumps({'entities': data[d:d+1000]})
                 )
@@ -91,26 +97,20 @@ class molgenis(molgenis.Session):
 
 
 # list available directories 
-dirs = list(
-    filter(
-        lambda x: x != 'master',
-        os.listdir('/groups/solve-rd/tmp10/releases')
-    )
-)
-
-
+dirs = [wd + '/' + x for x in os.listdir(wd) if x != 'master']
 
 # compile available files and prep for import
 files = []
 for dir in dirs:
+    status_msg('Processing files in', dir)
     
     # gather list of pedigree (.ped) and phenopacket files (.json)
     raw_ped = os.listdir(dir + '/ped/')
     raw_json = os.listdir(dir + '/phenopacket/')
     
     # remove uncessary files
-    ped_files = list(filter(lambda p: re.search(r'((.ped)|(.ped.cip))$', p), raw_ped))
-    json_files = list(filter(lambda p: re.search(r'(.json)$', p), raw_json))
+    ped_files = [f for f in raw_ped if re.search(r'((.ped)|(.ped.cip))$', f)]
+    json_files = [f for f in raw_json if re.search(r'(.json)$', f)]
     cluster_files = ped_files + json_files
     
     # prep files
@@ -120,18 +120,27 @@ for dir in dirs:
         
         # build entry for file
         entry = {
+            'release': os.path.basename(dir),
             'path': dir + folder + file,
             'name': file,
-            'type': 'ped',
-            'created': str(datetime.now())
+            'type': folder.replace('/',''),
+            'created': str(datetime.now()).replace(' ', 'T') + 'Z'
         }
         
         # get checksum
-        entry['md5sum'] = hashlib.md5(entry['filename']).hexdigest()
+        entry['md5sum'] = hashlib.md5(entry['name'].encode('utf-8')).hexdigest()
         files.append(entry)
 
+# filter files - remove duplicates
+data = pd.DataFrame(files).drop_duplicates(subset = 'name', keep = 'first').to_dict('records')
 
 # push data to molgenis
-rd3 = molgenis('https://solve-rd.gcc.rug.nl/api/')
-rd3.login('','') # set credentials only when run
-rd3.update_table(files, 'rd3_portal_cluster_files')
+status_msg('Connecting to Molgenis database...')
+rd3 = molgenis(host)
+rd3.login(usr, pwd)
+
+status_msg('Removing existing table')
+rd3.delete('rd3_portal_cluster')
+
+status_msg('Importing data into `rd3_portal_cluster`')
+rd3.update_table(files, 'rd3_portal_cluster')

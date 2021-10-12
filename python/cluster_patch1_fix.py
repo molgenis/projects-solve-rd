@@ -92,10 +92,12 @@ class molgenis(molgenis.Session):
     def batch_update_one_attr(self, entity: str, attr: str, data: list):
         """Batch Update One Attribute
         
-        Import data for an attribute in groups of 1000
-        
+        Import data for an attribute in batches (i.e., into groups of 1000 entities).
+        Data should be a list of dictionaries with two keys: `id` and <attr> where
+        attr is the name of the attribute that you would like to update
         
         @param data (list) : data to import
+        @param attr (str) : name of the attribute to update
         @param entity (str) : name of the entity to import data into
         
         @return a response code

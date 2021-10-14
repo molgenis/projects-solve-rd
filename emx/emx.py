@@ -11,8 +11,8 @@
 
 
 from emxconvert.convert import Convert
+import pandas as pd
 import re
-
 
 # define function that recodes <freeze_number> with a new release number
 def setEmxRelease(data, releaseNumr: str = None, releaseTitle: str = None):
@@ -42,27 +42,40 @@ def setEmxRelease(data, releaseNumr: str = None, releaseTitle: str = None):
 
 
 # write attributes as csv template
-def writeEmxCsvTemplate(entities: list = None, attributes: list = None, outDir: str = '.'):
-    """Write EMX CSV Templates
+def writeEmxTemplate(
+    entities: list = None,
+    attributes: list = None,
+    format: str = 'csv',
+    outDir: str = '.'
+):
+    """Write EMX Templates
     
-    Write the emx attributes as an CSV template.
+    Write the emx attributes as an excel file
     
-    @param entities EMX entities in a package
-    @param attributes EMX attributes
-    @param outDir location to save file (default: '.', i.e., current)
+    @param entities   (list) : EMX entities in a package
+    @param attributes (list) : EMX attributes
+    @param format     (str)  : output file format ('csv' or 'xlsx')
+    @param outDir     (str)  : location to save file (default: '.', i.e., current)
     """
+    
+    if not (format in ['csv', 'xlsx']):
+        raise ValueError('Error in writeEmxTemplate: unknown format `{}`'.format(str(format)))
+    
     for entity in entities:
         pkgEntity = entity['package'] + '_' + entity['name']
-        filteredAttributes = list(filter(lambda d: d['entity'] in pkgEntity, attributes))
-
-        attribs = []
-        for elem in filteredAttributes:
-            attribs.append(elem['name'])
-
-        file = outDir + '/' + pkgEntity + '.csv'
-        with open(file, 'w') as stream:
-            stream.write(','.join(attribs))
-        stream.close()
+        
+        attribs = [x['name'] for x in attributes if x['entity'] == pkgEntity]
+        data = pd.DataFrame(index = None, columns = range(len(attribs)))
+        data.columns = attribs
+        
+        file = f'{outDir}/{pkgEntity}.{format}'
+        if format == 'csv': data.to_csv(file, index = False)
+        if format == 'xlsx': data.to_excel(
+            file,
+            sheet_name = pkgEntity,
+            index = False,
+            engine = 'xlsxwriter'
+        )
 
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -114,11 +127,19 @@ convertPortalNovelomicsEmx.write(
 
 
 # generate CSV templates
-writeEmxCsvTemplate(
+writeEmxTemplate(
     entities = convertPortalNovelomicsEmx.entities,
     attributes = convertPortalNovelomicsEmx.attributes,
+    format = 'csv',
     outDir = 'templates'
 )
+
+# writeEmxTemplate(
+#     entities = convertPortalNovelomicsEmx.entities,
+#     attributes = convertPortalNovelomicsEmx.attributes,
+#     format = 'xlsx',
+#     outDir = 'templates'
+# )
 
 
 #//////////////////////////////////////////////////////////////////////////////

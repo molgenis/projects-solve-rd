@@ -8,14 +8,5 @@
     "markdownlint.config": {
       "MD041": false
     }
-  },
-  "extensions": {
-    "recommendations": [
-      "grapecity.gc-excelviewer",
-      "shd101wyy.markdown-preview-enhanced",
-      "davidanson.vscode-markdownlint",
-      "ikuyadeu.r",
-      "ms-python.python"
-    ]
   }
 }

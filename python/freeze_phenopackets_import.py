@@ -2,7 +2,7 @@
 #' FILE: freeze_phenopackets_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2021-12-09
+#' MODIFIED: 2022-01-11
 #' PURPOSE: push phenopackets metadata into RD3
 #' STATUS: stable
 #' PACKAGES: os, json, requests, urlib.parse, molgenis.client, dotenv
@@ -10,16 +10,18 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import python.rd3tools as rd3tools
-from datatable import dt,f,count,as_type
+from datatable import dt,f,count,as_type,fread,rbind
 from dotenv import load_dotenv
 from os import environ
-import pandas as pd
+from datetime import datetime
+# import pandas as pd
 import re
 
 # set vars
 load_dotenv()
-currentFreeze = 'freeze2'
-currentPatch = 'patch1'
+currentReleaseType='patch' # or 'release'
+currentFreeze = 'freeze1' # 'freeze2'
+currentPatch = 'patch3' # 'patch1'
 host = environ['MOLGENIS_HOST_ACC']
 token = environ['MOLGENIS_TOKEN_ACC']
 # host = environ['MOLGENIS_HOST_PROD']
@@ -61,10 +63,15 @@ def __unpack__diseases(data):
     @return dict with list of diagnostic- and onset codes
     """
     ids_to_recode = {
+        #
+        # To add a new mapping, use the following format:
+        # 'INCORRECT_CODE' : {'old': 'INCORRECT_CODE', 'new': 'NEW_CODE'}
+        #
         'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
         'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
         'MIM_607569': {'old':'MIM_607569','new':'MIM_603689'},
-        'ORDO_856': {'old': 'ORDO_856', 'new': ''}
+        'ORDO_856': {'old': 'ORDO_856', 'new': ''},
+        'ORDO_ 104010': {'old': 'ORDO_ 104010', 'new':'ORDO_104010'}
     }
     dx = []  # diagnostic codes
     ao = []  # onset codes
@@ -83,7 +90,8 @@ def __unpack__diseases(data):
             if 'id' in d['classOfOnset']:
                 code2 = d['classOfOnset']['id']
                 code2 = re.sub(r'^(HP:)', 'HP_', code2)
-                ao.append(code2)
+                if not (code2 in ao):
+                    ao.append(code2)
     return {'dx': dx, 'ao': ao}
 
 def __recode__sex(value):
@@ -294,11 +302,22 @@ print('Count of unknown onset codes', len(onset_codes_not_found))
 # found, send a list of IDs and filenames to SolveRD.
 #
 
-# check unique entries
+# ~ 3a ~ 
+# Check unknown disease and onset codes
+# Before you can import data, manually review each disease code that was flagged
+# as unknown. In some cases, the code was changed or there is an issue with the
+# value itself (e.g., extra space or character, unexpected format, etc.). For
+# many of these issues, you can add a new mapping in the function located at the
+# top of this script: `__unpack__diseases__`. In this function, add a new entry in
+# the object `idsToRecode` (see function to see how to structure the mappings).
+# For any code that is unknown contact the SolveRD data team or add them manually
+# to the disease code reference table.
+
+# view unique entries
 rd3tools.flatten_attr(disease_codes_not_found, 'code', distinct = True)
 rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
 
-# ~ 3a ~ 
+# ~ 3b ~ 
 # Investigate Unknown HPO Codes
 # For each code listed in 'hpo_codes_not_found', investigate the code to
 # determine how to reconcile the invalid code. In some instances, you can
@@ -308,7 +327,7 @@ rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
 #
 
 # prep "HPO codes to verify" dataset
-hpoCodes = dt.Frame(hpo_codes_not_found, types = {'id': str, 'hpo': str})[:,
+hpoCodes = dt.Frame(hpo_codes_not_found)[:,
     {'frequency': count(), 'url': None, 'status': 'not.found', 'action': None},
     dt.by(f.hpo)
 ]
@@ -320,7 +339,12 @@ hpoCodes['url'] = dt.Frame([
 
 # manually check each link and search for code. Either add the code or follow
 # up with SolveRD project data coordinators.
-hpoCodes.to_csv('data/unknown_hpo_codes.csv')
+rbind(
+    fread('data/unknown_hpo_codes.csv'),
+    hpoCodes
+).to_csv(
+    'data/unknown_hpo_codes.csv'
+)
 
 
 # ~ 3c ~ 
@@ -355,14 +379,17 @@ unknownSubjects = dt.Frame(unavailable, types = {
     'foundInNovelOmics': False
 }]
 
+# Check to see if current ID exists in the other releases
 
 unknownSubjects['foundInFreeze1'] = dt.Frame([
     d in otherFreezeIDs for d in unknownSubjects['id'].to_list()[0]
 ])
+
 unknownSubjects['foundInNovelOmics'] = dt.Frame([
     d in novelOmicsIDs for d in unknownSubjects['id'].to_list()[0]
 ])
 
+# remove the RD3 '_original' suffix from subject IDs (before sending)
 unknownSubjects['id'] = dt.Frame([
     d.replace('_original','') for d in unknownSubjects['id'].to_list()[0]
 ])
@@ -375,23 +402,45 @@ unknownSubjects[:,
     )
 ]
 
-unknownSubjects.to_csv('data/rd3_freeze2_patch1_missing_subjects.csv')
+unknownSubjects.to_csv('data/rd3_freeze1_patch3_missing_subjects.csv')
 
-
-
-
-
-
-
+#
+# Before moving any further, all objects defined in section 3 must be resolved.
+# Check the following items
+#
+# - [ ] Disease Codes: all unknown disease codes should be resolved. Codes should
+#           either be recoded, added manually to RD3, or discussed with the
+#           data provider.
+# - [ ] HPO Codes: all HPO codes should be resolved. Manually verify each code by
+#           recoding values, manually adding new records to the Phenotype lookup
+#           table, or discussing cases with the data provider. 
+# - [ ] Unknown Subjects: For any unknown subjects (i.e., do not exist in 
+#           any of the freezes), contact the data provider.
+#
 
 # prep for import
 # del update_dob, update_sex1, update_phenotype, update_hasNotPhenotype, update_disease, update_phenopacketsID
 
-#//////////////////////////////////////
+#//////////////////////////////////////////////////////////////////////////////
 
-# IMPORT NEW RELEASE
-# if you batch importing data, use the following code block.
-# Otherwise, skip to the next section
+# ~ 4 ~
+# IMPORT NEW DATA
+# If everything has been resolved or you are importing a few attributes, run
+# the following lines (or the lines that apply to you). Before importing any
+# data, make sure you add a new entry in the reference table "Patch Informat".
+
+# add new patch record (only do this once!)
+newPatch = {
+    'id': f'{currentFreeze}_{currentPatch}',
+    'type': currentReleaseType,
+    'date': str(datetime.now().strftime('%Y-%m-%d')),
+    
+    # For description, use the following format for patches or use
+    # "FreezeX Original Data" for new releases
+    'description': f'{currentFreeze.title()} {currentPatch.title()}'
+}
+
+rd3.add(entity = 'rd3_patch', data = newPatch)
 
 # prep data for import
 update_dob = rd3tools.select_keys(phenopackets, ['id', 'dateOfBirth'])

@@ -2,7 +2,7 @@
 #' FILE: freeze_phenopackets_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2022-01-11
+#' MODIFIED: 2022-01-12
 #' PURPOSE: push phenopackets metadata into RD3
 #' STATUS: stable
 #' PACKAGES: os, json, requests, urlib.parse, molgenis.client, dotenv
@@ -10,7 +10,7 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import python.rd3tools as rd3tools
-from datatable import dt,f,count,as_type,fread,rbind
+from datatable import dt,f,count,as_type,fread,rbind,by
 from dotenv import load_dotenv
 from os import environ
 from datetime import datetime
@@ -85,7 +85,8 @@ def __unpack__diseases(data):
                     code1 = re.sub(r'^((OMIM:)|(MIM:))', 'MIM_', code1)
                 if code1 in ids_to_recode:
                     code1 = ids_to_recode[code1]['new']
-                dx.append(code1)
+                if not (code1 in dx):
+                    dx.append(code1)
         if 'classOfOnset' in d:
             if 'id' in d['classOfOnset']:
                 code2 = d['classOfOnset']['id']
@@ -99,7 +100,7 @@ def __recode__sex(value):
     @param value (str) : a value indicating sex
     @return string and/or error message
     """
-    mappings = {'female': 'F', 'male': 'M', 'unknown_sex': 'U'}
+    mappings = {'female': 'F', 'male': 'M', 'unknown_sex': 'U', 'other_sex': 'UD'}
     try:
         return mappings[value.lower()]
     except KeyError:
@@ -156,9 +157,6 @@ hpo_codes = rd3tools.flatten_attr(hpo_codes_raw, 'id')
 disease_codes = rd3tools.flatten_attr(disease_codes_raw, 'id')
 
 del hpo_codes_raw, disease_codes_raw
-
-# disease_error_file = open('disease_errors.txt', 'w')
-# hpo_error_file = open('hpo_errors.txt', 'w')
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -278,13 +276,13 @@ for file in phenopacketFiles:
         rd3tools.status_msg('Participant does not exist in current freeze')
         unavailable.append(p)
 
-# display message
+# print counts. If items 2-5 are 0 or empty, move to section 4. Otherwise,
+# proceed to step 3.
 print('Count of Phenopackets PatientIDs that exist in RD3:', len(phenopackets))
 print('Count of Phenopackets PatientIDs that do notexist in RD3:', len(unavailable))
 print('Count of unknown HPO codes:', len(hpo_codes_not_found))
 print('Count of unknown disease codes:', len(disease_codes_not_found))
 print('Count of unknown onset codes', len(onset_codes_not_found))
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -300,6 +298,9 @@ print('Count of unknown onset codes', len(onset_codes_not_found))
 # For unavailable subjects, pull subject IDs from other releases to make sure
 # the files aren't associated with the wrong freeze. If no explanation can be
 # found, send a list of IDs and filenames to SolveRD.
+#
+# If there are no unknown HPO codes, disease codes, and subjects, then you may
+# skip to the next section.
 #
 
 # ~ 3a ~ 
@@ -327,9 +328,9 @@ rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
 #
 
 # prep "HPO codes to verify" dataset
-hpoCodes = dt.Frame(hpo_codes_not_found)[:,
+hpoCodes = dt.Frame(hpo_codes_not_found, types = {'id': str, 'hpo': str})[:,
     {'frequency': count(), 'url': None, 'status': 'not.found', 'action': None},
-    dt.by(f.hpo)
+    by(f.hpo)
 ]
 
 # set url for HPO code if it exists
@@ -404,6 +405,28 @@ unknownSubjects[:,
 
 unknownSubjects.to_csv('data/rd3_freeze1_patch3_missing_subjects.csv')
 
+# Merge files if applicable
+# allUnknownSubjects = rbind(
+#     fread('data/rd3_freeze1_patch3_missing_subjects.csv'),
+#     fread('data/rd3_freeze2_patch1_missing_subjects.csv'),
+# )
+#
+# allUnknownSubjects[
+#     (f.foundInFreeze1 == False) &
+#     (f.foundInFreeze2 == False) &
+#     (f.foundInNovelOmics == False),
+#     :
+# ]
+#
+# allUnknownSubjects[:,
+#     dt.update(
+#         foundInFreeze1 = as_type(f.foundInFreeze1, str),
+#         foundInFreeze2 = as_type(f.foundInFreeze2, str),
+#         foundInNovelOmics = as_type(f.foundInNovelOmics, str),
+#     )
+# ]
+# allUnknownSubjects.to_csv('data/rd3_unknown_subjects_20220112.csv')
+
 #
 # Before moving any further, all objects defined in section 3 must be resolved.
 # Check the following items
@@ -443,7 +466,7 @@ newPatch = {
 rd3.add(entity = 'rd3_patch', data = newPatch)
 
 # prep data for import
-update_dob = rd3tools.select_keys(phenopackets, ['id', 'dateOfBirth'])
+update_dob = rd3tools.select_keys(phenopackets, ['id', 'dateofBirth'])
 update_sex1 = rd3tools.select_keys(phenopackets, ['id', 'sex1'])
 update_phenotype = rd3tools.select_keys(phenopackets, ['id', 'phenotype'])
 update_hasNotPhenotype = rd3tools.select_keys(phenopackets, ['id', 'hasNotPhenotype'])
@@ -451,18 +474,30 @@ update_disease = rd3tools.select_keys(phenopackets, ['id', 'disease'])
 update_phenopacketsID = rd3tools.select_keys(phenopackets, ['id', 'phenopacketsID'])
 update_ageofonset = rd3tools.select_keys(phenopackets, ['id', 'ageOfOnset'])
 
+# set patch information for current release
+update_patch = []
+for d in phenopackets:
+    if not (d['id'] in freeze_ids):
+        rd3tools.status_msg('ID {} not found'.format(d['id']))
+    subjectPatch = [p for p in freeze if d['id'] == p['id']]
+    newSubjectPatch = rd3tools.flatten_attr(subjectPatch[0]['patch'], 'id')
+    newSubjectPatch.append(f'{currentFreeze}_{currentPatch}')
+    update_patch.append({'id': d['id'], 'patch': ','.join(newSubjectPatch)})
+
 
 # import data
 rd3.batch_update_one_attr(paths['rd3_subjectinfo'], 'dateofBirth', update_dob)
 if len(rd3tools.flatten_attr(update_ageofonset, 'ageOfOnset', distinct=True)) > 1:
     rd3.batch_update_one_attr(paths['rd3_subjectinfo'], 'ageOfOnset', update_ageofonset)
 
-rd3.batch_update_one_attr(paths['rd3_subject'], 'sex1', update_sex1)
-rd3.batch_update_one_attr(paths['rd3_subject'], 'phenotype', update_phenotype)
-rd3.batch_update_one_attr(paths['rd3_subject'], 'hasNotPhenotype', update_hasNotPhenotype)
-rd3.batch_update_one_attr(paths['rd3_subject'], 'disease', update_disease)
-rd3.batch_update_one_attr(paths['rd3_subject'], 'phenopacketsID', update_phenopacketsID)
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'sex1', update_sex1)
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'phenotype', update_phenotype)
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'hasNotPhenotype', update_hasNotPhenotype)
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'disease', update_disease)
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'phenopacketsID', update_phenopacketsID)
 
+rd3.batch_update_one_attr(paths['rd3_subjects'], 'patch', update_patch)
+rd3.batch_update_one_attr(paths['rd3_subjectinfo'], 'patch', update_patch)
 
 #//////////////////////////////////////////////////////////////////////////////
 

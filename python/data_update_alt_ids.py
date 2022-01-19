@@ -11,15 +11,15 @@
 
 import python.rd3tools as rd3tools
 from dotenv import load_dotenv
-from datatable import dt, fread, rbind, f, join, first
+from datatable import dt, fread, rbind, f, join, first, as_type
 from os import environ
 
 # set vars and init session
 load_dotenv()
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-# host = environ['MOLGENIS_HOST_PROD']
-# token = environ['MOLGENIS_TOKEN_PROD']
+# host = environ['MOLGENIS_HOST_ACC']
+# token = environ['MOLGENIS_TOKEN_ACC']
+host = environ['MOLGENIS_HOST_PROD']
+token = environ['MOLGENIS_TOKEN_PROD']
 
 rd3 = rd3tools.molgenis(url=host, token=token)
 
@@ -37,7 +37,7 @@ rd3 = rd3tools.molgenis(url=host, token=token)
 
 
 # ~ 1a ~ 
-# Pull Required Data
+# Pull LabInfo Data
 
 # Pull Freeze 1 Lab Info
 labinfo_freeze1 = rd3.get('rd3_freeze1_labinfo',attributes='id,experimentID,sample')
@@ -71,10 +71,51 @@ labinfo = rbind(
 
 labinfo.key = 'experimentID'
 
+#//////////////////////////////////////
+
 # ~ 1b ~
+# Pull Sample Data
+
+samples = []
+releases = ['novelomics'] #['freeze1', 'freeze2']
+for r in releases:
+    print(f'Pulling RD3 {r} samples...')
+    tmp_entity = f'rd3_{r}_sample'
+    rawData = rd3.get(tmp_entity, attributes='id,sampleID,subject,alternativeIdentifier')
+    data = []
+    for d in rawData:
+        if 'subject' in d:
+            d['subjectKey'] = d.get('subject',{}).get('id')
+            d['subjectID'] = d.get('subject',{}).get('subjectID')
+            d['release'] = r
+            del d['subject'], d['_href']
+            data.append(d)
+    samples = rbind(
+        samples,
+        dt.Frame(data)[:, {
+            'id': f.id,
+            'sampleID': f.sampleID,
+            'subjectID': f.subjectID,
+            'subjectKey': f.subjectKey,
+            'release': f.release
+        }]
+    )
+    print('Done!')
+    
+# set key as subject
+samples = samples[:, first(f[:]), dt.by(f.subjectID)]
+samples.key = 'subjectID'
+    
+    
+#//////////////////////////////////////
+
+# ~ 1c ~
 # Map New Compound IDs
-newAltIDs = fread('data/2022-01-11.NovelWGS.NewIDs.tsv', header=False)
-newAltIDs.names = [
+
+newData = fread('data/2022-01-11.NovelWGS.NewIDs.tsv', header=False)
+
+# set column names, delete columns, and set key
+newData.names = [
     'experimentID',
     'subjectID',
     'alternativeIdentifier',
@@ -82,9 +123,29 @@ newAltIDs.names = [
     'batch',
     'ERN'
 ]
+del newData[:, ['Organization','batch','ERN']]
+newData.key = ['experimentID']
 
-del newAltIDs[:, ['Organization','batch','ERN']]
+newData[:, :, join(samples)]
 
-newAltIDs.key = ['experimentID']
-
-x = newAltIDs[:, :, join(labinfo)]
+# newData['EID_EXISTS'] = dt.Frame([
+#     d in labinfo['experimentID'].to_list()[0]
+#     for d in newData['experimentID'].to_list()[0]
+# ])
+#
+# newData['PID_EXISTS'] = dt.Frame([
+#     d in samples['subjectID'].to_list()[0]
+#     for d in newData['subjectID'].to_list()[0]
+# ])
+#
+# newData[:, dt.update(
+#     EID_EXISTS = as_type(f.EID_EXISTS, str),
+#     PID_EXISTS = as_type(f.PID_EXISTS, str)
+# )]
+#
+# del newData.key
+#
+# newData[
+#     f.PID_EXISTS == False,
+#     ['experimentID','subjectID','alternativeIdentifier','PID_EXISTS']
+# ].to_pandas().to_csv('data/2022-01-19_novelwgs_new_ids_mapping_results.tsv',index=False,sep='\t')

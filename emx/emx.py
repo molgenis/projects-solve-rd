@@ -2,15 +2,14 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2021-09-22
+#' MODIFIED: 2022-01-31
 #' PURPOSE: incorporate YAML to EMX generator
-#' STATUS: working; on.going
+#' STATUS: stable
 #' PACKAGES: emxconvert
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-
-from emxconvert.convert import Convert
+from yamlemxconvert.convert import Convert
 import pandas as pd
 import re
 

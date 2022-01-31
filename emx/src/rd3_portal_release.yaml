@@ -19,8 +19,8 @@ name: rd3_portal_release
 label: Freezes
 description: Intermediate tables for RD3 releases
 parent: rd3_portal
-version: 1.0.0
-date: 2021-09-16
+version: 1.1.0
+date: 2022-01-31
 
 # Defaults:
 # Set default attribute options. By default, all rows are given an
@@ -35,9 +35,9 @@ defaults:
 # Create a new entity for new freezes. Attributes will be the same across
 # releases unless otherwise specified.
 entities:
-  - name: freeze2
-    label: Freeze 2
-    description: Staging table for Freeze 2 data (2021-03-15)
+  - name: novelwgs
+    label: Novel WGS
+    description: Staging table for Novel WGS data (2022-01-31)
     attributes:
       - name: id
         description: auto generated molgenis ID 

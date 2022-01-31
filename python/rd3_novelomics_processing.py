@@ -49,10 +49,13 @@ def status_msg(*args):
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class molgenis(molgenis.Session):
     """molgenis
-    
-    An extension of the molgenis.client class
-    
+    An extension of molgenis.client
     """
+    
+    def __baseUrl__(self):
+        props = list(self.__dict__.keys())
+        if '_url' in props: return self._url
+        if '_api_url' in props: return self._api_url
     
     # update_table
     def update_table(self, data, entity):
@@ -62,78 +65,67 @@ class molgenis(molgenis.Session):
         row limit. This method allows you push data without having to worry
         about the limits.
         
-        @param self required class param
-        @param data object containing data to import
-        @param entity ID of the target entity written as 'package_entity'
+        @param entity (str) : name of the entity to import data into
+        @param data (list) : data to import
         
-        @return a response code
+        @return a status message
         """
+        url = f'{self.__baseUrl__()}v2/{quote_plus(entity)}'
+        # single push
         if len(data) < 1000:
-            response = self._session.post(
-                url = self._api_url + 'v2/' + quote_plus(entity),
-                headers = self._get_token_header_with_content_type(),
-                data = json.dumps({'entities' : data})
-            )
-            if response.status_code == 201:
-                status_msg(
-                    'Successfully imported data (response: {})'
-                    .format(response.status_code)
-                )
-            else:
-                status_msg(
-                    'Failed to import data (response: {}): \nReason:{}'
-                    .format(response.status_code, response.content)
-                )
-        else:    
-            for d in range(0, len(data), 1000):
+            try:
                 response = self._session.post(
-                    url=self._api_url + 'v2/' + entity,
-                    headers=self._get_token_header_with_content_type(),
-                    data=json.dumps({'entities': data[d:d+1000]})
+                    url = url,
+                    headers = self._get_token_header_with_content_type(),
+                    data = json.dumps({'entities' : data})
                 )
-                if response.status_code == 201:
-                    status_msg(
-                        'Successfuly imported batch {} (response: {})'
-                        .format(d, response.status_code)
+                if not response.status_code // 100 == 2:
+                    return f'Error: unable to import data({response.status_code}): {response.content}'
+                return f'Imported {len(data)} entities into {str(entity)}'
+            except requests.exceptions.HTTPError as err:
+                raise SystemError(err)
+        # batch push
+        if len(data) >= 1000:    
+            for d in range(0, len(data), 1000):
+                try:
+                    response = self._session.post(
+                        url = url,
+                        headers = self._get_token_header_with_content_type(),
+                        data = json.dumps({'entities': data[d:d+1000] })
                     )
-                else:
-                    status_msg(
-                        'Failed to import data (response: {}): \nReason:{}'
-                        .format(response.status_code, response.content)
-                    )
+                    if not response.status_code // 100 == 2:
+                        raise response.raise_for_status()
+                    return f'Batch {d}: Imported {len(data)} entities into {str(entity)}'
+                except requests.exceptions.HTTPError as err:
+                    raise SystemError(f'Batch {d} Error: unable to import data:\n{str(err)}')
 
     # batch_update_one_attr
-    def batch_update_one_attr(self, entity, attr, values):
+    def batch_update_one_attr(self, entity: str, attr: str, data: list):
         """Batch Update One Attribute
         
-        Import data for an attribute in groups of 1000
+        Import data for an attribute in batches (i.e., into groups of 1000 entities).
+        Data should be a list of dictionaries with two keys: `id` and <attr> where
+        attr is the name of the attribute that you would like to update
         
-        @param self required class param
-        @param entity ID of the target entity written as `package_entity`
-        @param values data to import, a list of dictionaries where each dictionary
-              is structured with two keys: the ID attribute and the attribute
-              that you wish to update. E.g. [{'id': 'id123", 'x': 1},...]
+        @param data (list) : data to import
+        @param attr (str) : name of the attribute to update
+        @param entity (str) : name of the entity to import data into
         
         @return a response code
         """
-        add = 'No new data'
-        for i in range(0, len(values), 1000):
-            add = 'Update did tot go OK'
-            """Updates one attribute of a given entity with the given values of the given ids"""
-            response = self._session.put(
-                self._api_url + "v2/" + quote_plus(entity) + "/" + attr,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': values[i:i+1000]})
-            )
-            if response.status_code == 200:
-                add = 'Update went OK'
-            else:
-                try:
-                    response.raise_for_status()
-                except requests.RequestException as ex:
-                    self._raise_exception(ex)
-                return response
-        return add
+        url = f'{self.__baseUrl__()}v2/{quote_plus(entity)}/{attr}' 
+        for d in range(0, len(data), 1000):
+            try:
+                response = self._session.put(
+                    url = url,
+                    headers = self._get_token_header_with_content_type(),
+                    data = json.dumps({'entities': data[d:d+1000] })
+                )
+                if not response.status_code // 100 == 2:
+                    raise response.raise_for_status()
+                return f'Batch {d}: Imported {len(data)} entities into {str(entity)}' 
+            except requests.exceptions.HTTPError as err:
+                raise SystemError(f'Batch {d} Error: unable to import data:\n{str(err)}')
 
 
 def distinct_dict(data: list = None, key: str = None):

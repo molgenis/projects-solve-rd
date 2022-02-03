@@ -1,0 +1,22 @@
+{
+  "name": "molgenis-solve-rd",
+  "version": "1.0.0",
+  "description": "managment of the RD3 database",
+  "main": "index.js",
+  "scripts": {
+    "m:set-acc": "mcmd config set host https://solve-rd-acc.gcc.rug.nl/",
+    "m:set-prod": "mcmd config set host https://solve-rd.gcc.rug.nl/",
+    "rd3:zip-templates": "zip templates/rd3_novelomics_templates.zip templates/*.csv"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molgenis/molgenis-solve-rd.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/molgenis/molgenis-solve-rd/issues"
+  },
+  "homepage": "https://github.com/molgenis/molgenis-solve-rd#readme"
+}

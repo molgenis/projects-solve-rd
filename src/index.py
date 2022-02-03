@@ -2,7 +2,7 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2022-01-31
+#' MODIFIED: 2022-02-03
 #' PURPOSE: incorporate YAML to EMX generator
 #' STATUS: stable
 #' PACKAGES: emxconvert
@@ -86,8 +86,8 @@ def writeEmxTemplate(
 # See `emx/src/rd3_portal_release.yaml` for additional notes
 
 convertPortalReleaseEmx = Convert(files = [
-    'emx/src/base_rd3_portal.yaml', # import portal first
-    'emx/src/rd3_portal_release.yaml'
+    'src/emx/base_rd3_portal.yaml', # import portal first
+    'src/emx/rd3_portal_release.yaml'
 ])
 
 convertPortalReleaseEmx.convert()
@@ -98,7 +98,7 @@ convertPortalReleaseEmx.attributes
 convertPortalReleaseEmx.write(
     name = 'rd3_portal_release',
     format = 'xlsx',
-    outDir = 'emx/dist/'
+    outDir = 'dist/'
 )
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -108,8 +108,8 @@ convertPortalReleaseEmx.write(
 
 convertPortalNovelomicsEmx = Convert(
     files = [
-        'emx/src/base_rd3_portal.yaml',
-        'emx/src/rd3_portal_novelomics.yaml'
+        'src/emx/base_rd3_portal.yaml',
+        'src/emx/rd3_portal_novelomics.yaml'
     ]
 )
 
@@ -121,7 +121,7 @@ convertPortalNovelomicsEmx.attributes
 convertPortalNovelomicsEmx.write(
     name = 'rd3_portal_novelomics',
     format = 'xlsx',
-    outDir = 'emx/dist/'
+    outDir = 'dist/'
 )
 
 
@@ -148,7 +148,7 @@ writeEmxTemplate(
 
 # convertPortalDemographicsEmx = Convert(
 #     files = [
-#         'emx/src/rd3_portal_demographics.yaml'
+#         'src/emx/rd3_portal_demographics.yaml'
 #     ]
 # )
 
@@ -160,7 +160,7 @@ writeEmxTemplate(
 # convertPortalDemographicsEmx.write(
 #     name = 'rd3_portal_demographics',
 #     format = 'xlsx',
-#     outDir = 'emx/dist/'
+#     outDir = 'dist/'
 # )
 
 
@@ -171,8 +171,8 @@ writeEmxTemplate(
 
 convertFreezeEmx = Convert(
     files = [
-        'emx/src/base_rd3.yaml',
-        'emx/src/base_rd3_freeze.yaml'
+        'src/emx/base_rd3.yaml',
+        'src/emx/base_rd3_freeze.yaml'
     ]
 )
 
@@ -199,7 +199,7 @@ setEmxRelease(convertFreezeEmx.attributes, releaseNumr = rNumr, releaseTitle = r
 # the novelomics models with the main release model.
 
 # convert yaml
-convertNovelomicsEmx = Convert(files = ['emx/src/rd3_novelomics.yaml'])
+convertNovelomicsEmx = Convert(files = ['src/emx/rd3_novelomics.yaml'])
 convertNovelomicsEmx.convert()
 # convertNovelomicsEmx.packages
 # convertNovelomicsEmx.entities
@@ -231,7 +231,7 @@ convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'emx/dist/')
 # ~ 4 ~
 # GENERAL PORTAL TABLES
 
-convertPortal = Convert(files = ['emx/src/rd3_portal_cluster.yaml'])
+convertPortal = Convert(files = ['src/emx/rd3_portal_cluster.yaml'])
 convertPortal.convert()
 convertPortal.packages
 convertPortal.entities
@@ -240,5 +240,5 @@ convertPortal.attributes
 convertPortal.write(
     name = 'rd3_portal_cluster',
     format = 'xlsx',
-    outDir = 'emx/dist/'
+    outDir = 'dist/'
 )

@@ -15,110 +15,33 @@
 # table. If more freezes are added, adjust the script accordingly.
 # //////////////////////////////////////////////////////////////////////////////
 
-import molgenis.client as molgenis
+from src.python.utils import molgenis, status_msg
 from datatable import dt,f, first
-from urllib.parse import quote_plus
+from dotenv import load_dotenv
 from datetime import datetime
-import json
-import requests
+from os import environ
 
 # set molgenis.client info
-host = 'http://localhost/api/'
-token = '${molgenisToken}'
+load_dotenv()
+host = environ['MOLGENIS_HOST_ACC']
+token = environ['MOLGENIS_TOKEN_ACC']
+# host = environ['MOLGENIS_HOST_PROD']
+# token = environ['MOLGENIS_TOKEN_PROD']
+rd3 = molgenis(url=host, token=token)
+
 
 # set current release information
 release = 'novelomics_original' # ex: 'freezeN_original' or 'freezeN_patchX'
 experimentIdSuffix = '_original'
 sampleIdSuffix = '_original'
 
-# generic timestamped messages
-def status_msg(*args):
-    """Status Message
-    Prints a message with a timestamp
-    @param *args : message to write 
-    """
-    msg = ' '.join(map(str, args))
-    timestamp = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-    print('[{}] {}'.format(timestamp, msg))
-
-
-# extend the molgenis class
-class molgenis(molgenis.Session):
-    """molgenis
-    An extension of molgenis.client
-    """
-    def __baseUrl__(self):
-        props = list(self.__dict__.keys())
-        if '_url' in props: return self._url
-        if '_api_url' in props: return self._api_url
-    
-
-    def update_table(self, data, entity):
-        """Update Table
-        When importing data into a new table using the client, there is a 1000
-        row limit. This method allows you push data without having to worry
-        about the limits.
-        
-        @param entity (str) : name of the entity to import data into
-        @param data (list) : data to import
-        
-        @return a status message
-        """
-        url = f'{self.__baseUrl__()}v2/{quote_plus(entity)}'
-        # single push
-        if len(data) < 1000:
-            try:
-                response = self._session.post(
-                    url = url,
-                    headers = self._get_token_header_with_content_type(),
-                    data = json.dumps({'entities' : data})
-                )
-                if not response.status_code // 100 == 2:
-                    return f'Error: unable to import data({response.status_code}): {response.content}'
-                print(f'Imported {len(data)} entities into {str(entity)}')
-            except requests.exceptions.HTTPError as err:
-                raise SystemError(err)
-        # batch push
-        if len(data) >= 1000:    
-            for d in range(0, len(data), 1000):
-                try:
-                    response = self._session.post(
-                        url = url,
-                        headers = self._get_token_header_with_content_type(),
-                        data = json.dumps({'entities': data[d:d+1000] })
-                    )
-                    if not response.status_code // 100 == 2:
-                        raise response.raise_for_status()
-                    print(f'Batch {d}: Imported {len(data)} entities into {str(entity)}')
-                except requests.exceptions.HTTPError as err:
-                    raise SystemError(f'Batch {d} Error: unable to import data:\n{str(err)}')
-
-
-    def batch_update_one_attr(self, entity: str, attr: str, data: list):
-        """Batch Update One Attribute
-        Import data for an attribute in batches (i.e., into groups of 1000 entities).
-        Data should be a list of dictionaries with two keys: `id` and <attr> where
-        attr is the name of the attribute that you would like to update
-        
-        @param data (list) : data to import
-        @param attr (str) : name of the attribute to update
-        @param entity (str) : name of the entity to import data into
-        
-        @return a response code
-        """
-        url = f'{self.__baseUrl__()}v2/{quote_plus(entity)}/{attr}' 
-        for d in range(0, len(data), 1000):
-            try:
-                response = self._session.put(
-                    url = url,
-                    headers = self._get_token_header_with_content_type(),
-                    data = json.dumps({'entities': data[d:d+1000] })
-                )
-                if not response.status_code // 100 == 2:
-                    raise response.raise_for_status()
-                print(f'Batch {d}: Imported {len(data)} entities into {str(entity)}')
-            except requests.exceptions.HTTPError as err:
-                raise SystemError(f'Batch {d} Error: unable to import data:\n{str(err)}')
+# define Organisation mappings
+def __validate__(value, patterns):
+    try:
+        return patterns[value.strip().lower()]
+    except:
+        pass
+    return value.strip()
 
 def recodeErns(value):
     """Recode ERNs
@@ -129,24 +52,46 @@ def recodeErns(value):
     patterns = {
         'genturis': 'ERN-GENTURIS',
         'ithaca': 'ERN-ITHACA',
-        'NMD': 'ERN-NMD',
-        'RND': 'ERN-RND'
+        'nmd': 'ERN-NMD',
+        'rnd': 'ERN-RND'
     }
-    
-    if value.lower() in patterns:
-        return patterns[value]
+    return __validate__(value, patterns)
 
-def recodeOrgs(value):
+def recodeOrganisations(value):
     """Recode Organisations
     Recode known organisation name variations into RD3 terminology.
     @param value (str) : value to recode
     @return string
     """
-    patterns={
-        'malgorzata  dec-cwiek': 'malgorzata-dec-cwiek'
+    patterns = {
+        'malgorzata  dec-cwiek': 'malgorzata-dec-cwiek'    
+    }    
+    return __validate__(value, patterns)
+
+def recodeTissueTypes(value):
+    """Recode Tissue Type
+    Recode tissue type name variations into RD3 terminology
+    @param value (str) : value to recode
+    @return string
+    """
+    patterns = {
+        'ffpe': 'Tumor',
+        'blood': 'Whole Blood',
+        'whole blood': 'Whole Blood'
     }
-    if value.lower() in patterns:
-        return patterns[value]
+    return __validate__(value, patterns)
+
+def recodeMaterialTypes(value):
+    """Recode Material Types
+    Recode known material type variations into RD3 terminology
+    @param value (str) : value to recode
+    @return string
+    """
+    patterns = {
+        'total rna': 'RNA',
+        'ffpe': 'TISSUE (FFPE)'
+    }
+    return __validate__(value, patterns)
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -154,10 +99,7 @@ def recodeOrgs(value):
 # Pull Required Data
 #
 # For the novel omics mapping job, we need to pull all unprocessed novel omics
-# data located in the portal (shipment and experiment)
-
-# start new session
-rd3 = molgenis(url=host, token=token)
+# data located in the portal (shipment and experiment).
 
 status_msg('Looking for new subjects and experiments to processe...')
 
@@ -173,7 +115,9 @@ newExperiments = dt.Frame(
     )
 )
 
-del newExperiments['_href']
+if newExperiments.nrows:
+    del newExperiments['_href']
+
 
 # pull `rd3_portal_novelomics_shipment` (subjects and samples)
 newSamples = dt.Frame(
@@ -184,13 +128,26 @@ newSamples = dt.Frame(
     )
 )
 
-del newSamples['_href']
+# isolate attributes for updating the portal post-processing
+portalShipmentMetadata = newSamples[
+    :, [f.molgenis_id, f.participant_subject, f.sample_id, f.processed]
+]
+
+if newSamples.nrows:
+    del newSamples['_href']
 
 #//////////////////////////////////////
 
 # ~ 1b ~
 # Pull existing rd3_novelomics datasets for reference
-
+#
+# Before new subjects, samples, and experiments can be imported into RD3, it
+# is important to make sure that they do not already exist in RD3, especially
+# subjects and samples. If a record does exist, it can be ignored or you can
+# run additional checks to make sure the records should be updated. This is
+# highly unlikely though as all releases contain new samples. In the future,
+# there may be updates.
+#
 status_msg('Fetching existing data for comparison...')
 
 # get `rd3_novelomics_subjects`
@@ -235,8 +192,8 @@ existingExperiments = rd3.get(
 )
 
 for experiment in existingExperiments:
-    experiment['sampleKey'] = experiment['sample'].get('id')
-    experiment['sampleID'] = experiment['sample'].get('sampleID')
+    experiment['sampleKey'] = experiment.get('sample')[0].get('id')
+    experiment['sampleID'] = experiment.get('sample')[0].get('sampleID')
     del experiment['sample']
 
 existingExperiments = dt.Frame(existingExperiments)
@@ -252,6 +209,10 @@ del existingExperiments['_href']
 
 rd3_ern = dt.Frame(rd3.get('rd3_ERN',attributes='identifier'))
 rd3_organisation = dt.Frame(rd3.get('rd3_organisation',attributes='identifier'))
+
+ernIDs = rd3_ern['identifier'].to_list()[0]
+organisationsIDs = rd3_organisation['identifier'].to_list()[0]
+
 
 del rd3_ern[:,'_href'], rd3_organisation[:,'_href']
 
@@ -270,24 +231,27 @@ should_import_labs_wgs = False
 should_import_files = False
 # should_import_labs_rna = False
 
+should_import_organisations = False
+should_import_erns = False
+
 
 if newExperiments and newSamples:
     status_msg(
         'Will process {} new experiments and {} samples'
-        .format(len(newExperiments), len(newSamples))
+        .format(newExperiments.nrows, newSamples.nrows)
     )
     should_process_experiments = True
     should_process_samples = True
 elif newExperiments and not newSamples:
     status_msg(
         'Will process {} new experiments and 0 samples'
-        .format(len(newExperiments))
+        .format(newExperiments.nrows)
     )
     should_process_experiments = True
 elif not newExperiments and newSamples:
     status_msg(
         'Will process 0 new experiments and {} samples'
-        .format(len(newSamples))
+        .format(newSamples.nrows)
     )
     should_process_samples = True
 else:
@@ -316,17 +280,24 @@ if should_process_samples:
     status_msg('Processing samples and subjects...')
 
     newSamples['isNewSubject'] = dt.Frame([
-        d in existingSubjectIDs
+        d not in existingSubjectIDs
         for d in newSamples['participant_subject'].to_list()[0]
     ])
     
     newSamples['isNewSample'] = dt.Frame([
-        d in existingSampleIDs
+        d not in existingSampleIDs
         for d in newSamples['sample_id'].to_list()[0]
     ])
 
-    newSamples['ERN'] = dt.Frame([recodeErns(d) for d in newSamples['ERN'].to_list()[0]])
-    newSamples['organisation'] = dt.Frame([recodeOrgs(d) for d in newSamples['organisation'].to_list()[0]])
+    newSamples['ERN'] = dt.Frame([
+        recodeErns(d)
+        for d in newSamples['ERN'].to_list()[0]
+    ])
+
+    newSamples['organisation'] = dt.Frame([
+        recodeOrganisations(d)
+        for d in newSamples['organisation'].to_list()[0]
+    ])
     
     #//////////////////////////////////
     
@@ -334,7 +305,7 @@ if should_process_samples:
     # Prepare data for `rd3_novelomics_subject`
     # New subjects will be added to RD3.
 
-    if newSamples[f.isNewSubject==True, :].nrows > 0:
+    if newSamples[f.isNewSubject, :].nrows:
         status_msg('Preparing new subjects for registration into RD3...')
         
         newNovelOmicsSubjects = newSamples[f.isNewSubject == True, :][
@@ -360,13 +331,15 @@ if should_process_samples:
     # Prepare data for `rd3_novelomics_sample`
     
     # only process new samples
-    if newSamples[f.isNewSample==True, :].nrows > 0:
+    if newSamples[f.isNewSample, :].nrows:
             status_msg('Preparing new samples for registration in RD3...')
             
-            newNovelOmicsSamples = newSamples[f.isNewSample==True,:][
-                :, first(f[:]), dt.by(f.sample_id)
+            newNovelOmicsSamples = newSamples[f.isNewSample,:][
+              :, first(f[:]), dt.by(f.sample_id)  
             ][:, {
                 'id': f.sample_id,
+                'sampleID': f.sample_id,
+                'alternativeIdentifier': f.alternative_sample_identifier,
                 'subject': f.participant_subject,
                 'tissueType': f.tissue_type,
                 'materialType': f.sample_type,
@@ -375,15 +348,75 @@ if should_process_samples:
                 'typeOfAnalysis': f.type_of_analysis,
                 'organisation': f.organisation,
                 'ERN': f.ERN
-
             }]
             
-            newNovelOmicsSamples['tissueType'] = dt.Frame([
-                'Whole Blood' if d in ['whole blood','blood'] else d
-                for d in newNovelOmicsSamples['tissueType'].to_list()[0]
+            # set entity row ID
+            newNovelOmicsSamples['id'] = dt.Frame([
+                f'{d}_{release}'
+                for d in newNovelOmicsSamples['id'].to_list()[0]
             ])
             
+            # set subject ID to the current release
+            newNovelOmicsSamples['subject'] = dt.Frame([
+                f'{d}_{release}'
+                for d in newNovelOmicsSamples['subject'].to_list()[0]
+            ])
+            
+            
+            # concat multiple alternativeIdentifiers
+            newNovelOmicsSamples['alternativeIdentifier'] = dt.Frame([
+                ', '.join(
+                    newSamples[
+                        f.sample_id == d,
+                        f.alternative_sample_identifier
+                    ].to_list()[0]
+                ) if newSamples[
+                    (f.sample_id == d) & (f.alternative_sample_identifier != None), 
+                    f.alternative_sample_identifier
+                ].nrows else None
+                for d in newNovelOmicsSamples['sampleID'].to_list()[0]
+            ])
+            
+            # concat multiple batches
+            newNovelOmicsSamples['batch'] = dt.Frame([
+                ', '.join(
+                    newSamples[
+                        f.sample_id == d,
+                        f.batch
+                    ].to_list()[0]
+                ) if newSamples[
+                    (f.sample_id == d) & (f.batch != None),
+                    f.batch
+                ].nrows else None
+                for d in newNovelOmicsSamples['sampleID'].to_list()[0]
+            ])
+            
+            # recode materialType first for cases where tissueType is
+            # FFPE
+            newNovelOmicsSamples['materialType'] = dt.Frame([
+                recodeMaterialTypes(d[0]) if d[0] == 'FFPE' else recodeMaterialTypes(d[1])
+                for d in newNovelOmicsSamples[
+                    :, [f.tissueType, f.materialType]
+                ].to_tuples()
+            ])
+            
+            
+            newNovelOmicsSamples['tissueType'] = dt.Frame([
+                recodeTissueTypes(d)
+                for d in newNovelOmicsSamples['tissueType'].to_list()[0]
+            ])  
+            
+            
             should_import_samples=True
+     
+    # update processed value in portal table
+    newSampleIDs = newNovelOmicsSamples['sampleID'].to_list()[0]
+    newSubjectIDs = newNovelOmicsSubjects['subjectID'].to_list()[0]
+    
+    portalShipmentMetadata['processed'] = dt.Frame([
+        d in newSampleIDs
+        for d in portalShipmentMetadata[:, [f.sample_id]].to_list()[0]
+    ])
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -420,11 +453,12 @@ if should_process_experiments:
     ])
 
     newExperiments['organisation'] = dt.Frame([
-        recodeOrgs(d) for d in newExperiments['organisation'].to_list()[0]
+        recodeOrganisations(d)
+        for d in newExperiments['organisation'].to_list()[0]
     ])
     
     # process only new experiments
-    if newExperiments[f.isNewSample==False, :].nrows == 0:
+    if newExperiments[f.isNewSample==True, :].nrows == 0:
         Warning('New samples were detected during experiment processing!')
         
     #//////////////////////////////////
@@ -502,16 +536,98 @@ if should_process_experiments:
     if newWgsFiles.nrow > 0: should_import_files = True
       
 #//////////////////////////////////////////////////////////////////////////////
-# 
-# ~ 4 ~ 
-# Import data
 
+# ~ 4 ~
+# Identify New Organisations and ERNs
+#
+# Before importing new subjects, samples, and experiments into RD3, make sure
+# all organisations and ERNs exist in RD3. New ERNs are likely to be the result
+# of a name variation as there are a fixed number of ERNs. Organisations are
+# likely to be new or variations of an existing name.
+#
+
+if newSamples.nrows:
+
+    # ~ 4a ~
+    # Identify new organisations
+    organisations = dt.unique(newSamples[:, f.organisation])
+    organisations['isNewOrg'] = dt.Frame([
+        d not in organisationsIDs
+        for d in organisations['organisation'].to_list()[0]
+    ])
+
+    if organisations[f.isNewOrg, :].nrows:
+        Warning('New Organisations detected. Manually review these cases before importing')
+        should_import_organisations = True
+
+    # ~ 4b ~
+    # Identify new ERNs
+    erns = dt.unique(newSamples[:, f.ERN])
+    erns['isNewErn'] = dt.Frame([
+        d not in ernIDs
+        for d in erns['ERN'].to_list()[0]
+    ])
+    
+    if erns[f.isNewErn, :].nrows:
+        Warning('New ERNs detected. Manually review these cases before importing')
+        should_import_erns = True
+
+
+
+
+#//////////////////////////////////////////////////////////////////////////////
+ 
+# ~ 5 ~ 
+# Import data
+#
+# Using the flags defined early on in this script, import the corresponding
+# datasets. Make sure reference tables are updated first.
+
+
+# ~ 5a ~ 
+# Import Organisations
+if should_import_organisations:
+    status_msg('Importing new organisations...')
+    newRD3Orgs = (
+        organisations[f.isNewOrg, {
+            'identifier': f.organisation,
+            'name': f.organisation
+        }]
+        .to_pandas()
+        .to_dict('records')
+    )
+
+    rd3.update_table(newRD3Orgs, 'rd3_organisation')
+else:
+    status_msg('No new organisations detected...')
+
+    
+# ~ 5b ~
+# Import ERNs
+if should_import_erns:
+    status_msg('Importing new ERNs...')
+    newRD3Erns = (
+        erns[f.isNewErn, {'identifier': f.ERN}]
+        .to_pandas()
+        .dict('records')
+    )
+    rd3.update_table(newRD3Erns, 'rd3_ern')
+else:
+    status_msg('No new ERNs detected')
+
+
+# ~ 5c ~ 
+# import subjects
 if should_import_subjects:
     status_msg('Importing new subjects...')
     
     rd3_subject = newNovelOmicsSubjects.to_pandas().to_dict('records')
     rd3_subjectinfo = newNovelOmicsSubjects[
-        :, [f.id,f.subjectID, f.patch]
+        :, {
+            'id': f.id,
+            'subjectID': f.id,
+            'patch': f.patch
+        }
     ].to_pandas().to_dict('records')
     
     rd3.update_table(rd3_subject, 'rd3_novelomics_subject')
@@ -520,6 +636,9 @@ if should_import_subjects:
 else:
     status_msg('No new subjects to register. :-)')
       
+
+# ~ 5d ~      
+# import samples
 if should_import_samples:
     status_msg('Imporing new samples...')
     
@@ -530,6 +649,8 @@ else:
     status_msg('No new samples to register')
 
 
+# ~ 5e ~
+# import experiments
 if should_import_labs_wgs:
     status_msg('Importing new experiments...')
     
@@ -539,6 +660,9 @@ if should_import_labs_wgs:
 else:
     status_msg('No new experiments to register')
 
+
+# ~ 5f ~
+# import files
 if should_import_files:
     status_msg('Importing new files...')
     

@@ -24,10 +24,10 @@ import numpy as np
 
 # set molgenis.client info
 load_dotenv()
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-# host = environ['MOLGENIS_HOST_PROD']
-# token = environ['MOLGENIS_TOKEN_PROD']
+# host = environ['MOLGENIS_HOST_ACC']
+# token = environ['MOLGENIS_TOKEN_ACC']
+host = environ['MOLGENIS_HOST_PROD']
+token = environ['MOLGENIS_TOKEN_PROD']
 rd3 = molgenis(url=host, token=token)
 
 
@@ -226,8 +226,8 @@ rd3_organisation = dt.Frame(rd3.get('rd3_organisation',attributes='identifier'))
 ernIDs = rd3_ern['identifier'].to_list()[0]
 organisationsIDs = rd3_organisation['identifier'].to_list()[0]
 
-
-del rd3_ern[:,'_href'], rd3_organisation[:,'_href']
+del rd3_ern[:,'_href']
+del rd3_organisation[:,'_href']
 
 #//////////////////////////////////////
 
@@ -345,83 +345,83 @@ if should_process_samples:
     
     # only process new samples
     if newSamples[f.isNewSample, :].nrows:
-            status_msg('Preparing new samples for registration in RD3...')
+        status_msg('Preparing new samples for registration in RD3...')
             
-            newNovelOmicsSamples = newSamples[f.isNewSample,:][
-              :, first(f[:]), dt.by(f.sample_id)  
-            ][:, {
-                'id': f.sample_id,
-                'sampleID': f.sample_id,
-                'alternativeIdentifier': f.alternative_sample_identifier,
-                'subject': f.participant_subject,
-                'tissueType': f.tissue_type,
-                'materialType': f.sample_type,
-                'patch': release,
-                'batch': f.batch,
-                'typeOfAnalysis': f.type_of_analysis,
-                'organisation': f.organisation,
-                'ERN': f.ERN
-            }]
+        newNovelOmicsSamples = newSamples[f.isNewSample,:][
+            :, first(f[:]), dt.by(f.sample_id)  
+        ][:, {
+            'id': f.sample_id,
+            'sampleID': f.sample_id,
+            'alternativeIdentifier': f.alternative_sample_identifier,
+            'subject': f.participant_subject,
+            'tissueType': f.tissue_type,
+            'materialType': f.sample_type,
+            'patch': release,
+            'batch': f.batch,
+            'typeOfAnalysis': f.type_of_analysis,
+            'organisation': f.organisation,
+            'ERN': f.ERN
+        }]
             
-            # set entity row ID
-            newNovelOmicsSamples['id'] = dt.Frame([
-                f'{d}_{release}'
-                for d in newNovelOmicsSamples['id'].to_list()[0]
-            ])
+        # set entity row ID
+        newNovelOmicsSamples['id'] = dt.Frame([
+            f'{d}_{release}'
+            for d in newNovelOmicsSamples['id'].to_list()[0]
+        ])
             
-            # set subject ID to the current release
-            newNovelOmicsSamples['subject'] = dt.Frame([
-                f'{d}_{release}'
-                for d in newNovelOmicsSamples['subject'].to_list()[0]
-            ])
-            
-            
-            # concat multiple alternativeIdentifiers
-            newNovelOmicsSamples['alternativeIdentifier'] = dt.Frame([
-                ', '.join(
-                    newSamples[
-                        f.sample_id == d,
-                        f.alternative_sample_identifier
-                    ].to_list()[0]
-                ) if newSamples[
-                    (f.sample_id == d) & (f.alternative_sample_identifier != None), 
+        # set subject ID to the current release
+        newNovelOmicsSamples['subject'] = dt.Frame([
+            f'{d}_{release}'
+            for d in newNovelOmicsSamples['subject'].to_list()[0]
+        ])
+        
+        
+        # concat multiple alternativeIdentifiers
+        newNovelOmicsSamples['alternativeIdentifier'] = dt.Frame([
+            ', '.join(
+                newSamples[
+                    f.sample_id == d,
                     f.alternative_sample_identifier
-                ].nrows else None
-                for d in newNovelOmicsSamples['sampleID'].to_list()[0]
-            ])
-            
-            # concat multiple batches
-            newNovelOmicsSamples['batch'] = dt.Frame([
-                ', '.join(
-                    newSamples[
-                        f.sample_id == d,
-                        f.batch
-                    ].to_list()[0]
-                ) if newSamples[
-                    (f.sample_id == d) & (f.batch != None),
+                ].to_list()[0]
+            ) if newSamples[
+                (f.sample_id == d) & (f.alternative_sample_identifier != None), 
+                f.alternative_sample_identifier
+            ].nrows else None
+            for d in newNovelOmicsSamples['sampleID'].to_list()[0]
+        ])
+        
+        # concat multiple batches
+        newNovelOmicsSamples['batch'] = dt.Frame([
+            ', '.join(
+                newSamples[
+                    f.sample_id == d,
                     f.batch
-                ].nrows else None
-                for d in newNovelOmicsSamples['sampleID'].to_list()[0]
-            ])
-            
-            # recode materialType first for cases where tissueType is
-            # FFPE
-            newNovelOmicsSamples['materialType'] = dt.Frame([
-                recodeMaterialTypes(d[0]) if d[0] == 'FFPE' else recodeMaterialTypes(d[1])
-                for d in newNovelOmicsSamples[
-                    :, [f.tissueType, f.materialType]
-                ].to_tuples()
-            ])
-            
-            
-            # recode tissue types
-            newNovelOmicsSamples['tissueType'] = dt.Frame([
-                recodeTissueTypes(d)
-                for d in newNovelOmicsSamples['tissueType'].to_list()[0]
-            ])  
-            
-            # set import flag
-            should_import_samples=True
+                ].to_list()[0]
+            ) if newSamples[
+                (f.sample_id == d) & (f.batch != None),
+                f.batch
+            ].nrows else None
+            for d in newNovelOmicsSamples['sampleID'].to_list()[0]
+        ])
+        
+        # recode materialType first for cases where tissueType is
+        # FFPE
+        newNovelOmicsSamples['materialType'] = dt.Frame([
+            recodeMaterialTypes(d[0]) if d[0] == 'FFPE' else recodeMaterialTypes(d[1])
+            for d in newNovelOmicsSamples[
+                :, [f.tissueType, f.materialType]
+            ].to_tuples()
+        ])
+        
+        
+        # recode tissue types
+        newNovelOmicsSamples['tissueType'] = dt.Frame([
+            recodeTissueTypes(d)
+            for d in newNovelOmicsSamples['tissueType'].to_list()[0]
+        ])  
+        
+        # set import flag
+        should_import_samples=True
      
     # update processed value in portal table
     newSampleIDs = newNovelOmicsSamples['sampleID'].to_list()[0]
@@ -651,6 +651,7 @@ else:
     status_msg('No new subjects to register. :-)')
       
 
+
 # ~ 5d ~      
 # import samples
 if should_import_samples:
@@ -689,4 +690,9 @@ else:
 
 status_msg('Done!! :-)')
     
-    
+
+# ~ 5e ~ 
+# Update processed status in shipment table
+rd3_portal_statuses = portalShipmentMetadata[:, [f.molgenis_id, f.processed]]
+rd3_portal_statuses = toRecords(rd3_portal_statuses)
+rd3.batch_update_one_attr('rd3_portal_novelomics_shipment','processed', rd3_portal_statuses)

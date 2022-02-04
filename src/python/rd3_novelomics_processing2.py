@@ -2,7 +2,7 @@
 # FILE: novelomics_mapping_01_main.py
 # AUTHOR: David Ruvolo
 # CREATED: 2021-04-15
-# MODIFIED: 2022-01-21
+# MODIFIED: 2022-02-04
 # PURPOSE: process novel omics into Solve RD
 # STATUS: experimental
 # DEPENDENCIES: **see below**
@@ -20,6 +20,7 @@ from datatable import dt,f, first
 from dotenv import load_dotenv
 from datetime import datetime
 from os import environ
+import numpy as np
 
 # set molgenis.client info
 load_dotenv()
@@ -34,6 +35,16 @@ rd3 = molgenis(url=host, token=token)
 release = 'novelomics_original' # ex: 'freezeN_original' or 'freezeN_patchX'
 experimentIdSuffix = '_original'
 sampleIdSuffix = '_original'
+
+
+# datatable frame to list/dicts
+def toRecords(data):
+    """To Records
+    Convert a datatable frame to a list of dictionaries
+    @param data (obj) : a datatable object
+    """
+    return data.to_pandas().replace({np.nan:None}).to_dict('records')
+
 
 # define Organisation mappings
 def __validate__(value, patterns):
@@ -75,8 +86,10 @@ def recodeTissueTypes(value):
     @return string
     """
     patterns = {
-        'ffpe': 'Tumor',
         'blood': 'Whole Blood',
+        'ffpe': 'Tumor',
+        'fibroblasts': 'Cells - Cultured fibroblasts',
+        'pbmc': 'Peripheral Blood Mononuclear Cells',
         'whole blood': 'Whole Blood'
     }
     return __validate__(value, patterns)
@@ -401,12 +414,13 @@ if should_process_samples:
             ])
             
             
+            # recode tissue types
             newNovelOmicsSamples['tissueType'] = dt.Frame([
                 recodeTissueTypes(d)
                 for d in newNovelOmicsSamples['tissueType'].to_list()[0]
             ])  
             
-            
+            # set import flag
             should_import_samples=True
      
     # update processed value in portal table
@@ -642,7 +656,7 @@ else:
 if should_import_samples:
     status_msg('Imporing new samples...')
     
-    rd3_sample = newNovelOmicsSamples.to_pandas().to_dict('records')
+    rd3_sample = toRecords(newNovelOmicsSamples)
     rd3.update_table(rd3_sample, 'rd3_novelomics_sample')
 
 else:

@@ -223,7 +223,7 @@ convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Save model
-convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'emx/dist/')
+convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'dist/')
 
 
 #//////////////////////////////////////////////////////////////////////////////

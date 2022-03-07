@@ -1,5 +1,10 @@
-# RD3 Portal Freeze
-#
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-03-07
+# PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
+# COMMENTS:
 # The table `rd3_portal_freeze` is a staging table for new RD3 releases. Data
 # is pushed into this table from external sources, and then processed using
 # a Molgenis job (that runs a python script).
@@ -14,30 +19,29 @@
 #     description: Staging table for Freeze <freeze_number> data
 # ```
 #
+#//////////////////////////////////////////////////////////////////////////////
 
+# define package
 name: rd3_portal_release
-label: Freezes
+label: Releases
 description: Intermediate tables for RD3 releases
 parent: rd3_portal
-version: 1.1.0
-date: 2022-01-31
+# version: 1.1.0
+# date: 2022-01-31
 
 # Defaults:
-# Set default attribute options. By default, all rows are given an
-# auto-generated ID.
+# Set default attribute options. By default, all rows are given an auto ID
 defaults:
   auto: false
   dataType: string
   idAttribute: false
   nillable: true
 
-# Entities:
-# Create a new entity for new freezes. Attributes will be the same across
-# releases unless otherwise specified.
+# define tables
 entities:
-  - name: novelwgs
-    label: Novel WGS
-    description: Staging table for Novel WGS data (2022-01-31)
+  - name: <release_name>
+    label: <release_name>
+    description: <release_description>
     attributes:
       - name: id
         description: auto generated molgenis ID 

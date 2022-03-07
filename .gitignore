@@ -1,6 +1,6 @@
 .DS_STORE
 renv/library/*
 python/_config.yml
-python/__pycache__/
+__pycache__/
 data
 .env

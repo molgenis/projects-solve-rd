@@ -2,98 +2,32 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2022-02-03
+#' MODIFIED: 2022-03-07
 #' PURPOSE: incorporate YAML to EMX generator
 #' STATUS: stable
-#' PACKAGES: emxconvert
+#' PACKAGES: yamlemxconvert
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
+from model.modeltools import setEmxRelease, writeEmxTemplate
 from yamlemxconvert.convert import Convert
-import pandas as pd
-import re
-
-# define function that recodes <freeze_number> with a new release number
-def setEmxRelease(data, releaseNumr: str = None, releaseTitle: str = None):
-    """setEmxRelease
-    replace <freeze_number> with the desired release number
-    
-    @param data: list, post-converted EMX component (e.g., packages, entities, etc.)
-    @param releaseNumr : str, the new release (e.g., "freeze4")
-    @param releasetitle : str, name for the release (e.g., "Freeze 4")
-    @returns list
-    """
-    releaseTitle = releaseNumr if releaseTitle is None else releaseTitle
-    for d in data:
-        for el in d:
-            if el in ['package','entity', 'name', 'refEntity']:
-                d[el] = re.sub(
-                    pattern = r'(([fF]reeze)?\<freeze_number\>)',
-                    repl = str(releaseNumr),
-                    string = d[el]
-                )
-            if el in ['label', 'description']:
-                d[el] = re.sub(
-                    pattern = r'(([fF]reeze)?\<freeze_number\>)',
-                    repl = str(releaseTitle),
-                    string = d[el]
-                )
-
-
-# write attributes as csv template
-def writeEmxTemplate(
-    entities: list = None,
-    attributes: list = None,
-    format: str = 'csv',
-    outDir: str = '.'
-):
-    """Write EMX Templates
-    
-    Write the emx attributes as an excel file
-    
-    @param entities   (list) : EMX entities in a package
-    @param attributes (list) : EMX attributes
-    @param format     (str)  : output file format ('csv' or 'xlsx')
-    @param outDir     (str)  : location to save file (default: '.', i.e., current)
-    """
-    
-    if not (format in ['csv', 'xlsx']):
-        raise ValueError('Error in writeEmxTemplate: unknown format `{}`'.format(str(format)))
-    
-    for entity in entities:
-        pkgEntity = entity['package'] + '_' + entity['name']
-        
-        attribs = [x['name'] for x in attributes if x['entity'] == pkgEntity]
-        data = pd.DataFrame(index = None, columns = range(len(attribs)))
-        data.columns = attribs
-        
-        file = f'{outDir}/{pkgEntity}.{format}'
-        if format == 'csv': data.to_csv(file, index = False)
-        if format == 'xlsx': data.to_excel(
-            file,
-            sheet_name = pkgEntity,
-            index = False,
-            engine = 'xlsxwriter'
-        )
-
-
-#//////////////////////////////////////////////////////////////////////////////
-
 
 # ~ 0 ~
 # Compile EMX for RD3 Portal Releases
 # Comple the YAML-EMX markup for new RD3 staging tables
-# See `emx/src/rd3_portal_release.yaml` for additional notes
+# See `model/rd3_portal_release.yaml` for additional notes
 
 convertPortalReleaseEmx = Convert(files = [
-    'src/emx/base_rd3_portal.yaml', # import portal first
-    'src/emx/rd3_portal_release.yaml'
+    'model/base_rd3_portal.yaml', # import portal first
+    'model/rd3_portal_release.yaml'
 ])
 
 convertPortalReleaseEmx.convert()
-convertPortalReleaseEmx.packages
-convertPortalReleaseEmx.entities
-convertPortalReleaseEmx.attributes
+
+# set release information
+convertPortalReleaseEmx.entities[0]['name'] = 'rd3_portal_release_novelwgs'
+convertPortalReleaseEmx.entities[0]['label'] = 'Novel Omics WGS'
+convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Novel WGS data (2022-01-31)'
 
 convertPortalReleaseEmx.write(
     name = 'rd3_portal_release',
@@ -101,11 +35,9 @@ convertPortalReleaseEmx.write(
     outDir = 'dist/'
 )
 
-#//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
-# Compile EMX for RD3 Portal Novelomics 
-
+# Compile EMX for RD3 Portal Novelomics (i.e., shipment and experiment manifest files)
 convertPortalNovelomicsEmx = Convert(
     files = [
         'src/emx/base_rd3_portal.yaml',
@@ -114,10 +46,6 @@ convertPortalNovelomicsEmx = Convert(
 )
 
 convertPortalNovelomicsEmx.convert()
-convertPortalNovelomicsEmx.packages
-convertPortalNovelomicsEmx.entities
-convertPortalNovelomicsEmx.attributes
-
 convertPortalNovelomicsEmx.write(
     name = 'rd3_portal_novelomics',
     format = 'xlsx',
@@ -171,21 +99,22 @@ writeEmxTemplate(
 
 convertFreezeEmx = Convert(
     files = [
-        'src/emx/base_rd3.yaml',
-        'src/emx/base_rd3_freeze.yaml'
+        'model/base_rd3.yaml',
+        'model/base_rd3_freeze.yaml'
     ]
 )
 
 convertFreezeEmx.convert()
-# convertFreezeEmx.packages
-# convertFreezeEmx.entities
-# convertFreezeEmx.attributes
 
 # recode RD3 release: use freezeN as pattern
 # rNumr = "freeze3"
 # rName = "Freeze3"
-rNumr = "novelomics"
-rName = "Novel Omics"
+# rNumr = "novelwgs"
+# rName = "Novel Omics WGS"
+# rNumr = "noveldeepwes"
+# rName = "Novel Omics Deep-WES"
+rNumr = "novelsrwgs"
+rName = "Novel Omics SR-WGS"
 
 rFile = 'rd3_' + rNumr
 
@@ -199,27 +128,27 @@ setEmxRelease(convertFreezeEmx.attributes, releaseNumr = rNumr, releaseTitle = r
 # the novelomics models with the main release model.
 
 # convert yaml
-convertNovelomicsEmx = Convert(files = ['src/emx/rd3_novelomics.yaml'])
-convertNovelomicsEmx.convert()
+# convertNovelomicsEmx = Convert(files = ['src/emx/rd3_novelomics.yaml'])
+# convertNovelomicsEmx.convert()
 # convertNovelomicsEmx.packages
 # convertNovelomicsEmx.entities
 # convertNovelomicsEmx.attributes
 
 # remove existing `labinfo` entities
-convertFreezeEmx.entities = [
-    d for d in convertFreezeEmx.entities if not ('labinfo' == d.get('name'))
-]
+# convertFreezeEmx.entities = [
+#     d for d in convertFreezeEmx.entities if not ('labinfo' == d.get('name'))
+# ]
 
-# remove all `labinfo` attributes
-convertFreezeEmx.attributes = [
-    d for d in convertFreezeEmx.attributes if not (
-        'rd3_novelomics_labinfo' == d.get('entity')
-    )
-]
+# # remove all `labinfo` attributes
+# convertFreezeEmx.attributes = [
+#     d for d in convertFreezeEmx.attributes if not (
+#         'rd3_novelomics_labinfo' == d.get('entity')
+#     )
+# ]
 
-# Merge EMX structures
-convertFreezeEmx.entities = convertFreezeEmx.entities + convertNovelomicsEmx.entities
-convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx.attributes
+# # Merge EMX structures
+# convertFreezeEmx.entities = convertFreezeEmx.entities + convertNovelomicsEmx.entities
+# convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx.attributes
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Save model

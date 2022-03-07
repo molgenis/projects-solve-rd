@@ -1,9 +1,18 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-03-07
+# PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
+# COMMENTS:
+#   - Build model with the following script: model/index.py.
+#   - Set release accordingly using the method: setEmxRelease(...)
+#   - Do not change the pattern <freeze_number> as this is used in the build
+#     script. If you create new tables, make sure the freeze pattern is
+#     copied accordingly.
+#//////////////////////////////////////////////////////////////////////////////
 
-# RD3 Freeze EMX
-#
-# EMX markup for primary freeze tables For new releases, replace
-# <freeze_number> with the new release number.
-#
+# define subpackage
 name: rd3_freeze<freeze_number>
 label: RD3 Freeze<freeze_number>
 description: RD3 Freeze<freeze_number>

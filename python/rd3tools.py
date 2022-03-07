@@ -10,162 +10,337 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import molgenis.client as molgenis
+import numpy as np
 import subprocess
-import mimetypes
+# import mimetypes
 import requests
 import json
 import yaml
 import os
 import re
 
-from urllib.parse import quote_plus
+# from urllib.parse import quote_plus
 from datetime import datetime
 
-class molgenis(molgenis.Session):
-    """molgenis
+class Molgenis(molgenis.Session):
+    def __init__(self, *args, **kwargs):
+        super(Molgenis, self).__init__(*args, **kwargs)
+        self.__getApiUrl__()
     
-    An extension of the molgenis.client class
+    def __getApiUrl__(self):
+        """Find API endpoint regardless of version"""
+        props = list(self.__dict__.keys())
+        if '_url' in props:
+            self._apiUrl = self._url
+        if '_api_url' in props:
+            self._apiUrl = self._api_url
     
-    """
+    def _checkResponseStatus(self, response, label):
+        if (response.status_code // 100) != 2:
+            err = response.json().get('errors')[0].get('message')
+            status_msg(f'Failed to import data into {label} ({response.status_code}): {err}')
+        else:
+            status_msg(f'Imported data into {label}')
     
-    # update_table
-    def update_table(self, data, entity):
-        """Update Table
-        
-        When importing data into a new table using the client, there is a 1000
-        row limit. This method allows you push data without having to worry
-        about the limits.
-        
-        @param self required class param
-        @param data object containing data to import
-        @param entity ID of the target entity written as 'package_entity'
-        
-        @return a response code
-        """
-        if len(data) < 1000:
+    def _POST(self, url: str = None, data: list = None, label: str=None):
+        try:
             response = self._session.post(
-                url = self._url + 'v2/' + quote_plus(entity),
+                url = url,
                 headers = self._get_token_header_with_content_type(),
-                data = json.dumps({'entities' : data})
+                data = json.dumps({'entities': data})
             )
-            if response.status_code == 201:
-                status_msg(
-                    'Successfully imported data (response: {})'
-                    .format(response.status_code)
-                )
-            else:
-                status_msg(
-                    'Failed to import data (response: {}): \nReason:{}'
-                    .format(response.status_code, response.content)
-                )
-        else:    
-            for d in range(0, len(data), 1000):
-                response = self._session.post(
-                    url=self._url + 'v2/' + entity,
-                    headers=self._get_token_header_with_content_type(),
-                    data=json.dumps({'entities': data[d:d+1000]})
-                )
-                if response.status_code == 201:
-                    status_msg(
-                        'Successfuly imported batch {} (response: {})'
-                        .format(d, response.status_code)
-                    )
-                else:
-                    status_msg(
-                        'Failed to import data (response: {}): \nReason:{}'
-                        .format(response.status_code, response.content)
-                    )
-
-    # batch_update_one_attr
-    def batch_update_one_attr(self, entity, attr, values):
-        """Batch Update One Attribute
-        
-        Import data for an attribute in groups of 1000
-        
-        @param self required class param
-        @param entity ID of the target entity written as `package_entity`
-        @param values data to import, a list of dictionaries where each dictionary
-              is structured with two keys: the ID attribute and the attribute
-              that you wish to update. E.g. [{'id': 'id123", 'x': 1},...]
-        
-        @return a response code
-        """
-        add = 'No new data'
-        for i in range(0, len(values), 1000):
-            add = 'Update did tot go OK'
-            """Updates one attribute of a given entity with the given values of the given ids"""
-            response = self._session.put(
-                self._url + "v2/" + quote_plus(entity) + "/" + attr,
-                headers=self._get_token_header_with_content_type(),
-                data=json.dumps({'entities': values[i:i+1000]})
-            )
-            if response.status_code == 200:
-                add = 'Update went OK'
-            else:
-                try:
-                    response.raise_for_status()
-                except requests.RequestException as ex:
-                    self._raise_exception(ex)
-                return response
-        return add
-
-
-    # batch_remove
-    def batch_remove(self, entity, data):
-        """Batch Remove Data
-        
-        Batch remove data from an entity using a list of row IDs
-
-        @param selef required param
-        @param entity ID of the target entity written as `package_entity`
-        @param data a list row IDs (must contain values of the idAttribute)
-        
-        @return a response code
-        """
-        if len(data) < 1000:
-            self.delete_list(entity = entity, entities = data)
-        else:
-            for d in range(0, len(data), 1000):
-                self.delete_list(
-                    entity = entity,
-                    entities = data[d+d:1000]
-                )
-
-
-    # upload_file
-    def upload_file(self, name, path):
-        """Upload File
-
-        Upload file (pdf, word, etc.) into Molgenis
-        
-        @param self required molgenis param
-        @param name name of the file to use in Molgenis
-        @param path location to the file
-        
-        @return a response code and the Molgenis file ID
-        """
-        filepath = os.path.abspath(path)
-        url = self._url + 'files/'
-        header = {
-            'x-molgenis-token': self._token,
-            'x-molgenis-filename': name,
-            'Content-Length': str(os.path.getsize(filepath)),
-            'Content-Type': str(mimetypes.guess_type(filepath)[0])
-        }
-        with open(filepath,'rb') as f:
-            data = f.read()
-        f.close()
-        response = requests.post(url, headers=header, data=data)
-        if response.status_code == 201:
-            print(
-                'Successfully imported file:\nFile Name: {}\nFile ID: {}'
-                .format(
-                    response.json()['id'],
-                    response.json()['filename']
-                )
-            )
-        else:
+            
+            self._checkResponseStatus(response, label)
             response.raise_for_status()
+            
+        except requests.exceptions.HTTPError as e:
+            raise SystemError(e)
+            
+    def _PUT(self, url: str=None, data: list=None, label: str=None):
+        try:
+            response = self._session.put(
+                url = url,
+                headers = self._get_token_header_with_content_type(),
+                data = json.dumps({'entities': data})
+            )
+            
+            self._checkResponseStatus(response, label)
+            response.raise_for_status()
+
+        except requests.exceptions.HTTPError as e:
+            raise SystemError(e)
+            
+    
+    def importData(self, entity: str, data: list):
+        """Import Data
+        Import data into a table. The data must be a list of dictionaries that
+        contains the 'idAttribute' and one or more attributes that you wish
+        to import.
+        
+        @param entity (str) : name of the entity to import data into
+        @param data (list) : data to import (a list of dictionaries)
+        
+        @return a status message
+        """
+        url = '{}v2/{}'.format(self._apiUrl, entity)
+        # single push
+        if len(data) < 1000:
+            self._POST(url=url, data=data, label=str(entity))
+            
+        # batch push
+        if len(data) >= 1000:    
+            for d in range(0, len(data), 1000):
+                self._POST(
+                    url = url,
+                    data = data[d:d+1000],
+                    label = '{} (batch {})'.format(str(entity), str(d))
+                )
+    
+    
+    def updateRows(self, entity: str, data: list):
+        """Update Rows
+        Update rows in a table. The data must be a list of dictionaries that
+        contains the 'idAttribute' and must contain values for all attributes
+        in addition to the one that you wish to update. This is ideal for
+        updating rows. To update an attribute, use `updateColumn`.
+        
+        @param entity (str) : name of the entity to import data into
+        @param data (list) : data to import (list of dictionaries)
+        
+        @return a status message
+        """
+        url = '{}v2/{}'.format(self._apiUrl, entity)
+        # single push
+        if len(data) < 1000:
+            self._PUT(url=url, data=data, label=str(entity))
+            
+        # batch push
+        if len(data) >= 1000:    
+            for d in range(0, len(data), 1000):
+                self._PUT(
+                    url = url,
+                    data = data[d:d+1000],
+                    label = '{} (batch {})'.format(str(entity), str(d))
+                )
+
+    def updateColumn(self, entity: str, attr: str, data: list):
+        """Update Column
+        Update values of an single column in a table. The data must be a list of
+        dictionaries that contain the `idAttribute` and the value of the
+        attribute that you wish to update. As opposed to the `updateRows`, you
+        do not need to supply values for all columns.
+        
+        @param entity (str) : name of the entity to import data into
+        @param attr (str) : name of the attribute to update
+        @param data (list) : data to import (list of dictionaries)
+        
+        @retrun status message
+        """
+        url = '{}v2/{}/{}'.format(self._apiUrl, str(entity), str(attr))
+        
+        # single push
+        if len(data) < 1000:
+            self._PUT(url=url, data=data, label=f'{entity}/{attr}')
+        
+        # batch push
+        if len(data) >= 1000:
+            for d in range(0, len(data), 1000):
+                self._PUT(
+                    url = url,
+                    data = data[d:d+1000],
+                    label = '{}/{} (batch {})'.format(
+                        str(entity),
+                        str(attr),
+                        str(d)
+                    )
+                )
+
+
+
+def recodeValue(
+    mappings: None,
+    value: str=None,
+    label:str=None,
+    warn=True
+):
+    """Recode value
+    Recode values using new mappings. It is recommended to define all
+    mappings using lowercase letters and the the input for value should
+    also be lowered.
+    
+    @param mappings a datatable object containing where each key
+        corresponds to a new value
+    @param value string containing a value to recode
+    @param label string that indicates the mapping type for error messages
+    @param warn If True (default), a message will be displayed when a value
+        cannot be mapped
+    
+    @return string or NoneType
+    """
+    try:
+        return mappings[value]
+    except KeyError:
+        if bool(value) and warn:
+            status_msg('Error in {} recoding: "{}" not found'.format(label, value))
+        return None
+    except AttributeError:
+        if bool(value):
+            status_msg('Error in {} recoding: "{}" not found'.format(label, value))
+        return None
+        
+def to_records(data):
+    """Datatable object to records
+    @param data : datatable object
+    @return list of dictionaries
+    """
+    return data.to_pandas().replace({np.nan: None}).to_dict('records')
+
+
+# class molgenis(molgenis.Session):
+#     """molgenis
+    
+#     An extension of the molgenis.client class
+    
+#     """
+    
+#     # update_table
+#     def update_table(self, data, entity):
+#         """Update Table
+        
+#         When importing data into a new table using the client, there is a 1000
+#         row limit. This method allows you push data without having to worry
+#         about the limits.
+        
+#         @param self required class param
+#         @param data object containing data to import
+#         @param entity ID of the target entity written as 'package_entity'
+        
+#         @return a response code
+#         """
+#         if len(data) < 1000:
+#             response = self._session.post(
+#                 url = self._url + 'v2/' + quote_plus(entity),
+#                 headers = self._get_token_header_with_content_type(),
+#                 data = json.dumps({'entities' : data})
+#             )
+#             if response.status_code == 201:
+#                 status_msg(
+#                     'Successfully imported data (response: {})'
+#                     .format(response.status_code)
+#                 )
+#             else:
+#                 status_msg(
+#                     'Failed to import data (response: {}): \nReason:{}'
+#                     .format(response.status_code, response.content)
+#                 )
+#         else:    
+#             for d in range(0, len(data), 1000):
+#                 response = self._session.post(
+#                     url=self._url + 'v2/' + entity,
+#                     headers=self._get_token_header_with_content_type(),
+#                     data=json.dumps({'entities': data[d:d+1000]})
+#                 )
+#                 if response.status_code == 201:
+#                     status_msg(
+#                         'Successfuly imported batch {} (response: {})'
+#                         .format(d, response.status_code)
+#                     )
+#                 else:
+#                     status_msg(
+#                         'Failed to import data (response: {}): \nReason:{}'
+#                         .format(response.status_code, response.content)
+#                     )
+
+#     # batch_update_one_attr
+#     def batch_update_one_attr(self, entity, attr, values):
+#         """Batch Update One Attribute
+        
+#         Import data for an attribute in groups of 1000
+        
+#         @param self required class param
+#         @param entity ID of the target entity written as `package_entity`
+#         @param values data to import, a list of dictionaries where each dictionary
+#               is structured with two keys: the ID attribute and the attribute
+#               that you wish to update. E.g. [{'id': 'id123", 'x': 1},...]
+        
+#         @return a response code
+#         """
+#         add = 'No new data'
+#         for i in range(0, len(values), 1000):
+#             add = 'Update did tot go OK'
+#             """Updates one attribute of a given entity with the given values of the given ids"""
+#             response = self._session.put(
+#                 self._url + "v2/" + quote_plus(entity) + "/" + attr,
+#                 headers=self._get_token_header_with_content_type(),
+#                 data=json.dumps({'entities': values[i:i+1000]})
+#             )
+#             if response.status_code == 200:
+#                 add = 'Update went OK'
+#             else:
+#                 try:
+#                     response.raise_for_status()
+#                 except requests.RequestException as ex:
+#                     self._raise_exception(ex)
+#                 return response
+#         return add
+
+
+#     # batch_remove
+#     def batch_remove(self, entity, data):
+#         """Batch Remove Data
+        
+#         Batch remove data from an entity using a list of row IDs
+
+#         @param selef required param
+#         @param entity ID of the target entity written as `package_entity`
+#         @param data a list row IDs (must contain values of the idAttribute)
+        
+#         @return a response code
+#         """
+#         if len(data) < 1000:
+#             self.delete_list(entity = entity, entities = data)
+#         else:
+#             for d in range(0, len(data), 1000):
+#                 self.delete_list(
+#                     entity = entity,
+#                     entities = data[d+d:1000]
+#                 )
+
+
+#     # upload_file
+#     def upload_file(self, name, path):
+#         """Upload File
+
+#         Upload file (pdf, word, etc.) into Molgenis
+        
+#         @param self required molgenis param
+#         @param name name of the file to use in Molgenis
+#         @param path location to the file
+        
+#         @return a response code and the Molgenis file ID
+#         """
+#         filepath = os.path.abspath(path)
+#         url = self._url + 'files/'
+#         header = {
+#             'x-molgenis-token': self._token,
+#             'x-molgenis-filename': name,
+#             'Content-Length': str(os.path.getsize(filepath)),
+#             'Content-Type': str(mimetypes.guess_type(filepath)[0])
+#         }
+#         with open(filepath,'rb') as f:
+#             data = f.read()
+#         f.close()
+#         response = requests.post(url, headers=header, data=data)
+#         if response.status_code == 201:
+#             print(
+#                 'Successfully imported file:\nFile Name: {}\nFile ID: {}'
+#                 .format(
+#                     response.json()['id'],
+#                     response.json()['filename']
+#                 )
+#             )
+#         else:
+#             response.raise_for_status()
 
 
 # add_forward_slash

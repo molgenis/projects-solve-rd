@@ -109,12 +109,15 @@ convertFreezeEmx.convert()
 # recode RD3 release: use freezeN as pattern
 # rNumr = "freeze3"
 # rName = "Freeze3"
-# rNumr = "novelwgs"
-# rName = "Novel Omics WGS"
+
+rNumr = "novelwgs"
+rName = "Novel Omics WGS"
+
 # rNumr = "noveldeepwes"
 # rName = "Novel Omics Deep-WES"
-rNumr = "novelsrwgs"
-rName = "Novel Omics SR-WGS"
+
+# rNumr = "novelsrwgs"
+# rName = "Novel Omics SR-WGS"
 
 rFile = 'rd3_' + rNumr
 

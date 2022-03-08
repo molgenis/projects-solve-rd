@@ -153,6 +153,13 @@ entities:
         dataType: bool
         partOfAttribute: consent
         
+      - name: recontact
+        label: Recontact Incidental findings
+        description: Recontact is allowed in case of incidental findings
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        partOfAttribute: consent
+        
       - name: retracted
         label: Retracted Subject
         description: Is the subject retracted or not
@@ -194,7 +201,7 @@ entities:
         
       - name: dateofBirth
         label: Date of Birth
-        description: Date of birth (YYYY) (COMMON DATA ELEMENTS 2.1)
+        description: Date of birth (YYYY) (COMMON DATA ELEMENTS 2.1)
         dataType: int
 
       - name: ageOfDeath

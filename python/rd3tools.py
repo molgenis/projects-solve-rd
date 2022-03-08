@@ -10,17 +10,28 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import molgenis.client as molgenis
+from datetime import datetime
 import numpy as np
 import subprocess
 # import mimetypes
 import requests
 import json
+import pytz
 import yaml
 import os
 import re
 
-# from urllib.parse import quote_plus
-from datetime import datetime
+
+def status_msg(*args):
+    """Status Message
+    Print a log-style message, e.g., "[16:50:12.245] Hello world!"
+
+    @param *args one or more strings containing a message to print
+    @return string
+    """
+    message = ' '.join(map(str, args))
+    time = datetime.now(tz=pytz.timezone('Europe/Amsterdam')).strftime('%H:%M:%S.%f')[:-3]
+    print(f'[{time}] {message}')
 
 class Molgenis(molgenis.Session):
     def __init__(self, *args, **kwargs):
@@ -184,163 +195,34 @@ def recodeValue(
             status_msg('Error in {} recoding: "{}" not found'.format(label, value))
         return None
     except AttributeError:
-        if bool(value):
+        if bool(value) and warn:
             status_msg('Error in {} recoding: "{}" not found'.format(label, value))
         return None
         
+
+def to_keypairs(data, keyAttr='sourceValue', valueAttr='newValue'):
+    """To Key pairs
+    Convert a list of dictionaries into a key-value dictionary. This method
+    is useful for creating objects for mapping tables.
+    
+    @param data list of dictionaries that you wish to convert
+    @param keyAttr attribute that will be key
+    @param valueAttr attribute that contains the value
+    
+    @return a dictionary
+    """
+    maps = {}
+    for d in data:
+        maps[d[keyAttr]] = d.get(valueAttr)
+    return maps
+
+
 def to_records(data):
     """Datatable object to records
     @param data : datatable object
     @return list of dictionaries
     """
     return data.to_pandas().replace({np.nan: None}).to_dict('records')
-
-
-# class molgenis(molgenis.Session):
-#     """molgenis
-    
-#     An extension of the molgenis.client class
-    
-#     """
-    
-#     # update_table
-#     def update_table(self, data, entity):
-#         """Update Table
-        
-#         When importing data into a new table using the client, there is a 1000
-#         row limit. This method allows you push data without having to worry
-#         about the limits.
-        
-#         @param self required class param
-#         @param data object containing data to import
-#         @param entity ID of the target entity written as 'package_entity'
-        
-#         @return a response code
-#         """
-#         if len(data) < 1000:
-#             response = self._session.post(
-#                 url = self._url + 'v2/' + quote_plus(entity),
-#                 headers = self._get_token_header_with_content_type(),
-#                 data = json.dumps({'entities' : data})
-#             )
-#             if response.status_code == 201:
-#                 status_msg(
-#                     'Successfully imported data (response: {})'
-#                     .format(response.status_code)
-#                 )
-#             else:
-#                 status_msg(
-#                     'Failed to import data (response: {}): \nReason:{}'
-#                     .format(response.status_code, response.content)
-#                 )
-#         else:    
-#             for d in range(0, len(data), 1000):
-#                 response = self._session.post(
-#                     url=self._url + 'v2/' + entity,
-#                     headers=self._get_token_header_with_content_type(),
-#                     data=json.dumps({'entities': data[d:d+1000]})
-#                 )
-#                 if response.status_code == 201:
-#                     status_msg(
-#                         'Successfuly imported batch {} (response: {})'
-#                         .format(d, response.status_code)
-#                     )
-#                 else:
-#                     status_msg(
-#                         'Failed to import data (response: {}): \nReason:{}'
-#                         .format(response.status_code, response.content)
-#                     )
-
-#     # batch_update_one_attr
-#     def batch_update_one_attr(self, entity, attr, values):
-#         """Batch Update One Attribute
-        
-#         Import data for an attribute in groups of 1000
-        
-#         @param self required class param
-#         @param entity ID of the target entity written as `package_entity`
-#         @param values data to import, a list of dictionaries where each dictionary
-#               is structured with two keys: the ID attribute and the attribute
-#               that you wish to update. E.g. [{'id': 'id123", 'x': 1},...]
-        
-#         @return a response code
-#         """
-#         add = 'No new data'
-#         for i in range(0, len(values), 1000):
-#             add = 'Update did tot go OK'
-#             """Updates one attribute of a given entity with the given values of the given ids"""
-#             response = self._session.put(
-#                 self._url + "v2/" + quote_plus(entity) + "/" + attr,
-#                 headers=self._get_token_header_with_content_type(),
-#                 data=json.dumps({'entities': values[i:i+1000]})
-#             )
-#             if response.status_code == 200:
-#                 add = 'Update went OK'
-#             else:
-#                 try:
-#                     response.raise_for_status()
-#                 except requests.RequestException as ex:
-#                     self._raise_exception(ex)
-#                 return response
-#         return add
-
-
-#     # batch_remove
-#     def batch_remove(self, entity, data):
-#         """Batch Remove Data
-        
-#         Batch remove data from an entity using a list of row IDs
-
-#         @param selef required param
-#         @param entity ID of the target entity written as `package_entity`
-#         @param data a list row IDs (must contain values of the idAttribute)
-        
-#         @return a response code
-#         """
-#         if len(data) < 1000:
-#             self.delete_list(entity = entity, entities = data)
-#         else:
-#             for d in range(0, len(data), 1000):
-#                 self.delete_list(
-#                     entity = entity,
-#                     entities = data[d+d:1000]
-#                 )
-
-
-#     # upload_file
-#     def upload_file(self, name, path):
-#         """Upload File
-
-#         Upload file (pdf, word, etc.) into Molgenis
-        
-#         @param self required molgenis param
-#         @param name name of the file to use in Molgenis
-#         @param path location to the file
-        
-#         @return a response code and the Molgenis file ID
-#         """
-#         filepath = os.path.abspath(path)
-#         url = self._url + 'files/'
-#         header = {
-#             'x-molgenis-token': self._token,
-#             'x-molgenis-filename': name,
-#             'Content-Length': str(os.path.getsize(filepath)),
-#             'Content-Type': str(mimetypes.guess_type(filepath)[0])
-#         }
-#         with open(filepath,'rb') as f:
-#             data = f.read()
-#         f.close()
-#         response = requests.post(url, headers=header, data=data)
-#         if response.status_code == 201:
-#             print(
-#                 'Successfully imported file:\nFile Name: {}\nFile ID: {}'
-#                 .format(
-#                     response.json()['id'],
-#                     response.json()['filename']
-#                 )
-#             )
-#         else:
-#             response.raise_for_status()
 
 
 # add_forward_slash
@@ -989,20 +871,6 @@ def timestamp():
     
     """
     return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-
-
-
-def status_msg(*args):
-    """Status Message
-    
-    Prints a message with a timestamp
-    
-    @param *args : message to write 
-    
-    """
-    msg = ' '.join(map(str, args))
-    print('\033[94m[' + timestamp() + '] \033[0m' + msg)
-
 
 
 def write_csv(path, data):

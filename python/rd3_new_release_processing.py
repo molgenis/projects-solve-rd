@@ -2,7 +2,7 @@
 #' FILE: rd3_new_release_processing.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-23
-#' MODIFIED: 2022-03-07
+#' MODIFIED: 2022-03-08
 #' PURPOSE: Process new RD3 releases
 #' STATUS: working
 #' PACKAGES: datatable
@@ -10,17 +10,18 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 from python.rd3tools import Molgenis, status_msg, recodeValue, to_records
-from datatable import dt, f, first
+from datatable import dt, f
 import functools
 import operator
 
 # SET RELEASE INFORMATRION
-release = 'rd3_portal_release_novelwgs'   # portal table ID
+releaseName = 'rd3_portal_release_novelwgs'   # portal table ID
 patchinfo = {
     'name': 'novelwgs',                   # name of the RD3 Release
     'id': 'novelwgs_original',            # ID labels `<name>_original`
-    'date': '2022-03-07',                 # Date of release
-    'description': None                   # define if needed
+    'type': 'freeze',                     # 'freeze' or 'patch'
+    'date': '2022-03-08',                 # Date of release, yyyy-mm-dd
+    'description': 'Novel Omics WGS'      # a nice description
 }
 
 
@@ -30,10 +31,21 @@ from os import environ
 load_dotenv()
 host = environ['MOLGENIS_HOST_ACC']
 token = environ['MOLGENIS_TOKEN_ACC']
+host = environ['MOLGENIS_HOST_PROD']
+token = environ['MOLGENIS_TOKEN_PROD']
 
 # use if running in Molgenis
 # host = 'http://localhost/api/'
 # token = '${molgenisToken}'
+
+# connect to db
+rd3 = Molgenis(url=host, token=token)
+
+# migrate data from one server to the other:
+# pull data then switch tokens and restart connection
+# portalData = rd3.get(releaseName,batch_size=10000)
+# rd3.importData(releaseName,portalData)
+
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -41,31 +53,44 @@ token = environ['MOLGENIS_TOKEN_ACC']
 # Pull Data
 status_msg('Pulling data and reference entities...')
 
-# connect to db
-rd3 = Molgenis(url=host, token=token)
+# pull data from portal
+release = dt.Frame(rd3.get(releaseName, batch_size = 10000))
+del release['_href']
 
-# pull data from portal and reference entities
-release = dt.Frame(rd3.get(release, batch_size = 10000))
-release['patch'] = patchinfo.get(id)
 
+# pull reference entities
 organisations = dt.Frame(rd3.get('rd3_organisation'))
 erns = dt.Frame(rd3.get('rd3_ERN'))
 
+del organisations['_href']
+del erns['_href']
 
 # ~ 0b ~
 # Define Mappings
 
 ernMappings = {
-    'ERN-RITA': 'ERNRITA'
+    'ERN-GENTURIS': 'ERN-GENTURIS',
+    'ERN-ITHACA': 'ERN-ITHACA',
+    'ERN-NMD': 'ERN-NMD',
+    'ERN-RITA': 'ERNRITA',
+    'ERN-RND': 'ERN-RND',
+    'Not_Applicable': None
 }
 
-organizationMappings = {
+# define options here if necessary
+# organizationMappings = {
     
-}
+# }
 
 solvedStatusMappings = {
     'unsolved': False,
-    'solved': True
+    'solved': True,
+    'nA': None
+}
+
+tissueTypeMappings = {
+    'blood': 'Whole Blood',
+    'Whole Blood': 'Whole Blood',
 }
 
 libraryTypeMappings = {
@@ -75,14 +100,27 @@ libraryTypeMappings = {
 seqTypeMappings = {
     'Whole Exome Sequencing': 'WXS',
     'Whole Genome Sequencing with or without PCR': 'WGS',
+    'WGS': 'WGS',
 }
-
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
 # Validate values for variables that are references
+
+# set primary release attributes so that it is easier to select columns later
+# on in the script
+release['patch'] = patchinfo['id']
+
+release['subjectID'] = dt.Frame([
+    d + '_original' for d in release['subject_id'].to_list()[0]
+])
+
+release['sampleID'] = dt.Frame([
+    'VS' + d + '_original' for d in release['samples_id'].to_list()[0]
+])
+
+
 
 # ~ 1a ~
 # Validate ERNS
@@ -93,37 +131,38 @@ seqTypeMappings = {
 status_msg('Looking for new ERNs...')
 
 # recode ERNs variables with known variations
-release['samples_ERN'] = dt.frame([
+release['samples_ERN'] = dt.Frame([
     recodeValue(mappings=ernMappings, value=d,label='ERN')
     for d in release['samples_ERN'].to_list()[0]
 ])
 
-release['subject_ERN'] = dt.frame([
+release['subject_ERN'] = dt.Frame([
     recodeValue(mappings=ernMappings, value=d, label='ERN')
     for d in release['subject_ERN'].to_list()[0]
 ])
 
 # combine both ERNs
-rawErnData = dt.rbind(
-    release[:, {'ERN': 'samples_ERN'}],
-    release[:, {'ERN': 'subject_ERN'}]
-)[:, first(f[:]), dt.by(f.ERN)]
+rawErnData = dt.unique(
+    dt.rbind(
+        release[:, {'ERN': f.samples_ERN}],
+        release[:, {'ERN': f.subject_ERN}]
+    )
+)
 
 # check values
 rawErnData['ernExists'] = dt.Frame([
-    d in erns['ERN'].to_list()[0]
+    d in erns['identifier'].to_list()[0]
     for d in rawErnData['ERN'].to_list()[0]
 ])
 
 # Flag cases
 if rawErnData[f.ernExists == False, :].nrows:
-    raise status_msg(
+    status_msg(
         'Error in ERN Validation:', 
         rawErnData[f.ernExists == False, :].nrows,
-        'values do not exist.',
-        rawErnData[f.ernExists == False, ['ERN']].to_list()[0],
+        'values do not exist: ',
+        ','.join(map(str, rawErnData[f.ernExists == False, ['ERN']].to_list()[0]))
     )
-
 
 # ~ 1b ~
 # Validate Organisations
@@ -154,11 +193,11 @@ rawOrgs['orgExists'] = dt.Frame([
 
 # flag cases
 if rawOrgs[f.orgExists == False, :].nrows:
-    raise status_msg(
+    status_msg(
         'Error in Organisation Validation:',
         rawOrgs[f.orgExists==False, :].nrows,
         'values do not exist.',
-        rawOrgs[f.orgExists==False, 'organisation_name'].to_list()[0]
+        ','.join(map(str, rawOrgs[f.orgExists == False, f.organisation_name].to_list()[0]))
     )
 
 # if all organisations have been reviewed, add the values to RD3 and recode
@@ -173,12 +212,10 @@ newOrgs[['name','identifier']] = dt.Frame([
 
 
 # recode organizations if applicable
-release['organisation_name'] = dt.Frame([
-    recodeValue(mappings=organizationMappings, value=d, label='Organizations')
-    for d in release['organization_name'].to_list()[0]
-])
-
-
+# release['organisation_name'] = dt.Frame([
+#     recodeValue(mappings=organizationMappings, value=d, label='Organizations')
+#     for d in release['organization_name'].to_list()[0]
+# ])
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -191,7 +228,7 @@ release['organisation_name'] = dt.Frame([
 subjects = release[
     :,
     {
-        'id': f.samples_subject + '_original',
+        'id': f.subjectID,
         'subjectID': f.samples_subject,
         'organisation': f.subject_organisation,
         'ERN': f.subject_ERN,
@@ -206,7 +243,7 @@ subjects = release[
 
 # reocde solved status
 subjects['solved'] = dt.Frame([
-    recodeValue(mappings='',value=d,label='Solved status')
+    recodeValue(mappings=solvedStatusMappings,value=d,label='Solved status')
     for d in subjects['solved'].to_list()[0]
 ])
 
@@ -214,8 +251,16 @@ subjects['solved'] = dt.Frame([
 # ~ b ~
 # Create rd3_<release>_subjectinfo
 # There isn't much to add at this point as most of the data in this
-# table comes from other sources or has never been collected.
-subjectInfo = subjects[:, ['id', 'subjectID', 'patch']]
+# table comes from other sources or has never been collected. Add more column
+# names here if required.
+subjectInfo = subjects[
+    :, ( 
+        f.id,
+        f.patch
+    )
+]
+
+subjectInfo['subjectID'] = subjectInfo['id']
 
 
 # ~ c ~
@@ -225,10 +270,10 @@ subjectInfo = subjects[:, ['id', 'subjectID', 'patch']]
 samples = release[
     :,
     {
-        'id': f.samples_id + '_original',
-        'sampleID': 'VS' + f.samples_id,
+        'id': f.sampleID,
+        'sampleID': None,
         'alternativeIdentifier': f.samples_alternativeIdentifier,
-        'subject': f.subject_id + '_original',
+        'subject': f.subjectID,
         'tissueType': f.samples_tissueType,
         'organisation': f.subject_organisation,
         'ERN': f.samples_ERN,
@@ -237,6 +282,16 @@ samples = release[
     dt.sort('id')
 ]
 
+# update sampleID
+samples['sampleID'] = dt.Frame([
+    d.replace('_original','') for d in samples['id'].to_list()[0]
+])
+
+# recode tisseType
+samples['tissueType'] = dt.Frame([
+    recodeValue(mappings = tissueTypeMappings, value = d, label='Tissue Type')
+    for d in samples['tissueType'].to_list()[0]
+])
 
 # ~ d ~
 # Create rd3_<release>_labinfo
@@ -245,7 +300,7 @@ labinfo = release[
     {
         'id': f.labinfo_sample + '_original',
         'experimentID': f.labinfo_sample,
-        'sample': 'VS' + f.labinfo_sample + '_original',
+        'sample': f.sampleID,
         'capture': f.labinfo_capture,
         'libraryType': f.labinfo_libraryType,
         'library': f.labinfo_library,
@@ -269,7 +324,6 @@ labinfo['seqType'] = dt.Frame([
 ])
 
 
-
 # ~ e ~
 # Pull Molgenis IDs
 # Create a dataset of all molgenis IDs that were used in the previous steps.
@@ -288,8 +342,10 @@ portalUpdates = release[
     }
 ]
 
-if len(portalUpdates) != len(release):
+if portalUpdates.nrows != release.nrows:
     raise SystemError('Error in release mapping: not all records were processed')
+else:
+    status_msg('All records have been processed! :-)')
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -301,14 +357,17 @@ rd3.add(
     entity = 'rd3_patch',
     data = {
         'id': patchinfo.get('id'),
-        'patch_date': patchinfo.get('date'),
+        'type': patchinfo.get('type'),
+        'date': patchinfo.get('date'),
         'description': patchinfo.get('description')
     }
 )
 
+# import new orgs; import ERNs if needed, but highly unlikely
+rd3.importData(entity='rd3_organisation',data = to_records(newOrgs))
+
 # prep data for import into RD3
 rd3_subjects = to_records(data=subjects)
-
 rd3_subjectInfo = to_records(data=subjectInfo)
 rd3_samples = to_records(data=samples)
 rd3_labinfo = to_records(data=labinfo)
@@ -321,7 +380,7 @@ rd3.importData(entity=f'rd3_{patchinfo["name"]}_labinfo', data=rd3_labinfo)
 
 # upodate portal
 rd3.updateColumn(
-    entity = 'rd3_portal_release_freeze2',
+    entity = releaseName,
     attr = 'processed',
-    data = portalUpdates
+    data = to_records(portalUpdates)
 )

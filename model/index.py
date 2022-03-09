@@ -25,9 +25,12 @@ convertPortalReleaseEmx = Convert(files = [
 convertPortalReleaseEmx.convert()
 
 # set release information
-convertPortalReleaseEmx.entities[0]['name'] = 'rd3_portal_release_novelwgs'
-convertPortalReleaseEmx.entities[0]['label'] = 'Novel Omics WGS'
-convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Novel WGS data (2022-01-31)'
+convertPortalReleaseEmx.entities[0]['name'] = 'rd3_portal_release_freeze3'
+convertPortalReleaseEmx.entities[0]['label'] = 'Freeze 3'
+convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Freeze 3 (2022-03-09)'
+
+for d in convertPortalReleaseEmx.attributes:
+    d['entity'] = convertPortalReleaseEmx.entities[0]['name']
 
 convertPortalReleaseEmx.write(
     name = 'rd3_portal_release',

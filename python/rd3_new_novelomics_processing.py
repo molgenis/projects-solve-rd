@@ -34,10 +34,13 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-# host = environ['MOLGENIS_HOST_PROD']
-# token = environ['MOLGENIS_TOKEN_PROD']
+# host = environ['MOLGENIS_HOST_ACC']
+# token = environ['MOLGENIS_TOKEN_ACC']
+# env = 'acc'
+
+host = environ['MOLGENIS_HOST_PROD']
+token = environ['MOLGENIS_TOKEN_PROD']
+env = 'prod'
 
 rd3 = Molgenis(url=host, token=token)
 
@@ -103,7 +106,7 @@ del patchinfo['_href']
 # find all analysis types (i.e., patches)
 patches = dt.unique(shipment['type_of_analysis'])[:, {
     'id': f.type_of_analysis,
-    'type': 'release',
+    'type': 'freeze' if env == 'prod' else 'release',
     'name': f.type_of_analysis,
     'date' : timestamp(),
     'description': None

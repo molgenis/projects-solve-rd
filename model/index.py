@@ -25,20 +25,12 @@ convertPortalReleaseEmx = Convert(files = [
 convertPortalReleaseEmx.convert()
 
 # set release information
-<<<<<<< HEAD
-convertPortalReleaseEmx.entities[0]['name'] = 'rd3_portal_release_freeze3'
-=======
 convertPortalReleaseEmx.entities[0]['name'] = 'freeze3'
->>>>>>> 9bd472a (create staging table for DF3)
 convertPortalReleaseEmx.entities[0]['label'] = 'Freeze 3'
 convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Freeze 3 (2022-03-09)'
 
 for d in convertPortalReleaseEmx.attributes:
-<<<<<<< HEAD
-    d['entity'] = convertPortalReleaseEmx.entities[0]['name']
-=======
     d['entity'] = f"rd3_portal_release_{convertPortalReleaseEmx.entities[0]['name']}"
->>>>>>> 9bd472a (create staging table for DF3)
 
 convertPortalReleaseEmx.write(
     name = 'rd3_portal_release',
@@ -121,14 +113,17 @@ convertFreezeEmx.convert()
 # rNumr = "freeze3"
 # rName = "Freeze3"
 
-rNumr = "novelwgs"
-rName = "Novel Omics WGS"
+# rNumr = "novelwgs"
+# rName = "Novel Omics WGS"
 
 # rNumr = "noveldeepwes"
 # rName = "Novel Omics Deep-WES"
 
 # rNumr = "novelsrwgs"
 # rName = "Novel Omics SR-WGS"
+
+rNumr = "novelrnaseq"
+rName = "Novel Omics RNAseq"
 
 rFile = 'rd3_' + rNumr
 

@@ -864,14 +864,20 @@ def select_keys(data, keys):
 
 
 
-def timestamp():
-    """Timestamp
-    
-    Print a timestamp as yyyy-mm-dd HH:MM:SS:ms
-    
-    """
-    return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
+# def timestamp():
+#     """Timestamp
+#     Print a timestamp as yyyy-mm-dd HH:MM:SS:ms
+#     """
+#     return datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
 
+def timestamp(tz='Europe/Amsterdam', timeFormat='%Y-%m-%d'):
+    """Timestamp
+    Return a timestamp specific to user's tz and desired time format
+    @param tz string containing a timezone
+    @param timeFormat string indicating how to format the output
+    @return datetime object
+    """
+    return datetime.now(tz=pytz.timezone(tz)).strftime(timeFormat)
 
 def write_csv(path, data):
     """Write CSV

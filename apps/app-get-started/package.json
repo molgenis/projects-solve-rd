@@ -1,7 +1,7 @@
 {
-  "name": "molgenis-data-finder",
+  "name": "app-get-started",
   "version": "0.1.0",
-  "description": "Data finder",
+  "description": "SolveRD Get Started Page",
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
@@ -47,8 +47,7 @@
     "popper.js": "1.14.3"
   },
   "authors": [
-    "David Ruvolo <d.c.ruvolo@rug.nl>",
-    "Max Postema <m.e.postema@rug.nl>"
+    "David Ruvolo <d.c.ruvolo@rug.nl>"
   ],
   "license": "LGPL-3.0"
 }

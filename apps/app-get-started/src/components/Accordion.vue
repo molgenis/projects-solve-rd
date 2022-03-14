@@ -2,6 +2,7 @@
   <div :id="`accordion_${id}`" :class="accordionClass">
     <h3 class="heading">
       <button
+        type="button"
         :id="`accordion_toggle_${id}`"
         class="toggle"
         :aria-controls="`accordion_content_${id}`"
@@ -19,17 +20,25 @@
           stroke="currentColor"
           stroke-width="2"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round" d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
     </h3>
-    <section :id="`accordion_content_${id}`" class="content" :aria-labelledby="`accordion_toggle_${id}`" v-show="visible">
+    <section
+      :id="`accordion_content_${id}`"
+      class="content"
+      :aria-labelledby="`accordion_toggle_${id}`"
+      v-show="visible"
+      role="region"
+    >
       <ul>
         <li v-for="link in links" :key="link.id">
-          <a
-            :href="`/menu/main/dataexplorer?entity=${link.id}&hideselect=true&mod=data`"
-            >{{ link.label }}</a
-          >
+          <a :href="`/menu/main/dataexplorer?entity=${link.id}&hideselect=true&mod=data`">
+            {{ link.label }}
+          </a>
         </li>
       </ul>
     </section>
@@ -74,7 +83,6 @@ export default {
     position: relative;
     background: none;
     background-color: none;
-    outline: none;
     margin: 0;
     padding: 0;
     cursor: pointer;
@@ -123,10 +131,5 @@ export default {
     margin: 0;
     padding: 12px;
   }
-
-  &:hover, &.focused {
-    border: 1px solid #7ba3db;
-  }
-
 }
 </style>

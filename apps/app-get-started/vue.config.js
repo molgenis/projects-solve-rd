@@ -26,16 +26,7 @@ const htmlTemplate = () => {
 }
 
 const PROXY_TARGET = 'https://solve-rd-acc.gcc.rug.nl'
-/*
-let apiDevServerProxyConf = {
-  target: PROXY_TARGET,
-  keepOrigin: true
-}
 
-if (process.env.DATA_EXPLORER_DEV_PW) {
-  apiDevServerProxyConf.auth = 'admin:' + process.env.DATA_EXPLORER_DEV_PW
-}
-*/
 module.exports = {
   transpileDependencies: ['@molgenis-ui/components-library'],
   runtimeCompiler: true,

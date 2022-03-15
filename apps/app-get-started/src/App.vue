@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <page-component id="app">
     <div class="py-1 col-sm-8 m-auto" id="solverd-container">
       <section aria-labelledby="solverd-getstarted-title" id="solverd-getstarted">
         <h1 id="solverd-getstarted-title">Get Started</h1>
@@ -138,11 +138,11 @@
         </div>
       </section>
     </div>
-  </div>
+  </page-component>
 </template>
 
 <script>
-// import PageComponent from '@molgenis/molgenis-ui-context/src/components/PageComponent.vue'
+import PageComponent from '@molgenis/molgenis-ui-context/src/components/PageComponent.vue'
 import Accordion from './components/Accordion.vue'
 import axios from 'axios'
 
@@ -153,7 +153,7 @@ export default {
     }
   },
   components: {
-    // PageComponent,
+    PageComponent,
     Accordion
   },
   mounted () {
@@ -166,26 +166,25 @@ export default {
   methods: {
     async getEmxPackages () {
       const response = await axios.get('/api/v2/sys_md_Package?attrs=id,label&q=parent==rd3')
-      response.data.items.forEach((d, i) => {
-        if (!(d.id in this.packages)) {
-          this.$set(this.packages, d.id, {})
+      response.data.items.forEach((data, index) => {
+        if (!(data.id in this.packages)) {
+          this.$set(this.packages, data.id, {})
         }
-        this.packages[d.id].id = d.id
-        this.packages[d.id].label = d.label
+        this.$set(this.packages, data.id, { id: data.id, label: data.label })
       })
     },
     async getEmxEntities () {
       const filter = Object.keys(this.packages).toString()
       const url = `/api/v2/sys_md_EntityType?attrs=id,label,package&q=package=in=(${filter})`
       const response = await axios.get(url)
-      response.data.items.forEach((d, i) => {
-        if (!('links' in this.packages[d.package.id])) {
-          this.$set(this.packages[d.package.id], 'links', [])
+      response.data.items.forEach((data, index) => {
+        if (!('links' in this.packages[data.package.id])) {
+          this.$set(this.packages[data.package.id], 'links', [])
         }
-        this.packages[d.package.id].links.push({
-          id: d.id,
-          label: d.label,
-          package: d.package.id
+        this.packages[data.package.id].links.push({
+          id: data.id,
+          label: data.label,
+          package: data.package.id
         })
       })
     }

@@ -2,14 +2,7 @@ import Vue from 'vue'
 import App from './App.vue'
 import '@molgenis-ui/components-library/dist/components-library.css'
 import { BootstrapVue } from 'bootstrap-vue'
-// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-// import { library } from '@fortawesome/fontawesome-svg-core'
-// import { faSort, faShare, faSortAlphaUp, faSortAlphaDown } from '@fortawesome/free-solid-svg-icons'
 
-// library.add(faSort, faShare, faSortAlphaUp, faSortAlphaDown)
-
-// Vue.use(BootstrapVue)
-// Vue.component('FontAwesomeIcon', FontAwesomeIcon)
 Vue.prototype.$eventBus = new Vue()
 Vue.config.productionTip = false
 

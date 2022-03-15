@@ -61,10 +61,10 @@ export default {
   },
   computed: {
     accordionClass () {
-      return `${this.visible ? 'accordion visible' : 'accordion'}`
+      return this.visible ? 'accordion visible' : 'accordion'
     },
     iconClass () {
-      return `${this.visible ? 'toggle_icon rotated' : 'toggle_icon'}`
+      return this.visible ? 'toggle_icon rotated' : 'toggle_icon'
     }
   }
 }

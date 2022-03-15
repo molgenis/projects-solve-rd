@@ -31,13 +31,13 @@
       :id="`accordion_content_${id}`"
       class="content"
       :aria-labelledby="`accordion_toggle_${id}`"
-      v-show="visible"
       role="region"
+      v-show="visible"
     >
-      <ul>
+      <ul :id="`package_links_${id}`">
         <li v-for="link in links" :key="link.id">
           <a :href="`/menu/main/dataexplorer?entity=${link.id}&hideselect=true&mod=data`">
-            {{ link.label }}
+          {{ link.label }}
           </a>
         </li>
       </ul>

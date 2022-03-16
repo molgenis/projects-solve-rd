@@ -1,5 +1,5 @@
 <template>
-  <page-component id="app">
+  <div id="app">
     <div class="py-1 col-sm-8 m-auto" id="solverd-container">
       <section aria-labelledby="solverd-getstarted-title" id="solverd-getstarted">
         <h1 id="solverd-getstarted-title">Get Started</h1>
@@ -138,11 +138,9 @@
         </div>
       </section>
     </div>
-  </page-component>
+  </div>
 </template>
-
 <script>
-import PageComponent from '@molgenis/molgenis-ui-context/src/components/PageComponent.vue'
 import Accordion from './components/Accordion.vue'
 import axios from 'axios'
 
@@ -153,7 +151,6 @@ export default {
     }
   },
   components: {
-    PageComponent,
     Accordion
   },
   mounted () {

@@ -4,3 +4,5 @@ python/_config.yml
 __pycache__/
 data
 .env
+node_modules
+apps/app-get-started/dist

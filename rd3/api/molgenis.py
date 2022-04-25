@@ -10,20 +10,8 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 import molgenis.client as molgenis
-from datetime import datetime
-import requests
+from rd3.utils.utils import statusMsg
 import json
-
-def status_msg(*args):
-    """Status Message
-    Print a log-style message, e.g., "[16:50:12.245] Hello world!"
-
-    @param *args one or more strings containing a message to print
-    @return string
-    """
-    t = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-    print('\033[94m[' + t + '] \033[0m' + ' '.join(map(str, args)))
-
 
 class Molgenis(molgenis.Session):
     def __init__(self, *args, **kwargs):
@@ -41,37 +29,28 @@ class Molgenis(molgenis.Session):
     def _checkResponseStatus(self, response, label):
         if (response.status_code // 100) != 2:
             err = response.json().get('errors')[0].get('message')
-            status_msg(f'Failed to import data into {label} ({response.status_code}): {err}')
+            statusMsg(f'Failed to import data into {label} ({response.status_code}): {err}')
         else:
-            status_msg(f'Imported data into {label}')
+            statusMsg(f'Imported data into {label}')
     
     def _POST(self, url: str = None, data: list = None, label: str=None):
-        try:
-            response = self._session.post(
-                url = url,
-                headers = self._get_token_header_with_content_type(),
-                data = json.dumps({'entities': data})
-            )
+        response = self._session.post(
+            url = url,
+            headers = self._get_token_header_with_content_type(),
+            data = json.dumps({'entities': data})
+        )
             
-            self._checkResponseStatus(response, label)
-            response.raise_for_status()
-            
-        except requests.exceptions.HTTPError as e:
-            raise SystemError(e)
+        self._checkResponseStatus(response, label)
+        response.raise_for_status()
             
     def _PUT(self, url: str=None, data: list=None, label: str=None):
-        try:
-            response = self._session.put(
-                url = url,
-                headers = self._get_token_header_with_content_type(),
-                data = json.dumps({'entities': data})
-            )
-            
-            self._checkResponseStatus(response, label)
-            response.raise_for_status()
-
-        except requests.exceptions.HTTPError as e:
-            raise SystemError(e)
+        response = self._session.put(
+            url = url,
+            headers = self._get_token_header_with_content_type(),
+            data = json.dumps({'entities': data})
+        )    
+        self._checkResponseStatus(response, label)
+        response.raise_for_status()
             
     
     def importData(self, entity: str, data: list):

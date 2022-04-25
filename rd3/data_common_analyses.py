@@ -2,70 +2,64 @@
 #' FILE: data_common_analyses.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-11-17
-#' MODIFIED: 2021-11-17
+#' MODIFIED: 2022-04-25
 #' PURPOSE: get overviews on the database
-#' STATUS: in.progress
-#' PACKAGES: molgenis.client
+#' STATUS: stable
+#' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-import molgenis.client as molgenis
+from rd3.api.molgenis import Molgenis
+from dotenv import load_dotenv
+from os import environ
 import pandas as pd
 
-host = ''
-usr = ''
-pwd = ''
-
-rd3 = molgenis.Session(host)
-rd3.login(usr, pwd)
+load_dotenv()
+host=environ['MOLGENIS_HOST_PROD']
+token=environ['MOLGENIS_TOKEN_PROD']
+rd3 = Molgenis(url=host, token=token)
 
 
-#//////////////////////////////////////
 
 # What are the most commonly reported phenotypes
-
-def getPhenotypicData(entities: list = None):
+def getPhenotypicData(entityId):
     """Get Phenotypic Data
-    
     Pull observed phenotype data from entities
-    
-    Attributes:
-    
-        entities (list) : a list containing entity IDs
-    
+
+    @param entityId RD3 table identifier
+    @return list of dictionaries
+    """
+    return rd3.get(
+        entity=entityId,
+        attributes='phenotype',
+        q='phenotype!=""',
+        batch_size=10000
+    )
+
+def transformPhenotypicData(data):
+    """Transform Phenotypic Data
+    Reshape row-level phenotypic data
+    @return list of dictionaries
     """
     data = []
-    for entity in entities:
-        print('Pulling data from: {}'.format(entity))
-        raw = rd3.get(
-            entity = entity,
-            attributes = 'phenotype',
-            q = 'phenotype!=""',
-            batch_size = 10000
-        )
-        for r in raw:
-            if 'phenotype' in r:
-                for p in r['phenotype']:
-                    data.append({
-                        'id': p['id'],
-                        'label': p['label']
-                    })
-    print('Found {} records'.format(len(data)))
+    for row in data:
+        if 'phenotype' in row:
+            for value in row['phenotype']:
+                data.append({
+                    'id': value['id'],
+                    'label': value['label']
+                })
     return data
 
 # pull data
-phenotype = pd.DataFrame(
-    getPhenotypicData(entities=['rd3_freeze1_subject','rd3_freeze2_subject'])
-)
+phenotypicData = pd.DataFrame()
+for entity in ['rd3_freeze1_subject','rd3_freeze2_subject']:
+    phenotypicData.concat([phenotypicData, getPhenotypicData(entityId=entity)])
 
-observedPhenotypes = phenotype.value_counts(subset=['id']).reset_index().head()
+# identify the top five rows
+observedPhenotypes = phenotypicData.value_counts(subset=['id']).reset_index().head()
 observedPhenotypes.columns = ['id','count']
-
-top5 = pd.concat(
-    [observedPhenotypes, phenotype],
-    axis = 1,
-    join = 'inner'
-)
+top5 = pd.concat([observedPhenotypes, phenotypicData], axis = 1, join = 'inner')
 
 top5.columns = ['id','count','id2','label']
-top5[['id','label']].to_csv('~/Desktop/rd3_data_for_demo.txt',index=False)
+top5[['id','label']].to_csv('topfive_phenotypes.txt',index=False)

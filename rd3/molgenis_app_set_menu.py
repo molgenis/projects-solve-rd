@@ -2,25 +2,25 @@
 #' FILE: molgenis_app_set_menu.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-01-18
-#' MODIFIED: 2022-01-18
+#' MODIFIED: 2022-04-25
 #' PURPOSE: Update the Menu setting in Application Settings
 #' STATUS: stable
 #' PACKAGES: rd3tools, dotenv, os, json
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-import python.rd3tools as rd3tools
+from rd3.api.molgenis import Molgenis
 from dotenv import load_dotenv
 from os import environ
 import json
 
 # set vars and init sessions for both Molgenis instances
 load_dotenv()
-rd3_acc = rd3tools.molgenis(
+rd3_acc = Molgenis(
     url=environ['MOLGENIS_HOST_ACC'],
     token=environ['MOLGENIS_TOKEN_ACC']
 )
-rd3_prod = rd3tools.molgenis(
+rd3_prod = Molgenis(
     url=environ['MOLGENIS_HOST_PROD'], 
     token=environ['MOLGENIS_TOKEN_PROD']
 )
@@ -28,7 +28,7 @@ rd3_prod = rd3tools.molgenis(
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
-# Build Menu
+# Define Menu
 menu = {
     "id":"main",
     "label":"Home",
@@ -43,8 +43,9 @@ menu = {
         },
         {"type":"plugin","id":"app-getstarted","label":"Get Started","params":""},
         
-        #//////////////////////////////
-        # EDIT THESE LINKS
+        #//////////////////////////////////////////////////////////////////////
+        
+        # EDIT THE ITEMS BELOW
         # Create dropdown menu for subjects
         {
             "type":"menu",
@@ -185,7 +186,8 @@ menu = {
                 }
             ]
         },
-        #//////////////////////////////
+        #//////////////////////////////////////////////////////////////////////
+        
         # KEEP
         {"type":"plugin","id":"navigator","label":"Navigate all tables","params":""},
         {
@@ -222,12 +224,7 @@ menu = {
     ]
 }
 
+# push to RD3
 menuStringified = json.dumps(menu,separators=(',', ':'))
-
-# Update Menu
-rd3_acc.update_one(
-    entity = 'sys_set_app',
-    id_ = 'app',
-    attr = 'molgenis_menu',
-    value = menuStringified
-)
+rd3_acc.update_one(entity='sys_set_app', id_='app', attr='molgenis_menu', value=menuStringified)
+rd3_prod.update_one(entity='sys_set_app', id_='app', attr='molgenis_menu', value=menuStringified)

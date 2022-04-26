@@ -9,7 +9,8 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from python.rd3tools import Molgenis, status_msg, recodeValue, to_records
+from rd3.api.molgenis import Molgenis
+from rd3.utils.utils import recodeValue, dtFrameToRecords, statusMsg
 from datatable import dt, f
 import functools
 import operator
@@ -51,7 +52,6 @@ rd3 = Molgenis(url=host, token=token)
 
 # ~ 0 ~
 # Pull Data
-status_msg('Pulling data and reference entities...')
 
 # pull data from portal
 release = dt.Frame(rd3.get(releaseName, batch_size = 10000))
@@ -79,7 +79,7 @@ ernMappings = {
 
 # define options here if necessary
 # organizationMappings = {
-    
+#
 # }
 
 solvedStatusMappings = {
@@ -121,14 +121,12 @@ release['sampleID'] = dt.Frame([
 ])
 
 
-
 # ~ 1a ~
 # Validate ERNS
 # Make sure all ERNs values are correct. If there are any unknown ERN values,
 # add them to the mappings (defined in step 0) and rerun the script up to this
 # section. Repeat the process until all ERN name variations have been corrected.
 # There shouldn't be any new ERNs only name variations.
-status_msg('Looking for new ERNs...')
 
 # recode ERNs variables with known variations
 release['samples_ERN'] = dt.Frame([
@@ -157,7 +155,7 @@ rawErnData['ernExists'] = dt.Frame([
 
 # Flag cases
 if rawErnData[f.ernExists == False, :].nrows:
-    status_msg(
+    statusMsg(
         'Error in ERN Validation:', 
         rawErnData[f.ernExists == False, :].nrows,
         'values do not exist: ',
@@ -177,7 +175,6 @@ if rawErnData[f.ernExists == False, :].nrows:
 # 
 # Pull new cases and import before importing the rest of the data. Apply the
 # same treatment to the main dataset.
-status_msg('Looking for new organisations...')
 
 
 # pull unique values
@@ -193,7 +190,7 @@ rawOrgs['orgExists'] = dt.Frame([
 
 # flag cases
 if rawOrgs[f.orgExists == False, :].nrows:
-    status_msg(
+    statusMsg(
         'Error in Organisation Validation:',
         rawOrgs[f.orgExists==False, :].nrows,
         'values do not exist.',
@@ -253,13 +250,8 @@ subjects['solved'] = dt.Frame([
 # There isn't much to add at this point as most of the data in this
 # table comes from other sources or has never been collected. Add more column
 # names here if required.
-subjectInfo = subjects[
-    :, ( 
-        f.id,
-        f.patch
-    )
-]
 
+subjectInfo = subjects[:, (f.id, f.patch)]
 subjectInfo['subjectID'] = subjectInfo['id']
 
 
@@ -345,7 +337,7 @@ portalUpdates = release[
 if portalUpdates.nrows != release.nrows:
     raise SystemError('Error in release mapping: not all records were processed')
 else:
-    status_msg('All records have been processed! :-)')
+    statusMsg('All records have been processed! :-)')
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -364,13 +356,13 @@ rd3.add(
 )
 
 # import new orgs; import ERNs if needed, but highly unlikely
-rd3.importData(entity='rd3_organisation',data = to_records(newOrgs))
+rd3.importData(entity='rd3_organisation',data = dtFrameToRecords(newOrgs))
 
 # prep data for import into RD3
-rd3_subjects = to_records(data=subjects)
-rd3_subjectInfo = to_records(data=subjectInfo)
-rd3_samples = to_records(data=samples)
-rd3_labinfo = to_records(data=labinfo)
+rd3_subjects = dtFrameToRecords(data=subjects)
+rd3_subjectInfo = dtFrameToRecords(data=subjectInfo)
+rd3_samples = dtFrameToRecords(data=samples)
+rd3_labinfo = dtFrameToRecords(data=labinfo)
 
 # import data
 rd3.importData(entity=f'rd3_{patchinfo["name"]}_subject', data=rd3_subjects)
@@ -382,5 +374,5 @@ rd3.importData(entity=f'rd3_{patchinfo["name"]}_labinfo', data=rd3_labinfo)
 rd3.updateColumn(
     entity = releaseName,
     attr = 'processed',
-    data = to_records(portalUpdates)
+    data = dtFrameToRecords(portalUpdates)
 )

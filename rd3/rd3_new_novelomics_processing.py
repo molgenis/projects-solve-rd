@@ -2,9 +2,9 @@
 # FILE: rd3_new_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-03-08
-# MODIFIED: 2022-03-10
+# MODIFIED: 2022-04-26
 # PURPOSE: process new novelomics data in the portal
-# STATUS: experimental
+# STATUS: stable
 # PACKAGES: datatable, datetime, pytz, functools, operations, rd3tools
 # COMMENTS: This script is designed to process Novel Omics releases and import
 # them into RD3. These studies are considered separate from the main data
@@ -14,15 +14,11 @@
 # In addition, see the script 'model/index.py' for creating new EMX structures.
 #//////////////////////////////////////////////////////////////////////////////
 
-from datatable import dt, f
-from python.rd3tools import (
-    Molgenis,
-    status_msg,
-    recodeValue,
-    to_keypairs,
-    to_records,
-    timestamp
+from rd3.api.molgenis import Molgenis
+from rd3.utils.utils import (
+    statusMsg, dtFrameToRecords, recodeValue, timestamp, toKeyPairs
 )
+from datatable import dt, f
 import functools
 import operator
 
@@ -67,7 +63,7 @@ novelOmicsReleases = {
 # ~ 0a ~
 # Pull portal tables
 # After the initial run, make sure the query param is uncommented.
-status_msg('Pulling data from the portal....')
+statusMsg('Pulling data from the portal....')
 
 shipment = dt.Frame(
     rd3.get(
@@ -98,7 +94,7 @@ del experiment['_href']
 #   3. Update the novelomics releases object at the top of this script
 #   4. Rerun
 #
-status_msg('Detecting new releases...')
+statusMsg('Detecting new releases...')
 
 patchinfo = dt.Frame(rd3.get('rd3_patch'))
 del patchinfo['_href']
@@ -141,19 +137,23 @@ patches['typeOfAnalysis'] = dt.Frame([
 ])
 
 # create mapping table
-patchIDs = to_keypairs(to_records(patches), 'typeOfAnalysis', 'id')
+patchIDs = toKeyPairs(
+    data=dtFrameToRecords(data=patches),
+    keyAttr='typeOfAnalysis',
+    valueAttr='id'
+)
 
 #///////////////////////////////////////
 
 # ~ 0c ~
 # Compile existing subject-, sample-, and experiment identifiers. This
 # information will be used to validate new metadata.
-status_msg('Compiling lists of existing identifiers....')
+statusMsg('Compiling lists of existing identifiers....')
 
 # get existing subjects
 existingSubjects = dt.Frame()
 for release in novelOmicsReleases:
-    status_msg('Pulling subjects from', novelOmicsReleases[release])
+    statusMsg('Pulling subjects from', novelOmicsReleases[release])
     existingSubjects = existingSubjects.rbind(
         existingSubjects,
         dt.Frame(
@@ -173,7 +173,7 @@ for release in novelOmicsReleases:
 # get existing samples
 existingSamples = dt.Frame()
 for release in novelOmicsReleases:
-    status_msg('Pulling samples from', novelOmicsReleases[release])
+    statusMsg('Pulling samples from', novelOmicsReleases[release])
     existingSamples = existingSamples.rbind(
         existingSamples,
         dt.Frame(
@@ -193,7 +193,7 @@ for release in novelOmicsReleases:
 # get existin experiments
 existingExperiments = dt.Frame()
 for release in novelOmicsReleases:
-    status_msg('Pulling experiments from', novelOmicsReleases[release])
+    statusMsg('Pulling experiments from', novelOmicsReleases[release])
     existingExperiments = existingExperiments.rbind(
         existingExperiments,
         dt.Frame(
@@ -219,7 +219,7 @@ for release in novelOmicsReleases:
 # mappings are lowered. When using the function `recodeValue`, make sure
 # the input value is also lowered. Combine new mappings with existing reference
 # datasets.
-status_msg('Defining mapping tables....')
+statusMsg('Defining mapping tables....')
 
 # ~ 0d.i ~
 # Create ERN Mappings
@@ -228,10 +228,8 @@ erns = dt.Frame(rd3.get('rd3_ERN'))
 erns['id'] = dt.Frame([d.lower() for d in erns['identifier'].to_list()[0]])
 
 # convert to dictionary and append unique mappings
-ernMappings = to_keypairs(
-    data= to_records(
-        data=erns
-    ),
+ernMappings = toKeyPairs(
+    data= dtFrameToRecords(data=erns),
     keyAttr='id',
     valueAttr='identifier'
 )
@@ -254,8 +252,8 @@ organisations['id'] = dt.Frame([
 ])
 
 # convert to dictionary and append unique mappings
-organisationMappings = to_keypairs(
-    data = to_records(data = organisations),
+organisationMappings = toKeyPairs(
+    data = dtFrameToRecords(data = organisations),
     keyAttr = 'id',
     valueAttr = 'identifier'
 )
@@ -276,8 +274,8 @@ tissueTypes['id'] = dt.Frame([
 ])
 
 # convert to dict
-tissueTypeMappings = to_keypairs(
-    data = to_records(data = tissueTypes),
+tissueTypeMappings = toKeyPairs(
+    data = dtFrameToRecords(data = tissueTypes),
     keyAttr='id',
     valueAttr='identifier'
 )
@@ -300,8 +298,8 @@ materialTypes['id2'] = dt.Frame([
     d.lower() for d in materialTypes['id'].to_list()[0]
 ])
 
-materialTypeMappings = to_keypairs(
-    data = to_records(data = materialTypes),
+materialTypeMappings = toKeyPairs(
+    data = dtFrameToRecords(data = materialTypes),
     keyAttr = 'id2',
     valueAttr='id'
 )
@@ -326,7 +324,7 @@ del materialTypes
 
 # ~ 1a ~
 # Process Shipment data
-status_msg('Processing shipment metadata....')
+statusMsg('Processing shipment metadata....')
 
 # ~ 1a.i ~
 # Format identifiers in the shipment dataset
@@ -335,7 +333,7 @@ status_msg('Processing shipment metadata....')
 # "12345" and the type of analysis is "Deep-WES", then the new identifier
 # should be "12345_deepwes_original". Apply the same treatment to sample- and
 # subject identifiers
-status_msg('Formatting identifiers....')
+statusMsg('Formatting identifiers....')
 
 # make sure all identifiers have uppercase letters
 shipment['participant_subject'] = dt.Frame([
@@ -364,7 +362,7 @@ shipment['subjectID'] = dt.Frame([
 # Recode Attributes
 # Using the mappings defined in previous step (step 0), recode the relevant
 # attributes. Make sure all uses of the `recodeValue` method use `d.lower()`.
-status_msg('Recoding columns...')
+statusMsg('Recoding columns...')
 
 
 # add patch
@@ -444,7 +442,7 @@ shipment['isNewSample'] = dt.Frame([
 # data processing, that is discovered later on in the script, add them below
 # and rerun the script.
 
-status_msg('Processing experiment manifest file....')
+statusMsg('Processing experiment manifest file....')
 
 # ~ 1b.i ~
 # Check Identifiers
@@ -453,7 +451,7 @@ status_msg('Processing experiment manifest file....')
 # or experiments. Since subjects and samples are registered in RD3 before
 # experiments, all experiments should be new. However, it is important to 
 # confirm that there are no new cases.
-status_msg('Formatting identifiers...')
+statusMsg('Formatting identifiers...')
 
 # make sure subjectIDs are uppercase as there were lowercased identifiers in
 # the shipment manifest dataset
@@ -488,7 +486,7 @@ experiment['experiment_id'] = dt.Frame([
 # ~ 1b.ii ~
 # Recode Attributes
 
-status_msg('Transforming columns...')
+statusMsg('Transforming columns...')
 
 # add patch
 experiment['patch'] = dt.Frame([
@@ -547,7 +545,7 @@ experiment['name'] = dt.Frame([
 # for existing subject and samples, as well as new experiments. If there are
 # any unregistered cases, note them and send them to the SolveRD contact on 
 # novel omics data.
-status_msg('Checking identifiers...')
+statusMsg('Checking identifiers...')
 
 experiment['isNewSubject'] = dt.Frame([
     d not in existingSubjects['subjectID'].to_list()[0]
@@ -611,7 +609,7 @@ for type in dt.unique(subjects['typeOfAnalysis']).to_list()[0]:
 if subjectsByAnalysis['_nrows']['_total'] != subjects.nrows:
     raise ValueError('Failed to correctly subset subjects by analysis type')
 else:
-    status_msg('Subsetted data by analysis type')
+    statusMsg('Subsetted data by analysis type')
     
 del type, dataByAnalysisType
 
@@ -626,7 +624,7 @@ del type, dataByAnalysisType
 # have been completed in step 1. If additional transformations are required,
 # add them into step 1 and rerun the script.
 #
-status_msg('Creating samples tables')
+statusMsg('Creating samples tables')
 
 # select columns of interest and unique rows
 samples = shipment[
@@ -658,7 +656,7 @@ for type in dt.unique(samples['typeOfAnalysis']).to_list()[0]:
 if samplesByAnalysis['_nrows']['_total'] != samples.nrows:
     raise ValueError('Failed to correctly subset samples by analysis type')
 else:
-    status_msg('All samples correctly subsetted')
+    statusMsg('All samples correctly subsetted')
     
 del type, dataByAnalysisType
 
@@ -675,7 +673,7 @@ del type, dataByAnalysisType
 # All transformations should have been completed in step 1b. If additional
 # transformations are required, add them in step 1b.ii and rerun the script.
 #
-status_msg('Creating labinfo tables...')
+statusMsg('Creating labinfo tables...')
 
 # select columns of interest and unique rows
 labinfo = experiment[
@@ -706,7 +704,7 @@ for type in dt.unique(labinfo['typeOfAnalysis']).to_list()[0]:
 if labinfoByAnalysis['_nrows']['_total'] != labinfo.nrows:
     raise ValueError('Failed to correctly subset experiments by analysis type')
 else:
-    status_msg('All experiments were correctly subsetted')
+    statusMsg('All experiments were correctly subsetted')
     
 del type, dataByAnalysisType
 
@@ -722,7 +720,7 @@ del type, dataByAnalysisType
 #
 # All transformations should have been completed in step1b. If additional
 # transformations are required, add them in step 1b.ii and rerun the script.
-status_msg('Creating files tables...')
+statusMsg('Creating files tables...')
 
 
 # select columns of interest and unique rows
@@ -753,7 +751,7 @@ for type in dt.unique(files['typeOfAnalysis']).to_list()[0]:
 if filesByAnalysis['_nrows']['_total'] != files.nrows:
     raise ValueError('Failed to correctly subset files by analysis type')
 else:
-    status_msg('All files were correctly subsetted')
+    statusMsg('All files were correctly subsetted')
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -764,15 +762,15 @@ else:
 # Import data into rd3_<release>_subject and rd3_<release>_subjectinfo
 subjectsByAnalysis.pop('_nrows')
 for dataset in subjectsByAnalysis:
-    status_msg('Importing subject data into', novelOmicsReleases[dataset])
+    statusMsg('Importing subject data into', novelOmicsReleases[dataset])
     
     # convert to records
-    rd3_subject = to_records(
+    rd3_subject = dtFrameToRecords(
         data = subjectsByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
     )
     
     # create subject info
-    rd3_subjectinfo = to_records(
+    rd3_subjectinfo = dtFrameToRecords(
         data = subjectsByAnalysis[dataset][
             :, {
                 'id': f.id,
@@ -796,10 +794,10 @@ for dataset in subjectsByAnalysis:
 # Import rd3_<release>_sample
 samplesByAnalysis.pop('_nrows')
 for dataset in samplesByAnalysis:
-    status_msg('Importing samples into', novelOmicsReleases[dataset])
+    statusMsg('Importing samples into', novelOmicsReleases[dataset])
     
     # convert to records
-    rd3_sample = to_records(
+    rd3_sample = dtFrameToRecords(
         data = samplesByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
     )
     
@@ -814,10 +812,10 @@ for dataset in samplesByAnalysis:
 # Import data into rd3_<release>_labinfo
 labinfoByAnalysis.pop('_nrows')
 for dataset in labinfoByAnalysis:
-    status_msg('Importing experiments into', novelOmicsReleases[dataset])
+    statusMsg('Importing experiments into', novelOmicsReleases[dataset])
     
     # as records
-    rd3_labinfo = to_records(
+    rd3_labinfo = dtFrameToRecords(
         data = labinfoByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
     )
     
@@ -832,10 +830,10 @@ for dataset in labinfoByAnalysis:
 # Import data into rd3_<release>_file
 filesByAnalysis.pop('_nrows')
 for dataset in filesByAnalysis:
-    status_msg('Importing files into', novelOmicsReleases[dataset])
+    statusMsg('Importing files into', novelOmicsReleases[dataset])
     
     # as records
-    rd3_file = to_records(
+    rd3_file = dtFrameToRecords(
         data = filesByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
     )
     
@@ -854,7 +852,7 @@ for dataset in filesByAnalysis:
 # row ID so that external collaborators can import the raw data with ease. In
 # this last step, find the row identifiers based on the processed subjects so
 # that these values can be updated.
-status_msg('Updating portal statuses....')
+statusMsg('Updating portal statuses....')
 
 # ~ 6e.i ~
 # update shipment table
@@ -871,16 +869,16 @@ shipmentUpdates = shipment[
 
 # check updates
 if shipmentUpdates.nrows != shipment.nrows:
-    status_msg(
+    statusMsg(
         'Not all records were processed. There are',
         shipment.nrows - shipmentUpdates.nrows,
         'records remaining.'
     )
 else:
-    status_msg('All records were processed! :-)')
+    statusMsg('All records were processed! :-)')
 
 # import
-rd3_shipment_updates = to_records(shipmentUpdates)
+rd3_shipment_updates = dtFrameToRecords(shipmentUpdates)
 rd3.updateColumn(
     entity = 'rd3_portal_novelomics_shipment',
     attr = 'processed',
@@ -904,15 +902,15 @@ experimentUpdates = experiment[
 
 # check processed rows
 if experimentUpdates.nrows != experiment.nrows:
-    status_msg(
+    statusMsg(
         'Not all records were processed. There are still',
         experiment.nrows - experimentUpdates.nrows,
         'records remaining.'        
     )
 else:
-    status_msg('All records were processed! :-)')
+    statusMsg('All records were processed! :-)')
 
-rd3_experiment_updates = to_records(experimentUpdates)
+rd3_experiment_updates = dtFrameToRecords(data=experimentUpdates)
 rd3.updateColumn(
     entity = 'rd3_portal_novelomics_experiment',
     attr = 'processed',

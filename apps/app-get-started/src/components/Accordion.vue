@@ -47,7 +47,7 @@
 
 <script>
 export default {
-  name: 'Accordion',
+  name: 'AccordionSection',
   props: ['id', 'title', 'links'],
   data () {
     return {

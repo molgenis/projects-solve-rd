@@ -221,19 +221,16 @@ class pedtools:
         """
         data = []
         for line in contents:
-            d = line.split()
-            if len(d) == 6:
-                raw_line_data = pedtools.parseFileRow(line = d)
-                proc_line_data = pedtools.validatedFileRow(
-                    data = raw_line_data,
+            row = line.split()
+            if len(row) == 6:
+                row_data = pedtools.parseFileRow(line = row)
+                processed_row_data = pedtools.validatedFileRow(
+                    data = row_data,
                     ids = ids
                 )
-                data.append(proc_line_data)
+                data.append(processed_row_data)
             else:
-                statusMsg(
-                    'Line in {} does not have 6 columns. Has {}'
-                    .format(filename, len(d))
-                )
+                statusMsg('Line in ',filename,'has',len(row),'columns instead of 6')
         return data
 
 class phenotools:
@@ -284,3 +281,39 @@ class phenotools:
                     result['phenotype'].append(hpoId)
         return result
         
+    @staticmethod
+    def unpackDiseaseCodes(data, mappings:dict=None):
+        """Unpack Diseases
+        Extract disease IDs Unique ontologies: ['HP', 'Orphanet', 'HGNC', 'OMIM']
+        and recode where necessary.
+        
+        @param data list of dictionaries from data['phenopacket']['diseases]
+        @param mappings a dictionary containing 'incorrect' codes and new mappings
+        
+        @return dict with list of diagnostic- and onset codes
+        """
+        codes={'diagnostic': [], 'onset': []}
+        for row in data:
+            if 'term' in row:
+                if 'id' in row['term']:
+                    code1 = row['term']['id']
+                    if re.search(r'^((Orphanet:)|(ORDO:))', code1):
+                        code1 = re.sub(r'^((Orphanet:)|(ORDO:))', 'ORDO_', code1)
+                    if re.search(r'^((OMIM:)|(MIM:))', code1):
+                        code1 = re.sub(r'^((OMIM:)|(MIM:))', 'MIM_', code1)
+                    if mappings:
+                        if code1 in mappings:
+                            code1 = recodeValue(
+                                mappings=mappings,
+                                value=code1,
+                                label='Disease Code'
+                            )
+                    if not (code1 in codes['diagnostic']):
+                        codes['diagnostic'].append(code1)
+            if 'classOfOnset' in row:
+                if 'id' in row['classOfOnset']:
+                    code2 = row['classOfOnset']['id']
+                    code2 = re.sub(r'^(HP:)', 'HP_', code2)
+                    if not (code2 in codes['onset']):
+                        codes['onset'].append(code2)
+        return codes

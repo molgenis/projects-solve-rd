@@ -9,6 +9,13 @@
 #' COMMENTS: Run in the same folder as all phenopackets files
 #'////////////////////////////////////////////////////////////////////////////
 
+from rd3.api.molgenis import Molgenis
+from rd3.utils.clustertools import clustertools
+from rd3.utils.utils import (
+    buildRd3Paths,
+    phenotools,
+    statusMsg
+)
 import python.rd3tools as rd3tools
 from datatable import dt,f,count,as_type,fread,rbind,by
 from dotenv import load_dotenv
@@ -28,96 +35,109 @@ token = environ['MOLGENIS_TOKEN_ACC']
 # token = environ['MOLGENIS_TOKEN_PROD']
 
 # build entity IDs and paths based on current freeze and patch
-paths = rd3tools.build_rd3_paths(
+paths = buildRd3Paths(
     freeze = currentFreeze,
     patch = currentPatch,
     baseFilePath = environ['CLUSTER_BASE']
 )
 
-def __unpack__phenotypicfeatures(phenotypicFeatures):
-    """Unpack Phenotypic Features
-    Extract `phenotypicFeatures` and separate into observed and unobserved
-    phenotypic codes
-    @param phenotypicFeatures : output from data['phenopacket']['phenotypicFeatures']
-    @return a dictionary with observed and unobserved phenotype codes
-    """
-    phenotype = []
-    hasNotPhenotype = []
-    for pheno in phenotypicFeatures:
-        if pheno:
-            hpo_id = re.sub(r'^(HP:)', 'HP_', pheno['type']['id'])
-            if not (hpo_id in phenotype) and not (hpo_id in hasNotPhenotype):
-                if 'negated' in pheno:
-                    if pheno['negated']:
-                        hasNotPhenotype.append(hpo_id)
-                    if not pheno['negated']:
-                        phenotype.append(hpo_id)
-                else:
-                    phenotype.append(hpo_id)
-    return {'phenotype': phenotype, 'hasNotPhenotype': hasNotPhenotype}
+# def __unpack__phenotypicfeatures(phenotypicFeatures):
+#     """Unpack Phenotypic Features
+#     Extract `phenotypicFeatures` and separate into observed and unobserved
+#     phenotypic codes
+#     @param phenotypicFeatures : output from data['phenopacket']['phenotypicFeatures']
+#     @return a dictionary with observed and unobserved phenotype codes
+#     """
+#     phenotype = []
+#     hasNotPhenotype = []
+#     for pheno in phenotypicFeatures:
+#         if pheno:
+#             hpo_id = re.sub(r'^(HP:)', 'HP_', pheno['type']['id'])
+#             if not (hpo_id in phenotype) and not (hpo_id in hasNotPhenotype):
+#                 if 'negated' in pheno:
+#                     if pheno['negated']:
+#                         hasNotPhenotype.append(hpo_id)
+#                     if not pheno['negated']:
+#                         phenotype.append(hpo_id)
+#                 else:
+#                     phenotype.append(hpo_id)
+#     return {'phenotype': phenotype, 'hasNotPhenotype': hasNotPhenotype}
 
-def __unpack__diseases(data):
-    """Unpack Diseases
-    Extract disease IDs Unique ontologies: ['HP', 'Orphanet', 'HGNC', 'OMIM']
-    @param data : list of dictionaries from data['phenopacket']['diseases]
-    @return dict with list of diagnostic- and onset codes
-    """
-    ids_to_recode = {
-        #
-        # To add a new mapping, use the following format:
-        # 'INCORRECT_CODE' : {'old': 'INCORRECT_CODE', 'new': 'NEW_CODE'}
-        #
-        'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
-        'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
-        'MIM_607569': {'old':'MIM_607569','new':'MIM_603689'},
-        'ORDO_856': {'old': 'ORDO_856', 'new': ''},
-        'ORDO_ 104010': {'old': 'ORDO_ 104010', 'new':'ORDO_104010'}
-    }
-    dx = []  # diagnostic codes
-    ao = []  # onset codes
-    for d in data:
-        if 'term' in d:
-            if 'id' in d['term']:
-                code1 = d['term']['id']
-                if re.search(r'^((Orphanet:)|(ORDO:))', code1):
-                    code1 = re.sub(r'^((Orphanet:)|(ORDO:))', 'ORDO_', code1)
-                if re.search(r'^((OMIM:)|(MIM:))', code1):
-                    code1 = re.sub(r'^((OMIM:)|(MIM:))', 'MIM_', code1)
-                if code1 in ids_to_recode:
-                    code1 = ids_to_recode[code1]['new']
-                if not (code1 in dx):
-                    dx.append(code1)
-        if 'classOfOnset' in d:
-            if 'id' in d['classOfOnset']:
-                code2 = d['classOfOnset']['id']
-                code2 = re.sub(r'^(HP:)', 'HP_', code2)
-                if not (code2 in ao):
-                    ao.append(code2)
-    return {'dx': dx, 'ao': ao}
+# def __unpack__diseases(data):
+#     """Unpack Diseases
+#     Extract disease IDs Unique ontologies: ['HP', 'Orphanet', 'HGNC', 'OMIM']
+#     @param data : list of dictionaries from data['phenopacket']['diseases]
+#     @return dict with list of diagnostic- and onset codes
+#     """
+#     ids_to_recode = {
+#         #
+#         # To add a new mapping, use the following format:
+#         # 'INCORRECT_CODE' : {'old': 'INCORRECT_CODE', 'new': 'NEW_CODE'}
+#         #
+#         'MIM_159000': {'old':'MIM_159000','new':'MIM_609200'},
+#         'MIM_159001': {'old':'MIM_159001','new':'MIM_181350'},
+#         'MIM_607569': {'old':'MIM_607569','new':'MIM_603689'},
+#         'ORDO_856': {'old': 'ORDO_856', 'new': ''},
+#         'ORDO_ 104010': {'old': 'ORDO_ 104010', 'new':'ORDO_104010'}
+#     }
+#     dx = []  # diagnostic codes
+#     ao = []  # onset codes
+#     for d in data:
+#         if 'term' in d:
+#             if 'id' in d['term']:
+#                 code1 = d['term']['id']
+#                 if re.search(r'^((Orphanet:)|(ORDO:))', code1):
+#                     code1 = re.sub(r'^((Orphanet:)|(ORDO:))', 'ORDO_', code1)
+#                 if re.search(r'^((OMIM:)|(MIM:))', code1):
+#                     code1 = re.sub(r'^((OMIM:)|(MIM:))', 'MIM_', code1)
+#                 if code1 in ids_to_recode:
+#                     code1 = ids_to_recode[code1]['new']
+#                 if not (code1 in dx):
+#                     dx.append(code1)
+#         if 'classOfOnset' in d:
+#             if 'id' in d['classOfOnset']:
+#                 code2 = d['classOfOnset']['id']
+#                 code2 = re.sub(r'^(HP:)', 'HP_', code2)
+#                 if not (code2 in ao):
+#                     ao.append(code2)
+#     return {'dx': dx, 'ao': ao}
 
-def __recode__sex(value):
-    """Recorde Sex into RD3 terminology
-    @param value (str) : a value indicating sex
-    @return string and/or error message
-    """
-    mappings = {'female': 'F', 'male': 'M', 'unknown_sex': 'U', 'other_sex': 'UD'}
-    try:
-        return mappings[value.lower()]
-    except KeyError:
-        rd3tools.status_msg('Unknown sex code: {}'.format(value))
-        return value
-    except AttributeError:
-        rd3tools.status_msg('Unknown sex code: {}'.format(value))
-        return value
+# def __recode__sex(value):
+#     """Recorde Sex into RD3 terminology
+#     @param value (str) : a value indicating sex
+#     @return string and/or error message
+#     """
+#     mappings = {'female': 'F', 'male': 'M', 'unknown_sex': 'U', 'other_sex': 'UD'}
+#     try:
+#         return mappings[value.lower()]
+#     except KeyError:
+#         statusMsg('Unknown sex code: {}'.format(value))
+#         return value
+#     except AttributeError:
+#         statusMsg('Unknown sex code: {}'.format(value))
+#         return value
 
-def __recode__date(value):
-    """Format Date
-    @param value : string containing date to recode
-    @return a string containing yyyy-mm-dd
-    """
-    if value == '':
-        return value
-    return re.sub(r'(T00:00:00Z)', '', value).split('-')[0]
+# def __recode__date(value):
+#     """Format Date
+#     @param value : string containing date to recode
+#     @return a string containing yyyy-mm-dd
+#     """
+#     if value == '':
+#         return value
+#     return re.sub(r'(T00:00:00Z)', '', value).split('-')[0]
+
+
+# Disease Code Mappings
+# To add a new mapping, use the following format:
+# 'INCORRECT_CODE' : 'NEW_CODE'
+diseaseCodeMappings = {
+    'MIM_159000': 'MIM_609200',
+    'MIM_159001': 'MIM_181350',
+    'MIM_607569': 'MIM_603689',
+    'ORDO_856': '', # no known mapping
+    'ORDO_ 104010': 'ORDO_104010'
+}
+
 
 # /////////////////////////////////////////////////////////////////////////////
 
@@ -131,30 +151,34 @@ def __recode__date(value):
 # imported into the `subject` and `subjectinfo` tables. The attributes that
 # are managed by this script are listed in the GET requests below.
 #
-rd3 = rd3tools.molgenis(url = host, token=token)
+rd3 = Molgenis(url = host, token=token)
 
 # pull subject metadata for the current freeze
-freeze = rd3.get(
-    entity = paths['rd3_subjects'],
-    attributes = 'id,subjectID,clinical_status,disease,phenotype,hasNotPhenotype,phenopacketsID,patch',
-    batch_size = 10000
+freeze=rd3.get(
+    entity=paths['rd3_subjects'],
+    attributes='id,subjectID,clinical_status,disease,phenotype,hasNotPhenotype,phenopacketsID,patch',
+    batch_size=10000
 )
 
 # pull subjectinfo data
-freeze_info = rd3.get(
-    entity = paths['rd3_subjectinfo'],
-    attributes = 'id,dateofBirth,ageOfOnset,patch',
-    batch_size = 10000
+freeze_info=rd3.get(
+    entity=paths['rd3_subjectinfo'],
+    attributes='id,dateofBirth,ageOfOnset,patch',
+    batch_size=10000
 )
 
 # extract subject IDs for later
-freeze_ids = rd3tools.flatten_attr(freeze, 'id')
+# freeze_ids = rd3tools.flatten_attr(freeze, 'id')
+freeze_ids=[row['id'] for row in freeze]
 
 # pull HPO and disease codes, and then flatten
 hpo_codes_raw = rd3.get(entity = 'rd3_phenotype', batch_size = 10000)
 disease_codes_raw = rd3.get(entity = 'rd3_disease', batch_size = 10000)
-hpo_codes = rd3tools.flatten_attr(hpo_codes_raw, 'id')
-disease_codes = rd3tools.flatten_attr(disease_codes_raw, 'id')
+
+# hpo_codes = rd3tools.flatten_attr(hpo_codes_raw, 'id')
+# disease_codes = rd3tools.flatten_attr(disease_codes_raw, 'id')
+hpo_codes=[row['id'] for row in hpo_codes_raw]
+disease_codes=[row['id'] for row in disease_codes_raw]
 
 del hpo_codes_raw, disease_codes_raw
 
@@ -182,9 +206,10 @@ del hpo_codes_raw, disease_codes_raw
 #
 
 # create list of all available JSON files
-allFiles = rd3tools.cluster_list_files(path = paths['cluster_phenopacket'])
+# allFiles = rd3tools.cluster_list_files(path = paths['cluster_phenopacket'])
+allFiles=clustertools.listFiles(path=paths['cluster_phenopacket'])
 phenopacketFiles = [file for file in allFiles if re.search(r'(.json)$', file['filename'])]
-rd3tools.status_msg('Found', len(phenopacketFiles), 'phenopacket files')
+statusMsg('Found', len(phenopacketFiles), 'phenopacket files')
 
 
 # init loop params and objects
@@ -196,12 +221,13 @@ unavailable = []
 phenopackets = []
 
 # start file processing
-rd3tools.status_msg('Starting file processing...')
+statusMsg('Starting file processing...')
 for file in phenopacketFiles:
-    rd3tools.status_msg('Processing file: {}'.format(file['filename']))
-    f = rd3tools.cluster_read_json(path = file['filepath'])
-    p = {
-        'id': f['phenopacket']['id'] + '_original',
+    statusMsg('Processing file: {}'.format(file['filename']))
+    # f = rd3tools.cluster_read_json(path = file['filepath'])
+    json=clustertools.readJson(path=file['path'])
+    result = {
+        'id': json['phenopacket']['id'] + '_original',
         'dateofBirth': None,
         'sex1': None,
         'phenotype': None,
@@ -212,69 +238,78 @@ for file in phenopacketFiles:
     }
     # make sure `subject` exists before processing subattributes
     if shouldProcess['subject']:
-        if 'subject' in f['phenopacket']:
-            if 'dateOfBirth' in f['phenopacket']['subject']:
-                p['dateofBirth'] = __recode__date(f['phenopacket']['subject']['dateOfBirth'])
-            if 'sex' in f['phenopacket']['subject']:
-                p['sex1'] = __recode__sex(f['phenopacket']['subject']['sex'])
+        if 'subject' in json['phenopacket']:
+            if 'dateOfBirth' in json['phenopacket']['subject']:
+                result['dateofBirth'] = phenotools.formatDate(
+                    value=json['phenopacket']['subject']['dateOfBirth']
+                )
+            if 'sex' in json['phenopacket']['subject']:
+                result['sex1'] = phenotools.recodeSexCodes(
+                    value=json['phenopacket']['subject']['sex']
+                )
     # make sure `phenotypicFeatures` exists
     if shouldProcess['pheno']:
-        if 'phenotypicFeatures' in f['phenopacket']:
-            phenotypic_features = __unpack__phenotypicfeatures(
-                phenotypicFeatures = f['phenopacket']['phenotypicFeatures']
+        if 'phenotypicFeatures' in json['phenopacket']:
+            phenotypic_features = phenotools.unpackPhenotypicFeatures(
+                data = f['phenopacket']['phenotypicFeatures']
             )
             # triage HPO into `has` and `hasnot`
             patient_hpo_has = []
             patient_hpo_hasnot = []
-            # validate codes and isolate unknown cases
-            for hc1 in phenotypic_features['phenotype']:
-                if hc1 in hpo_codes:
-                    patient_hpo_has.append(hc1)
+            # ObservedPhenotypes: validate codes and isolate unknown cases
+            for code in phenotypic_features['phenotype']:
+                if code in hpo_codes:
+                    patient_hpo_has.append(code)
                 else:
-                    rd3tools.status_msg('Unknown HPO code: {}'.format(hc1))
-                    hpo_codes_not_found.append({'id': p['id'], 'hpo': hc1})
-                    phenotypic_features['phenotype'].remove(hc1)
-            # validate codes and isolate unknown cases
-            for hc2 in phenotypic_features['hasNotPhenotype']:
-                if hc2 in hpo_codes:
-                    patient_hpo_hasnot.append(hc2)
+                    statusMsg('Unknown HPO code:',str(code))
+                    hpo_codes_not_found.append({'id': result['id'], 'hpo': code})
+                    phenotypic_features['phenotype'].remove(code)
+            del code
+            # Unobserved Phenotypes: validate codes and isolate unknown cases
+            for code in phenotypic_features['hasNotPhenotype']:
+                if code in hpo_codes:
+                    patient_hpo_hasnot.append(code)
                 else:
-                    rd3tools.status_msg('Unknown HPO code: {}'.format(hc2))
-                    hpo_codes_not_found.append({'id': p['id'], 'hpo': hc2})
-                    phenotypic_features['hasNotPhenotype'].remove(hc2)
-            p['phenotype'] = ','.join(patient_hpo_has)
-            p['hasNotPhenotype'] = ','.join(patient_hpo_hasnot)
+                    statusMsg('Unknown HPO code:',str(code))
+                    hpo_codes_not_found.append({'id': result['id'], 'hpo': code})
+                    phenotypic_features['hasNotPhenotype'].remove(code)
+            result['phenotype'] = ','.join(patient_hpo_has)
+            result['hasNotPhenotype'] = ','.join(patient_hpo_hasnot)
+            del code
     # make sure `diseases` exist first
     if shouldProcess['dx']:
-        if 'diseases' in f['phenopacket']:
-            diseases = __unpack__diseases(f['phenopacket']['diseases'])
+        if 'diseases' in json['phenopacket']:
+            diseases = phenotools.unpackDiseaseCodes(
+                data=json['phenopacket']['diseases'],
+                mappings=diseaseCodeMappings
+            )
             patient_diseases_has = []
             # triage dx IDs: isolate invalid codes for review
-            for dx in diseases['dx']:
-                if dx in disease_codes:
-                    patient_diseases_has.append(dx)
+            for code in diseases['diagnostic']:
+                if code in disease_codes:
+                    patient_diseases_has.append(code)
                 else:
-                    if dx != '':
-                        rd3tools.status_msg('Unknown disease code: {}'.format(dx))
-                        disease_codes_not_found.append({'id': p['id'], 'code': dx})
-                        diseases['dx'].remove(dx)
-            p['disease'] = ','.join(patient_diseases_has)
+                    if code != '':
+                        statusMsg('Unknown disease code:',str(code))
+                        disease_codes_not_found.append({'id': result['id'], 'code': code})
+                        diseases['dx'].remove(code)
+            result['disease'] = ','.join(patient_diseases_has)
             # triage onset IDs (HPO): isolate invalid codes for review
-            if len(diseases['ao']) > 0:
+            if len(diseases['onset']) > 0:
                 valid_onset_codes = []
-                for ao in diseases['ao']:
-                    if ao in hpo_codes:
-                        valid_onset_codes.append(ao)
+                for code in diseases['onset']:
+                    if code in hpo_codes:
+                        valid_onset_codes.append(code)
                     else:
-                        rd3tools.status_msg('Unknown onset code: {}'.format(ao))
-                        onset_codes_not_found.append({'id': p['id'], 'onset': ao})
-                p['ageOfOnset'] = ','.join(valid_onset_codes)
+                        statusMsg('Unknown onset code:',str(code))
+                        onset_codes_not_found.append({'id': result['id'], 'onset': code})
+                result['ageOfOnset'] = ','.join(valid_onset_codes)
     # make sure participant ID exists in current release
-    if p['id'] in freeze_ids:
-        phenopackets.append(p)
+    if result['id'] in freeze_ids:
+        phenopackets.append(result)
     else:
-        rd3tools.status_msg('Participant does not exist in current freeze')
-        unavailable.append(p)
+        statusMsg('Participant does not exist in current freeze')
+        unavailable.append(result)
 
 # print counts. If items 2-5 are 0 or empty, move to section 4. Otherwise,
 # proceed to step 3.
@@ -315,8 +350,10 @@ print('Count of unknown onset codes', len(onset_codes_not_found))
 # to the disease code reference table.
 
 # view unique entries
-rd3tools.flatten_attr(disease_codes_not_found, 'code', distinct = True)
-rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
+list(set([row['code'] for row in disease_codes_not_found]))
+list(set([row['onset'] for row in onset_codes_not_found]))
+# rd3tools.flatten_attr(disease_codes_not_found, 'code', distinct = True)
+# rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
 
 # ~ 3b ~ 
 # Investigate Unknown HPO Codes
@@ -328,24 +365,28 @@ rd3tools.flatten_attr(onset_codes_not_found, 'onset', distinct = True)
 #
 
 # prep "HPO codes to verify" dataset
-hpoCodes = dt.Frame(hpo_codes_not_found, types = {'id': str, 'hpo': str})[:,
-    {'frequency': count(), 'url': None, 'status': 'not.found', 'action': None},
+hpoCodes = dt.Frame(
+    hpo_codes_not_found,
+    types = {'id': str, 'hpo': str}
+)[
+    :, {
+        'frequency': count(),
+        'url': None,
+        'status': 'not.found',
+        'action': None
+    },
     by(f.hpo)
 ]
 
 # set url for HPO code if it exists
 hpoCodes['url'] = dt.Frame([
-    f'http://purl.obolibrary.org/obo/{d}' for d in hpoCodes['hpo'].to_list()[0]
+    f'http://purl.obolibrary.org/obo/{d}'
+    for d in hpoCodes['hpo'].to_list()[0]
 ])
 
 # manually check each link and search for code. Either add the code or follow
 # up with SolveRD project data coordinators.
-rbind(
-    fread('data/unknown_hpo_codes.csv'),
-    hpoCodes
-).to_csv(
-    'data/unknown_hpo_codes.csv'
-)
+rbind(fread('data/unknown_hpo_codes.csv'), hpoCodes).to_csv('data/unknown_hpo_codes.csv')
 
 
 # ~ 3c ~ 
@@ -478,7 +519,7 @@ update_ageofonset = rd3tools.select_keys(phenopackets, ['id', 'ageOfOnset'])
 update_patch = []
 for d in phenopackets:
     if not (d['id'] in freeze_ids):
-        rd3tools.status_msg('ID {} not found'.format(d['id']))
+        statusMsg('ID {} not found'.format(d['id']))
     subjectPatch = [p for p in freeze if d['id'] == p['id']]
     newSubjectPatch = rd3tools.flatten_attr(subjectPatch[0]['patch'], 'id')
     newSubjectPatch.append(f'{currentFreeze}_{currentPatch}')
@@ -552,11 +593,11 @@ for fi in freeze_info:
                 })
 
 # check
-rd3tools.status_msg('Disease cases to update: ', len(update_disease))
-rd3tools.status_msg('Phenotype cases to update: ', len(update_phenotype))
-rd3tools.status_msg('HasNotPhenotype cases to update: ', len(update_hasNotPhenotype))
-rd3tools.status_msg('DateofBirth cases to update', len(update_dob))
-rd3tools.status_msg('Onset cases to update', len(update_onset))
+statusMsg('Disease cases to update: ', len(update_disease))
+statusMsg('Phenotype cases to update: ', len(update_phenotype))
+statusMsg('HasNotPhenotype cases to update: ', len(update_hasNotPhenotype))
+statusMsg('DateofBirth cases to update', len(update_dob))
+statusMsg('Onset cases to update', len(update_onset))
 
 # import
 rd3.batch_update_one_attr(paths['rd3_subject'], 'disease', update_disease)

@@ -2,16 +2,23 @@
 #' FILE: freeze_ped_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2022-01-18
+#' MODIFIED: 2022-04-28
 #' PURPOSE: extract metadata from PED files and import into Molgenis
 #' STATUS: stable
 #' PACKAGES: *see imports below*
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-import python.rd3tools as rd3tools
+from rd3.api.molgenis import Molgenis
+from rd3.utils.clustertools import clustertools
+from rd3.utils.utils import (
+    buildRd3Paths,
+    statusMsg,
+    pedtools
+)
+
 from dotenv import load_dotenv
-from os import environ, path
+from os import environ
 from datetime import datetime
 import pandas as pd
 import re
@@ -27,7 +34,7 @@ token = environ['MOLGENIS_TOKEN_ACC']
 # token = environ['MOLGENIS_TOKEN_PROD']
 
 # build entity IDs and paths based on current freeze and patch
-paths = rd3tools.build_rd3_paths(
+paths = buildRd3Paths(
     freeze = currentFreeze,
     patch = currentPatch,
     baseFilePath = environ['CLUSTER_BASE']
@@ -52,7 +59,7 @@ paths = rd3tools.build_rd3_paths(
 # up to date.
 
 # init session
-rd3 = rd3tools.molgenis(url = host, token = token)
+rd3 = Molgenis(url = host, token = token)
 
 # pull subject metadata for the current freeze
 freeze_subject_metadata = rd3.get(
@@ -63,7 +70,7 @@ freeze_subject_metadata = rd3.get(
 )
 
 # flatten subjectIDs for faster comparison later on
-subject_ids = rd3tools.flatten_attr(data=freeze_subject_metadata, attr='subjectID')
+subject_ids = [row['subjectID'] for row in freeze_subject_metadata]
 
 # In addition to subject metadata, it is import to pull file metadata to identify
 # which have changed and should be processed. We will pull the following
@@ -117,13 +124,13 @@ subject_ids = rd3tools.flatten_attr(data=freeze_subject_metadata, attr='subjectI
 
 # Create a list of all PED files that are stored at a specific path on the
 # cluster. Make sure all non-PED files are removed.
-available_ped_files_raw = rd3tools.cluster_list_files(path = paths['cluster_ped'])
+available_ped_files_raw = clustertools.listFiles(path = paths['cluster_ped'])
 available_ped_files = []
 for file in available_ped_files_raw:
     if re.search(r'(\.ped|\.ped.cip)$', file.get('filename')):
         available_ped_files.append(file)
 
-rd3tools.status_msg(f'Processing {len(available_ped_files)} PED files')
+statusMsg(f'Processing {len(available_ped_files)} PED files')
 
 # ~ 2a ~
 # For each file, extract contents, validate data and transform into RD3
@@ -131,7 +138,7 @@ rd3tools.status_msg(f'Processing {len(available_ped_files)} PED files')
 raw_ped_data = []
 starttime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
 for pedfile in available_ped_files:
-    rd3tools.status_msg('Processing file {}'.format(pedfile['filename']))
+    statusMsg('Processing file {}'.format(pedfile['filename']))
     # result = rd3tools.find_dict(
     #     data = freeze_files_metadata,
     #     attr = 'filename',
@@ -139,21 +146,21 @@ for pedfile in available_ped_files:
     # )
     # should_process = False
     # if result:
-    #     rd3tools.status_msg('Evaluating checksums with file metadata')
+    #     statusMsg('Evaluating checksums with file metadata')
     #     md5_result = rd3tools.cluster_run_checksum(path = pedfile['filepath'])
     #     if result[0]['md5'] != md5_result:
-    #         rd3tools.status_msg('Checksum differs. Data will be processed')
+    #         statusMsg('Checksum differs. Data will be processed')
     #         should_process = True
     #     else:
-    #         rd3tools.status_msg('Checksum is the same. Moving to next file')
+    #         statusMsg('Checksum is the same. Moving to next file')
     #         continue
     # else:
-    #     rd3tools.status_msg('File {} does not exist in RD3'.format(pedfile['filename']))
+    #     statusMsg('File {} does not exist in RD3'.format(pedfile['filename']))
     # if should_process:
         # should_process = False
-    rd3tools.status_msg('Parsing file')
-    contents = rd3tools.cluster_read_file(path = pedfile['filepath'])
-    data = rd3tools.ped_extract_contents(
+    statusMsg('Parsing file')
+    contents = clustertools.readTextFile(path = pedfile['filepath'])
+    data = pedtools.parseFileContents(
         contents = contents,
         ids = subject_ids,
         filename = file['filename']
@@ -162,19 +169,15 @@ for pedfile in available_ped_files:
 
 # print summary
 endtime = datetime.utcnow().strftime('%H:%M:%S.%f')[:-4]
-rd3tools.status_msg(
-    "Processed PED files in {}"
-    .format(
-        datetime.strptime(endtime,'%H:%M:%S.%f') - datetime.strptime(starttime, '%H:%M:%S.%f')
-    )
-)
+timeDiff = datetime.strptime(endtime,'%H:%M:%S.%f') - datetime.strptime(starttime, '%H:%M:%S.%f')
+statusMsg("Processed PED files in", timeDiff)
 
 # file data and prepare for import
-rd3tools.status_msg('Removing cases where `upload=False`')
+statusMsg('Removing cases where `upload=False`')
 pedigree_data = []
-for pf in raw_ped_data:
-    if pf['upload']:  # this may need to be adjusted in the future
-        pedigree_data.append(pf)
+for row in raw_ped_data:
+    if row['upload']:  # this may need to be adjusted in the future
+        pedigree_data.append(row)
         
 #//////////////////////////////////////
 
@@ -188,29 +191,34 @@ for pf in raw_ped_data:
 # processing, file generation, or somewhere else. 
 
 patient_sex_codes_validation = []
-for d in pedigree_data:
-    q = rd3tools.find_dict(
-        data = freeze_subject_metadata,
-        attr = 'subjectID',
-        value = d['subjectID']
-    )[0]
-    if q:
-        d['id'] = q['id']
-        if ('sex1' in d) and ('sex1' in q):
-            if d['sex1'] == q['sex1']['identifier']:
-                rd3tools.status_msg('Sex codes are identical')
-            if d['sex1'] != q['sex1']['identifier']:
-                rd3tools.status_msg(
-                    'Sex codes for {} do not match: PED={}, RD3={}'
-                    .format(d['subjectID'], q['sex1']['identifier'], d['sex1'])
+for row in pedigree_data:
+    matchingSubjectRecord = [
+        item for item in freeze_subject_metadata
+        if row['subjectID'] == item['subjectID']
+    ]
+    # q = rd3tools.find_dict(
+    #     data = freeze_subject_metadata,
+    #     attr = 'subjectID',
+    #     value = d['subjectID']
+    # )[0]
+    if matchingSubjectRecord:
+        row['id'] = matchingSubjectRecord['id']
+        if ('sex1' in row) and ('sex1' in matchingSubjectRecord):
+            if row['sex1'] == matchingSubjectRecord['sex1']['identifier']:
+                statusMsg('Sex codes are identical')
+            if row['sex1'] != matchingSubjectRecord['sex1']['identifier']:
+                statusMsg(
+                    'Sex codes for',row['subjectID'],
+                    'do not match: PED=',matchingSubjectRecord['sex1']['identifier'],
+                    'RD3=',row['sex1']
                 )
                 patient_sex_codes_validation.append({
-                    'subjectID': d['subjectID'],
-                    'rd3_freeze_sex1': q['sex1']['identifier'],
-                    'ped_file_sex1': d['sex1']
+                    'subjectID': row['subjectID'],
+                    'rd3_freeze_sex1': matchingSubjectRecord['sex1']['identifier'],
+                    'ped_file_sex1': row['sex1']
                 })
     else:
-        rd3tools.status_msg('Error: no match for {} found'.format(d['subjectID']))
+        statusMsg('Error: no match for',row['subjectID'],'found')
 
 # Warn if cases exist, manually verify each one and correct where applicable
 if patient_sex_codes_validation:
@@ -219,7 +227,7 @@ if patient_sex_codes_validation:
 # If needed, write data to file
 # import pandas as pd
 # pd.DataFrame(patient_sex_codes_validation).to_csv(f'data/patient_{currentFreeze}-{currentPatch}_sex_codes_review.csv',index=False)
-del d, q
+del row, matchingSubjectRecord
 
 #//////////////////////////////////////
 
@@ -233,47 +241,59 @@ del d, q
 # used to search the `rd3_freeze[x]_subject` table. If the ID exists, the ID
 # will be added to the new record.
 
-for d in pedigree_data:
-    rd3tools.status_msg('Updated IDs for {}'.format(d['subjectID']))
-    subject_q = rd3tools.find_dict(
-        data = freeze_subject_metadata,
-        attr = 'subjectID',
-        value = d['subjectID']
-    )[0]
+for row in pedigree_data:
+    statusMsg('Updated IDs for',row['subjectID'])
+    matchingSubjectRecord = [
+        item for item in freeze_subject_metadata
+        if item['subjectID']==row['subjectID']
+    ]
+    # subject_q = rd3tools.find_dict(
+    #     data = freeze_subject_metadata,
+    #     attr = 'subjectID',
+    #     value = row['subjectID']
+    # )[0]
     # Merge corresponding table key
-    if subject_q:
-        d['id'] = subject_q['id']
+    if matchingSubjectRecord:
+        row['id'] = matchingSubjectRecord['id']
     else:
-        rd3tools.status_msg('Error: no match for {} found in RD3'.format(d['subjectID']))
+        statusMsg('Error: no match for',row['subjectID'],'found in RD3')
     # Does the maternal ID exist?
-    if d['mid']:
-        mid_q = rd3tools.find_dict(
-            data = freeze_subject_metadata,
-            attr = 'subjectID',
-            value = d['mid']
-        )[0]
-        if mid_q:
-            d['mid'] = mid_q['id']
+    if 'mid' in row:
+        # mid_q = rd3tools.find_dict(
+        #     data = freeze_subject_metadata,
+        #     attr = 'subjectID',
+        #     value = d['mid']
+        # )[0]
+        matchingMaternalRecord=[
+            item for item in freeze_subject_metadata
+            if item['subjectID']==row['mid']
+        ]
+        if matchingMaternalRecord:
+            row['mid'] = matchingMaternalRecord['id']
         else:
-            rd3tools.status_msg('given maternal ID {} does not exist in RD3'.format(d['mid']))
+            statusMsg('given maternal ID',row['mid'],'does not exist in RD3')
     # Does the paternal ID exist?
-    if d['pid']:
-        pid_q = rd3tools.find_dict(
-            data = freeze_subject_metadata,
-            attr = 'subjectID',
-            value = d['pid']
-        )[0]
-        if pid_q:
-            d['pid'] = pid_q['id']
+    if 'pid' in row:
+        # pid_q = rd3tools.find_dict(
+        #     data = freeze_subject_metadata,
+        #     attr = 'subjectID',
+        #     value = d['pid']
+        # )[0]
+        matchingPaternalRecord = [
+            item for item in freeze_subject_metadata
+            if item['subjectID'] == row['pid']
+        ]
+        if matchingPaternalRecord:
+            row['pid'] = matchingPaternalRecord['id']
         else:
-            rd3tools.status_msg('given paternal ID {} does not exist in RD3'.format(d['pid']))      
+            statusMsg('given paternal ID',row['pid'],'does not exist in RD3')
     # Do the family IDs match? Or are there multiple FIDs? Merge RD3 value
-    if d.get('fid') and subject_q.get('fid'):
-        subject_fids = subject_q['fid'].split(', ')
-        if d['fid'] in subject_fids:
+    if row.get('fid') and matchingSubjectRecord.get('fid'):
+        subject_fids = matchingSubjectRecord['fid'].split(', ')
+        if row['fid'] in subject_fids:
             if len(subject_fids) > 1:
-                rd3tools.status_msg('Multiple family IDs found. Merging...')
-                d['fid'] = subject_q['fid']
+                statusMsg('Multiple family IDs found. Merging...')
+                row['fid'] = matchingSubjectRecord['fid']
               
               
 # for d in pedigree_data:
@@ -285,7 +305,7 @@ for d in pedigree_data:
 #     if q:
 #         for record in q:
 #             if record['fid'] != d['fid']:
-#                 rd3tools.status_msg('Found multiple FIDs. Merging...')
+#                 statusMsg('Found multiple FIDs. Merging...')
 #                 d['fid'] = f"{d['fid']}, {record['fid']}"  
 
 # ~ 2d ~
@@ -342,7 +362,7 @@ print(f'Updating Clinical Status for {len(upload_clinical)} records')
 
 # update fid
 for index,el in enumerate(upload_fid):
-    rd3tools.status_msg('{} Updating FID for {}'.format(index,el['id']))
+    statusMsg('{} Updating FID for {}'.format(index,el['id']))
     rd3.update_one(
         entity = paths['rd3_subjects'],
         id_ = el['id'],
@@ -352,7 +372,7 @@ for index,el in enumerate(upload_fid):
     
 # update mid
 for index,el in enumerate(upload_mid):
-    rd3tools.status_msg('{} Updating MID for {}'.format(index,el['id']))
+    statusMsg('{} Updating MID for {}'.format(index,el['id']))
     rd3.update_one(
         entity = paths['rd3_subjects'],
         id_ = el['id'],
@@ -362,7 +382,7 @@ for index,el in enumerate(upload_mid):
 
 # update pid
 for index,el in enumerate(upload_pid):
-    rd3tools.status_msg('{} Updating PID for {}'.format(index,el['id']))
+    statusMsg('{} Updating PID for {}'.format(index,el['id']))
     rd3.update_one(
         entity = paths['rd3_subjects'],
         id_ = el['id'],
@@ -373,7 +393,7 @@ for index,el in enumerate(upload_pid):
 
 # update clinical status
 for index,el in enumerate(upload_clinical[840:]):
-    rd3tools.status_msg('{} Updating Clinical for {}'.format(index,el['id']))
+    statusMsg('{} Updating Clinical for {}'.format(index,el['id']))
     rd3.update_one(
         entity = paths['rd3_subjects'],
         id_ = el['id'],

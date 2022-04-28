@@ -34,6 +34,27 @@ def addForwardSlash(path: str = None):
     """
     return path + '/' if path[len(path)-1] != '/' else path
     
+
+def buildRd3Paths(freeze, patch, baseFilePath):
+    """Build all RD3 Entity IDs and Paths
+    @param freeze       (str) : name of the freeze (i.e., "freeze1")
+    @param patch        (str) : name of the patch (i.e., "patch1")
+    @param baseFilePath (str) : base file path of the cluster
+    @return dict of entity IDs and file paths
+    """
+    rd3EntityBase = f'rd3_{freeze}'
+    clusterBasePath = f'{baseFilePath}/{freeze}-{patch}'
+    
+    return {
+        'rd3_subjects': f'{rd3EntityBase}_subject',
+        'rd3_subjectinfo': f'{rd3EntityBase}_subjectinfo',
+        'rd3_sample': f'{rd3EntityBase}_sample',
+        'rd3_labInfo': f'{rd3EntityBase}_labInfo',
+        'rd3_file': f'{rd3EntityBase}_file',
+        'cluster_ped': f'{clusterBasePath}/ped/',
+        'cluster_phenopacket': f'{clusterBasePath}/phenopacket/'
+    }
+    
 def dtFrameToRecords(data):
     """Datatable object to records
     @param data : datatable object

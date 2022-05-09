@@ -11,85 +11,65 @@
 
 from rd3.utils.emxtools import setEmxRelease, writeEmxTemplate
 from yamlemxconvert.convert import Convert
+from yaml import safe_load
+
+
+# read EMX config file
+with open('model.yaml', 'r') as file:
+    config = safe_load(file)
+    file.close()
+
+
+# find files and remove portal_release as that will be added separately
+portalEmxConfig=[model for model in config['models'] if model['name']=='rd3_portal'][0]
+
+# convert portal-emx
+portalEmx=Convert(files=portalEmxConfig['files'])
+portalEmx.convert()
+
+portalEmx.write(name='rd3_portal', outDir=config['outputPaths']['main'])
+portalEmx.write_schema('schemas/rd3_portal.md')
+
+# for each release: render the model and adjust the entity identifiers
+# portalEmxReleases = portalEmxConfig['releases']
+# for release in portalEmxReleases:
+#     print('Building model for release:',release)
+#     releaseEmx=Convert(files=['model/rd3_portal_release.yaml'])
+#     releaseEmx.convert()
+    
+#     releaseEmx.entities[0]['name']=release
+#     releaseEmx.entities[0]['label']=f"Data {portalEmxReleases[release]}"
+#     releaseEmx.entities[0]['description']=f'Staging table for {portalEmxReleases[release]}'
+    
+#     for attribute in releaseEmx.attributes:
+#         attribute['entity']=f"rd3_portal_release_{release}"
+    
+#     portalEmx.entities.extend(releaseEmx.entities)
+#     portalEmx.attributes.extend(releaseEmx.attributes)
+
 
 # ~ 0 ~
 # Compile EMX for RD3 Portal Releases
 # Comple the YAML-EMX markup for new RD3 staging tables
 # See `model/rd3_portal_release.yaml` for additional notes
 
-convertPortalReleaseEmx = Convert(files = [
-    'model/base_rd3_portal.yaml', # import portal first
-    'model/rd3_portal_release.yaml'
-])
+# convertPortalReleaseEmx = Convert(files = [
+#     'model/base_rd3_portal.yaml', # import portal first
+#     'model/rd3_portal_release.yaml'
+# ])
 
-convertPortalReleaseEmx.convert()
+# convertPortalReleaseEmx.convert()
 
 # set release information
-convertPortalReleaseEmx.entities[0]['name'] = 'freeze3'
-convertPortalReleaseEmx.entities[0]['label'] = 'Freeze 3'
-convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Freeze 3 (2022-03-09)'
+# convertPortalReleaseEmx.entities[0]['name'] = 'freeze3'
+# convertPortalReleaseEmx.entities[0]['label'] = 'Freeze 3'
+# convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Freeze 3 (2022-03-09)'
 
-for d in convertPortalReleaseEmx.attributes:
-    d['entity'] = f"rd3_portal_release_{convertPortalReleaseEmx.entities[0]['name']}"
+# for d in convertPortalReleaseEmx.attributes:
+#     d['entity'] = f"rd3_portal_release_{convertPortalReleaseEmx.entities[0]['name']}"
 
-convertPortalReleaseEmx.write(
-    name = 'rd3_portal_release',
-    format = 'xlsx',
-    outDir = 'dist/'
-)
-
-
-# ~ 1 ~
-# Compile EMX for RD3 Portal Novelomics (i.e., shipment and experiment manifest files)
-convertPortalNovelomicsEmx = Convert(
-    files = [
-        'src/emx/base_rd3_portal.yaml',
-        'src/emx/rd3_portal_novelomics.yaml'
-    ]
-)
-
-convertPortalNovelomicsEmx.convert()
-convertPortalNovelomicsEmx.write(
-    name = 'rd3_portal_novelomics',
-    format = 'xlsx',
-    outDir = 'dist/'
-)
-
-
-# generate CSV templates
-writeEmxTemplate(
-    entities = convertPortalNovelomicsEmx.entities,
-    attributes = convertPortalNovelomicsEmx.attributes,
-    format = 'csv',
-    outDir = 'templates'
-)
-
-# writeEmxTemplate(
-#     entities = convertPortalNovelomicsEmx.entities,
-#     attributes = convertPortalNovelomicsEmx.attributes,
-#     format = 'xlsx',
-#     outDir = 'templates'
-# )
-
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 2 ~
-# Convert EMX for RD3 Portal Demographics Table
-
-# convertPortalDemographicsEmx = Convert(
-#     files = [
-#         'src/emx/rd3_portal_demographics.yaml'
-#     ]
-# )
-
-# convertPortalDemographicsEmx.convert()
-# convertPortalDemographicsEmx.packages
-# convertPortalDemographicsEmx.entities
-# convertPortalDemographicsEmx.attributes
-
-# convertPortalDemographicsEmx.write(
-#     name = 'rd3_portal_demographics',
+# convertPortalReleaseEmx.write(
+#     name = 'rd3_portal_release',
 #     format = 'xlsx',
 #     outDir = 'dist/'
 # )
@@ -163,20 +143,3 @@ setEmxRelease(convertFreezeEmx.attributes, releaseNumr = rNumr, releaseTitle = r
 # Save model
 convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'dist/')
 
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 4 ~
-# GENERAL PORTAL TABLES
-
-convertPortal = Convert(files = ['src/emx/rd3_portal_cluster.yaml'])
-convertPortal.convert()
-convertPortal.packages
-convertPortal.entities
-convertPortal.attributes
-
-convertPortal.write(
-    name = 'rd3_portal_cluster',
-    format = 'xlsx',
-    outDir = 'dist/'
-)

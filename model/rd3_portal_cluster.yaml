@@ -2,12 +2,12 @@
 # FILE: rd3_portal_cluster.yaml
 # AUTHOR: davidruvolo51
 # DATE CREATED: 2021-10-11
-# DATE MODIFIED: 2021-10-12
+# DATE MODIFIED: 2022-05-09
 # PURPOSE: staging/info table for file metadata on the cluster
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
 
-include: emx/src/base_rd3_portal.yaml
+include: model/base_rd3_portal.yaml
 
 defaults: 
     auto: false

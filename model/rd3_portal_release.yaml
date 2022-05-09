@@ -2,7 +2,7 @@
 # NAME: base_rd3_freeze.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2021-09-21
-# MODIFIED: 2022-03-07
+# MODIFIED: 2022-05-07
 # PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
 # COMMENTS:
 # The table `rd3_portal_freeze` is a staging table for new RD3 releases. Data
@@ -20,6 +20,7 @@
 # ```
 #
 #//////////////////////////////////////////////////////////////////////////////
+
 
 # define package
 name: rd3_portal_release
@@ -39,9 +40,13 @@ defaults:
 
 # define tables
 entities:
-  - name: <release_name>
-    label: <release_name>
-    description: <release_description>
+
+  # @name attrTmplate
+  # @description template for new raw data tables
+  - name: attrTmplate
+    label: attrTmplate
+    description: Attribute template for new RD3 Data Freezes
+    abstract: true
     attributes:
       - name: id
         description: auto generated molgenis ID 
@@ -49,52 +54,93 @@ entities:
         idAttribute: true
         auto: true
         nillable: false
+        
       - name: organisation_name
         description: name of the organisation. E.g. University Medical Center Groningen
+        
       - name: organisation_identifier
         description: identifier of the organisation. E.g. UMCG¬†  
+        
       - name: samples_tissueType
         description: Tissue Types
+        
       - name: samples_id
         description: unique identifier (sampleID + patch)
+        
       - name: samples_alternativeIdentifier
         description: alternative identifier used by sample provider 
+        
       - name: samples_subject
-        label: samples_subject
         description: reference to the subject from which samples was extracted
+        
       - name: samples_organisation
         description: Name of the organisation. E.g. University Medical Center Groningen  
+        
       - name: samples_ERN
-        description: ERN 
+        description: ERN
+        
       - name: labinfo_library
         description: link to more information about the library used in experiment
+
       - name: labinfo_sequencer
-        description: sequencer info 
+        description: sequencer info
+        
       - name: labinfo_seqType
         description: sequencing technique types (e.g., WGS, WXS)
+
       - name: labinfo_id
         description:  Unique identifier (experimentID + patch)
+
       - name: labinfo_sample
         description:  all samples run in this condition, using the same barcode
+
       - name: labinfo_capture
         description: enrichment kit
+
       - name: labinfo_libraryType
         description: library source, e.g., Genomic/Transcriptomic
+
       - name: subject_id
         description: Unique identifier (subjectID + patch)
+
       - name: subject_organisation
         description: name of the organisation that submitted the subject
+
       - name: subject_ERN
         description: ERN
+
       - name: subject_solved
         description: solved case for solve-RD (true/false)
+
       - name: subject_date_solved
         description: Date case was solved
+
       - name: subject_matchMakerPermission
         description: permission is given for match making (boolean)
+
       - name: subject_recontact
         description: Recontact is allowed in case of incidental findings
+
       - name: processed
         description: If True, the record has been processed
         dataType: bool
         defaultValue: false
+        
+  #////////////////////////////////////
+  
+  # Define tables for new releases below
+
+  - name: freeze2
+    label: Data Freeze 2
+    description: Staging table for raw DF2 data
+    extends: rd3_portal_release_attrTmplate
+    
+  - name: freeze3
+    label: Data Freeze 3
+    description: Staging table for raw DF3 data
+    extends: rd3_portal_release_attrTmplate
+    
+  - name: novelwgs
+    label: Novel Omics WGS
+    description: Staging table for raw Novel Omics WGS data
+    extends: rd3_portal_release_attrTmplate

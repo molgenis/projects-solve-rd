@@ -1,0 +1,54 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: model.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-05-09
+# UPDATED: 2022-05-09
+# PURPOSE: RD3 model build instructions
+# DEPENDENCES: **see index.py**
+# COMMENTS: The purpose of this script is to define how the RD3 model and
+# related modules are compiled
+#//////////////////////////////////////////////////////////////////////////////
+
+# set output paths for generated files
+outputPaths:
+  main: dist/
+  schemas: schemas/
+
+
+# define models to build
+# Each entity creates a new file using the given name. All EMX-YAML files
+# listed under the `files` property will be rendered into the same file.
+# 
+# @param name name of the emx model (e.g., package)
+# @param active If true, the model will be generated.
+# @param files an array of paths to EMX-yaml files that contain the model
+#   definitions, references, and data.
+#
+models:
+  - name: rd3_portal
+    active: true
+    files: [
+      "model/base_rd3_portal.yaml",
+      "model/base_rd3_portal_release.yaml",
+      "model/rd3_portal_cluster.yaml",
+      "model/rd3_portal_demographics.yaml",
+      "model/rd3_portal_novelomics.yaml",
+      "model/rd3_portal_release.yaml"
+    ]
+    
+  - name: rd3_freeze
+    active: true
+    files: [
+      "model/base_rd3.yaml",
+      "model/base_rd3_freeze.yaml"
+    ]
+    # releaseID: release label
+    releases: [
+      'freeze1': 'Data Freeze 1',
+      'freeze2': 'Data Freeze 2',
+      'freeze3': 'Data Freeze 3',
+      'noveldeepwes': 'Novel Omics Deep-WES',
+      'novelrnaseq': 'Novel Omics RNAseq',
+      'novelsrwgs': 'Novel Omics SR-WGS',
+      'novelwgs': 'Novel Omics WGS'
+    ]

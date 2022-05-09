@@ -6,6 +6,7 @@
 |:---- |:-----------|:------|
 | rd3_portal | RD3 portal, containing data submitted by CNAG (v1.1.0, 2021-10-11) | - |
 | rd3_portal_release | Intermediate tables for RD3 releases | rd3_portal |
+| rd3_portal | RD3 portal, containing data submitted by CNAG | - |
 | rd3_portal_novelomics | Staging tables for novel omics sample and experiment metadata (v1.4.0, 2022-02-03) | rd3_portal |
 | rd3_portal_release | Intermediate tables for RD3 releases | rd3_portal |
 
@@ -14,6 +15,7 @@
 | Name | Description | Package |
 |:---- |:-----------|:-------|
 | cluster | Metadata on PED and Phenopacket files located on the cluster | rd3_portal |
+| demographics | Patient demographics submitted by CNAG | rd3_portal |
 | experiment | Staging table for experiment metadata (manifest file) | rd3_portal_novelomics |
 | shipment | Staging table for sample metadata | rd3_portal_novelomics |
 | attrTmplate | Attribute template for new RD3 Data Freezes | rd3_portal_release |
@@ -36,6 +38,18 @@ Metadata on PED and Phenopacket files located on the cluster
 | md5sum | md5sum | file checksum | string |
 | created | created | Date entry was created | datetime |
 | id&#8251; | id | - | string |
+
+### Entity: rd3_portal_demographics
+
+Patient demographics submitted by CNAG
+
+| Name | Label | Description | Data Type |
+|:---- |:-----|:-----------|:---------|
+| subjectID | subjectID | RD3 patient ID | string |
+| experimentID | ExperimentID | experiment ID | string |
+| sex | Observed Sex | Observed Sex | string |
+| ethnicity | Calculated Ancestry | Ancestry that was derived | string |
+| auto_id&#8251; | auto_id | auto generated molgenis ID | string |
 
 ### Entity: rd3_portal_novelomics_experiment
 

@@ -86,7 +86,7 @@ def recodeValue(mappings: None, value: str=None, label:str=None, warn=True):
         return mappings[value]
     except:
         if bool(value) and warn:
-            error = f'Error in{label if label else " "}recoding: \"{value}\" not found'
+            error = f'Error in {label if label else ""} recoding: \"{value}\" not found'
             statusMsg(error)
         return None
 

@@ -67,7 +67,7 @@ class Molgenis(molgenis.Session):
         url = '{}v2/{}'.format(self._apiUrl, entity)
         # single push
         if len(data) < 1000:
-            self._POST(url=url, entity=entity, data=data, label=str(entity))
+            self._POST(url=url, data=data, label=str(entity))
             
         # batch push
         if len(data) >= 1000:    

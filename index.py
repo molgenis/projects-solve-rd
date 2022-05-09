@@ -2,14 +2,14 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2022-03-07
+#' MODIFIED: 2022-05-09
 #' PURPOSE: incorporate YAML to EMX generator
 #' STATUS: stable
 #' PACKAGES: yamlemxconvert
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from model.modeltools import setEmxRelease, writeEmxTemplate
+from rd3.utils.emxtools import setEmxRelease, writeEmxTemplate
 from yamlemxconvert.convert import Convert
 
 # ~ 0 ~

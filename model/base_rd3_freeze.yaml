@@ -5,17 +5,17 @@
 # MODIFIED: 2022-03-07
 # PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
 # COMMENTS:
-#   - Build model with the following script: model/index.py.
-#   - Set release accordingly using the method: setEmxRelease(...)
-#   - Do not change the pattern <freeze_number> as this is used in the build
-#     script. If you create new tables, make sure the freeze pattern is
-#     copied accordingly.
+#   - Build model with the following script: index.py
+#   - Set release accordingly in the model.yaml file
+#   - Do not change the pattern <freeze_label> and <freeze_identifier> as
+#     this is used in the build script. If you create new tables, make sure
+#     this pattern is followed.
 #//////////////////////////////////////////////////////////////////////////////
 
 # define subpackage
-name: rd3_freeze<freeze_number>
-label: RD3 Freeze<freeze_number>
-description: RD3 Freeze<freeze_number>
+name: rd3_<freeze_identifier>
+label: RD3 <freeze_label>
+description: RD3 <freeze_label>
 parent: rd3
 # date: 2022-01-01
 # version: 1.0.0
@@ -36,8 +36,8 @@ entities:
   # RD3: Subject
   # primary patient metadata
   - name: subject
-    label: Freeze<freeze_number> Subjects
-    description: patients and family members within <freeze_number>
+    label: <freeze_label> Subjects
+    description: patients and family members within <freeze_label>
     attributes:
       - name: id
         label: id
@@ -68,13 +68,13 @@ entities:
         label: MaternalID
         description: Maternal ID (MID)
         dataType: xref
-        refEntity: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_<freeze_identifier>_subject
         
       - name: pid
         label: PaternalID
         description: Paternal ID (PID)
         dataType: xref
-        refEntity: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_<freeze_identifier>_subject
         
       - name: clinical_status
         label: Affected status
@@ -178,7 +178,7 @@ entities:
 
   # RD3: Subject Info
   - name: subjectinfo
-    label: Freeze<freeze_number> Subject Information
+    label: <freeze_label> Subject Information
     description: Extra information about subjects within Freeze <freeze_number>
     attributes:
       - name: id
@@ -195,7 +195,7 @@ entities:
         label: SubjectID
         description: Unique identifier of the subject
         dataType: xref
-        refEntity: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_<freeze_identifier>_subject
         nillable: false
         readOnly: true
         
@@ -242,7 +242,7 @@ entities:
   
   # RD3: Samples
   - name: sample
-    label: Freeze<freeze_number> Samples
+    label: <freeze_label> Samples
     description: Samples used as input for analyses within Freeze <freeze_number>
     attributes:
       - name: id
@@ -268,7 +268,7 @@ entities:
         label: subject
         description: reference to the subject from which samples was extracted
         dataType: xref
-        refEntity: rd3_freeze<freeze_number>_subject
+        refEntity: rd3_<freeze_identifier>_subject
         
       - name: ageAtSampling
         label: ageAtSampling
@@ -359,7 +359,7 @@ entities:
       
   # RD3: Lab Information
   - name: labinfo
-    label: Freeze<freeze_number> Labinfo
+    label: <freeze_label> Labinfo
     description: information or process in the lab linked to samples
     attributes:
       - name: id
@@ -380,7 +380,7 @@ entities:
         label: sample
         description: all samples run in this condition, using the same barcode
         dataType: mref
-        refEntity: rd3_freeze<freeze_number>_sample
+        refEntity: rd3_<freeze_identifier>_sample
         
       - name: capture
         label: Enrichment kit
@@ -456,7 +456,7 @@ entities:
   
   # RD3: Files
   - name: file
-    label: Freeze<freeze_number> Files
+    label: <freeze_label> Files
     description: Individual files on file systems, files are linked in datasets, versioning with EGA accession number
     attributes:  
       - name: EGA
@@ -491,7 +491,7 @@ entities:
         label: samples
         description: link to file(s) produced for this sample
         dataType: mref
-        refEntity: rd3_freeze<freeze_number>_sample
+        refEntity: rd3_<freeze_identifier>_sample
         
       - name: patch
         label: Patch
@@ -520,56 +520,56 @@ entities:
         description: Filepath Sandbox
         
   # RD3: jobs
-  - name: job
-    label: Freeze<freeze_number> Jobs
-    description: Jobs used to process sampledata within Freeze<freeze_number>
-    attributes:
-      - name: status
-        label: status
-        description: status of job (running, completed, or error)
-        dataType: enum
-        enumOptions: completed,error,running
+  # - name: job
+  #   label: <freeze_label> Jobs
+  #   description: Jobs used to process sampledata within <freeze_label>
+  #   attributes:
+  #     - name: status
+  #       label: status
+  #       description: status of job (running, completed, or error)
+  #       dataType: enum
+  #       enumOptions: completed,error,running
         
-      - name: identifier
-        label: identifier
-        description: unique identifier job
-        nillable: false
-        unique: true
-        visible: true
-        idAttribute: true
-        labelAttribute: true
-        readOnly: true
-        lookupAttribute: true
+  #     - name: identifier
+  #       label: identifier
+  #       description: unique identifier job
+  #       nillable: false
+  #       unique: true
+  #       visible: true
+  #       idAttribute: true
+  #       labelAttribute: true
+  #       readOnly: true
+  #       lookupAttribute: true
         
-      - name: run
-        label: run
-        description: job is part of run
-        dataType: xref
-        refEntity: rd3_run
-        nillable: false
+  #     - name: run
+  #       label: run
+  #       description: job is part of run
+  #       dataType: xref
+  #       refEntity: rd3_run
+  #       nillable: false
         
-      - name: log
-        label: log
-        description: uri referencing to logfile
+  #     - name: log
+  #       label: log
+  #       description: uri referencing to logfile
         
-      - name: inputfile
-        label: inputfile
-        description: inputfile, link to file used in job
-        dataType: mref
-        refEntity: rd3_freeze<freeze_number>_file
+  #     - name: inputfile
+  #       label: inputfile
+  #       description: inputfile, link to file used in job
+  #       dataType: mref
+  #       refEntity: rd3_<freeze_identifier>_file
         
-      - name: outputfile
-        label: outputfile
-        description: file produced with job
-        dataType: mref
-        refEntity: rd3_freeze<freeze_number>_file
+  #     - name: outputfile
+  #       label: outputfile
+  #       description: file produced with job
+  #       dataType: mref
+  #       refEntity: rd3_<freeze_identifier>_file
         
-      - name: jobstart
-        label: jobstart
-        description: start date and time of job
-        dataType: datetime
+  #     - name: jobstart
+  #       label: jobstart
+  #       description: start date and time of job
+  #       dataType: datetime
         
-      - name: jobend
-        label: jobend
-        description: end date and time of job
-        dataType: datetime
+  #     - name: jobend
+  #       label: jobend
+  #       description: end date and time of job
+  #       dataType: datetime

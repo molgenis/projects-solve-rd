@@ -4,9 +4,10 @@
   "description": "managment of the RD3 database",
   "main": "index.js",
   "scripts": {
-    "m:set-acc": "mcmd config set host https://solve-rd-acc.gcc.rug.nl/",
-    "m:set-prod": "mcmd config set host https://solve-rd.gcc.rug.nl/",
-    "rd3:zip-templates": "zip templates/rd3_novelomics_templates.zip templates/*.csv"
+    "set-acc": "mcmd config set host https://solve-rd-acc.gcc.rug.nl/",
+    "set-prod": "mcmd config set host https://solve-rd.gcc.rug.nl/",
+    "zip": "zip templates/rd3_novelomics_templates.zip templates/*.csv",
+    "build": "python3 index.py"
   },
   "repository": {
     "type": "git",

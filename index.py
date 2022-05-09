@@ -9,9 +9,27 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.emxtools import setEmxRelease, writeEmxTemplate
 from yamlemxconvert.convert import Convert
 from yaml import safe_load
+import re
+
+def updateReleaseInfo(data, releaseId, releaseLabel):
+    """Update Release Info
+    For each data element in a record set, look for YAML release tag
+    definitions and set the values accordingly
+    
+    @param data input dataset (record set)
+    @param releaseId release identifier
+    @param releaseLabel label for the release
+    """
+    for row in data:
+        for key in row.keys():
+            row[key]=re.sub('<freeze_identifier>', releaseId, str(row[key]))
+            row[key]=re.sub('<freeze_label>', releaseLabel, str(row[key]))
+
+
+# re.search(r'(\<freeze_identifier\>)', 'this is a <freeze_identifier> test')
+# re.sub(r'(\<freeze_identifier\>)', 'dog', 'this is a <freeze_identifier> test')
 
 
 # read EMX config file
@@ -20,126 +38,38 @@ with open('model.yaml', 'r') as file:
     file.close()
 
 
-# find files and remove portal_release as that will be added separately
-portalEmxConfig=[model for model in config['models'] if model['name']=='rd3_portal'][0]
-
-# convert portal-emx
-portalEmx=Convert(files=portalEmxConfig['files'])
-portalEmx.convert()
-
-portalEmx.write(name='rd3_portal', outDir=config['outputPaths']['main'])
-portalEmx.write_schema('schemas/rd3_portal.md')
-
-# for each release: render the model and adjust the entity identifiers
-# portalEmxReleases = portalEmxConfig['releases']
-# for release in portalEmxReleases:
-#     print('Building model for release:',release)
-#     releaseEmx=Convert(files=['model/rd3_portal_release.yaml'])
-#     releaseEmx.convert()
+# build ENX models
+for model in config['models']:
+    print('Building EMX for',model['name'])
+    emx = Convert(files=model['files'])
+    emx.convert()
     
-#     releaseEmx.entities[0]['name']=release
-#     releaseEmx.entities[0]['label']=f"Data {portalEmxReleases[release]}"
-#     releaseEmx.entities[0]['description']=f'Staging table for {portalEmxReleases[release]}'
-    
-#     for attribute in releaseEmx.attributes:
-#         attribute['entity']=f"rd3_portal_release_{release}"
-    
-#     portalEmx.entities.extend(releaseEmx.entities)
-#     portalEmx.attributes.extend(releaseEmx.attributes)
+    # if releases are defined, render EMX files accordingly
+    if model.get('releases') and model.get('releaseTemplate'):
+        for release in model['releases']:
+            print('Building model for release',release)
+            releaseEmx=Convert(files=model['releaseTemplate'])
+            releaseEmx.convert()
 
+            # fix emx components with current release identifier and label
+            updateReleaseInfo(
+                data=releaseEmx.packages,
+                releaseId=release,
+                releaseLabel=model['releases'][release]
+            )
+            updateReleaseInfo(
+                data=releaseEmx.entities,
+                releaseId=release,
+                releaseLabel=model['releases'][release]
+            )
+            updateReleaseInfo(
+                data=releaseEmx.attributes,
+                releaseId=release,
+                releaseLabel=model['releases'][release]
+            )
+                
+            emx.entities.extend(releaseEmx.entities)
+            emx.attributes.extend(releaseEmx.attributes)
 
-# ~ 0 ~
-# Compile EMX for RD3 Portal Releases
-# Comple the YAML-EMX markup for new RD3 staging tables
-# See `model/rd3_portal_release.yaml` for additional notes
-
-# convertPortalReleaseEmx = Convert(files = [
-#     'model/base_rd3_portal.yaml', # import portal first
-#     'model/rd3_portal_release.yaml'
-# ])
-
-# convertPortalReleaseEmx.convert()
-
-# set release information
-# convertPortalReleaseEmx.entities[0]['name'] = 'freeze3'
-# convertPortalReleaseEmx.entities[0]['label'] = 'Freeze 3'
-# convertPortalReleaseEmx.entities[0]['description'] = ' Staging table for Freeze 3 (2022-03-09)'
-
-# for d in convertPortalReleaseEmx.attributes:
-#     d['entity'] = f"rd3_portal_release_{convertPortalReleaseEmx.entities[0]['name']}"
-
-# convertPortalReleaseEmx.write(
-#     name = 'rd3_portal_release',
-#     format = 'xlsx',
-#     outDir = 'dist/'
-# )
-
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 3 ~ 
-# Convert EMX for RD3 Release (i.e., new freeze)
-
-convertFreezeEmx = Convert(
-    files = [
-        'model/base_rd3.yaml',
-        'model/base_rd3_freeze.yaml'
-    ]
-)
-
-convertFreezeEmx.convert()
-
-# recode RD3 release: use freezeN as pattern
-# rNumr = "freeze3"
-# rName = "Freeze3"
-
-# rNumr = "novelwgs"
-# rName = "Novel Omics WGS"
-
-# rNumr = "noveldeepwes"
-# rName = "Novel Omics Deep-WES"
-
-# rNumr = "novelsrwgs"
-# rName = "Novel Omics SR-WGS"
-
-rNumr = "novelrnaseq"
-rName = "Novel Omics RNAseq"
-
-rFile = 'rd3_' + rNumr
-
-setEmxRelease(convertFreezeEmx.packages, releaseNumr = rNumr, releaseTitle = rName)
-setEmxRelease(convertFreezeEmx.entities, releaseNumr = rNumr, releaseTitle = rName)
-setEmxRelease(convertFreezeEmx.attributes, releaseNumr = rNumr, releaseTitle = rName)
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# OPTIONAL: NOVELOMICS RELEASES
-# since models are split across multiple files, the following steps will merge
-# the novelomics models with the main release model.
-
-# convert yaml
-# convertNovelomicsEmx = Convert(files = ['src/emx/rd3_novelomics.yaml'])
-# convertNovelomicsEmx.convert()
-# convertNovelomicsEmx.packages
-# convertNovelomicsEmx.entities
-# convertNovelomicsEmx.attributes
-
-# remove existing `labinfo` entities
-# convertFreezeEmx.entities = [
-#     d for d in convertFreezeEmx.entities if not ('labinfo' == d.get('name'))
-# ]
-
-# # remove all `labinfo` attributes
-# convertFreezeEmx.attributes = [
-#     d for d in convertFreezeEmx.attributes if not (
-#         'rd3_novelomics_labinfo' == d.get('entity')
-#     )
-# ]
-
-# # Merge EMX structures
-# convertFreezeEmx.entities = convertFreezeEmx.entities + convertNovelomicsEmx.entities
-# convertFreezeEmx.attributes = convertFreezeEmx.attributes + convertNovelomicsEmx.attributes
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# Save model
-convertFreezeEmx.write(name = rFile, format = 'xlsx', outDir = 'dist/')
-
+    emx.write(name=model['name'],format='xlsx', outDir='dist')
+    emx.write_schema(f"schemas/{model['name']}.md")

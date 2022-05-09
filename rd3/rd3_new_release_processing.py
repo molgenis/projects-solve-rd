@@ -2,7 +2,7 @@
 #' FILE: rd3_new_release_processing.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-23
-#' MODIFIED: 2022-03-08
+#' MODIFIED: 2022-05-09
 #' PURPOSE: Process new RD3 releases
 #' STATUS: working
 #' PACKAGES: datatable
@@ -10,19 +10,19 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 from rd3.api.molgenis import Molgenis
-from rd3.utils.utils import recodeValue, dtFrameToRecords, statusMsg
+from rd3.utils.utils import recodeValue, dtFrameToRecords, statusMsg, toKeyPairs
 from datatable import dt, f
 import functools
 import operator
 
 # SET RELEASE INFORMATRION
-releaseName = 'rd3_portal_release_novelwgs'   # portal table ID
+releaseName = 'rd3_portal_release_freeze3'   # portal table ID
 patchinfo = {
-    'name': 'novelwgs',                   # name of the RD3 Release
-    'id': 'novelwgs_original',            # ID labels `<name>_original`
-    'type': 'freeze',                     # 'freeze' or 'patch'
-    'date': '2022-03-08',                 # Date of release, yyyy-mm-dd
-    'description': 'Novel Omics WGS'      # a nice description
+    'name': 'freeze3',                  # name of the RD3 Release
+    'id': 'freeze3_original',           # ID labels `<name>_original`
+    'type': 'freeze',                   # 'freeze' or 'patch'
+    'date': '2022-05-09',               # Date of release, yyyy-mm-dd
+    'description': 'Data Freeze 3'      # a nice description
 }
 
 
@@ -30,83 +30,139 @@ patchinfo = {
 from dotenv import load_dotenv
 from os import environ
 load_dotenv()
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-host = environ['MOLGENIS_HOST_PROD']
-token = environ['MOLGENIS_TOKEN_PROD']
+
+# host=environ['MOLGENIS_HOST_ACC']
+# token=environ['MOLGENIS_TOKEN_ACC']
+host=environ['MOLGENIS_HOST_PROD']
+token=environ['MOLGENIS_TOKEN_PROD']
 
 # use if running in Molgenis
-# host = 'http://localhost/api/'
-# token = '${molgenisToken}'
+# host='http://localhost/api/'
+# token='${molgenisToken}'
 
 # connect to db
-rd3 = Molgenis(url=host, token=token)
+rd3=Molgenis(url=host, token=token)
 
 # migrate data from one server to the other:
 # pull data then switch tokens and restart connection
 # portalData = rd3.get(releaseName,batch_size=10000)
-# rd3.importData(releaseName,portalData)
+# rd3.importData(entity='rd3_portal_release_freeze3', data=portalData)
 
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~
-# Pull Data
-
-# pull data from portal
-release = dt.Frame(rd3.get(releaseName, batch_size = 10000))
-del release['_href']
+# Create Reference Datasets
+# Pull reference tables to create mapping tables for recoding raw values into
+# RD3 terminology. Add additional mappings as needed.
 
 
-# pull reference entities
-organisations = dt.Frame(rd3.get('rd3_organisation'))
-erns = dt.Frame(rd3.get('rd3_ERN'))
-
-del organisations['_href']
+# ~ 0a ~
+# Create ERN Mapping
+erns=dt.Frame(rd3.get('rd3_ERN'))
 del erns['_href']
 
-# ~ 0b ~
-# Define Mappings
+# as key pair dictionary
+ernMappings= toKeyPairs(
+    data=erns[:,{'from':f.identifier, 'to': f.identifier}].to_pandas().to_dict('records'),
+    keyAttr='from',
+    valueAttr='to'
+)
 
-ernMappings = {
-    'ERN-GENTURIS': 'ERN-GENTURIS',
-    'ERN-ITHACA': 'ERN-ITHACA',
-    'ERN-NMD': 'ERN-NMD',
+# define additional ERN mappings based on past/present values the variation
+# must be mapped to an existing ERN identifier. The format you should use is:
+# `'variation' : 'RD3 ERN identifier'`
+ernMappings.update({
+    'ERN-CRANIO': 'ERNCRANIO',
+    'ERN-EURO-NMD': 'ERN-NMD',
+    'ERN-EpiCARE': 'ERNEpiCARE',
+    'ERN-EuroBloodNet': 'ERNEuroBloodNet',
+    'ERN-EYE': 'ERNEYE',
+    'ERN-GUARD-HEART': 'ERNGUARD-HEART',
+    'ERN-PaedCan': 'ERNPaedCan',
+    'ERN-ReCONNET': 'ERNReCONNET',
     'ERN-RITA': 'ERNRITA',
-    'ERN-RND': 'ERN-RND',
     'Not_Applicable': None
-}
+})
+
+# ~ 0b ~
+# Create RD3 Organisations mappings
+organisations=dt.Frame(rd3.get('rd3_organisation'))
+del organisations['_href']
+
 
 # define options here if necessary
-# organizationMappings = {
+# organizationMappings.update({
 #
-# }
+# })
 
+
+# ~ 0c ~
+# Create solved status mappings
 solvedStatusMappings = {
     'unsolved': False,
     'solved': True,
     'nA': None
 }
 
-tissueTypeMappings = {
+
+# ~ 0d ~
+# Create tissue type mappings
+tissueTypeMappings=toKeyPairs(
+    data=dt.Frame(rd3.get('rd3_tissueType'))[
+        :,{'from': f.identifier, 'to':f.identifier}
+    ].to_pandas().to_dict('records'),
+    keyAttr='from',
+    valueAttr='to'
+)
+
+tissueTypeMappings.update({
+    'Amniotic fluid': 'Amniotic Fluid', 
     'blood': 'Whole Blood',
+    'Chorion villi': 'Chorionic Villi',
+    'Peripheral blood': 'Peripheral Blood Mononuclear Cells',
     'Whole Blood': 'Whole Blood',
-}
+})
 
-libraryTypeMappings = {
+# ~ 0e ~
+# Create Library Type Mappings
+libraryTypeMappings=toKeyPairs(
+    data=dt.Frame(rd3.get('rd3_libraryType'))[
+        :, {'from': f.identifier, 'to': f.identifier}
+    ].to_pandas().to_dict('records'),
+    keyAttr='from',
+    valueAttr='to'
+)
+libraryTypeMappings.update({
     'genomics': 'Genomic'
-}
+})
 
-seqTypeMappings = {
+# ~ 0e ~
+# Create Sequencer Type Mappings
+seqTypeMappings=toKeyPairs(
+    data=dt.Frame(rd3.get('rd3_seqType'))[
+        :,{'from':f.identifier,'to':f.identifier}
+    ].to_pandas().to_dict('records'),
+    keyAttr='from',
+    valueAttr='to'
+)
+
+seqTypeMappings.update({
     'Whole Exome Sequencing': 'WXS',
     'Whole Genome Sequencing with or without PCR': 'WGS',
     'WGS': 'WGS',
-}
+})
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
+# Map Portal Data
 # Validate values for variables that are references
+
+# pull data from portal
+release = dt.Frame(rd3.get(releaseName, batch_size = 10000))
+del release['_href']
+
 
 # set primary release attributes so that it is easier to select columns later
 # on in the script
@@ -128,6 +184,21 @@ release['sampleID'] = dt.Frame([
 # section. Repeat the process until all ERN name variations have been corrected.
 # There shouldn't be any new ERNs only name variations.
 
+# Find ERNs name variations that do not exist in RD3. If the following code
+# throws any error, add the name variation to the object `ernMappings` defined
+# in step 0b. Repeat until the no more mapping errors are thrown. If everything
+# is mapped, then proceed to the next step.
+dt.Frame([
+    recodeValue(mappings=ernMappings, value=d, label="ERN")
+    for d in dt.unique(
+        dt.rbind(
+            release['samples_ERN'],
+            release['subject_ERN'],
+            force=True
+        )
+    ).to_list()[0]
+])
+
 # recode ERNs variables with known variations
 release['samples_ERN'] = dt.Frame([
     recodeValue(mappings=ernMappings, value=d,label='ERN')
@@ -140,27 +211,27 @@ release['subject_ERN'] = dt.Frame([
 ])
 
 # combine both ERNs
-rawErnData = dt.unique(
-    dt.rbind(
-        release[:, {'ERN': f.samples_ERN}],
-        release[:, {'ERN': f.subject_ERN}]
-    )
-)
+# rawErnData = dt.unique(
+#     dt.rbind(
+#         release[:, {'ERN': f.samples_ERN}],
+#         release[:, {'ERN': f.subject_ERN}]
+#     )
+# )
 
-# check values
-rawErnData['ernExists'] = dt.Frame([
-    d in erns['identifier'].to_list()[0]
-    for d in rawErnData['ERN'].to_list()[0]
-])
+# # check values
+# rawErnData['ernExists'] = dt.Frame([
+#     d in erns['identifier'].to_list()[0]
+#     for d in rawErnData['ERN'].to_list()[0]
+# ])
 
-# Flag cases
-if rawErnData[f.ernExists == False, :].nrows:
-    statusMsg(
-        'Error in ERN Validation:', 
-        rawErnData[f.ernExists == False, :].nrows,
-        'values do not exist: ',
-        ','.join(map(str, rawErnData[f.ernExists == False, ['ERN']].to_list()[0]))
-    )
+# # Flag cases: Records where value is None is not a problem
+# if rawErnData[f.ernExists == False, :].nrows:
+#     statusMsg(
+#         'Error in ERN Validation:', 
+#         rawErnData[f.ernExists == False, :].nrows,
+#         'values do not exist: ',
+#         ','.join(map(str, rawErnData[f.ernExists == False, ['ERN']].to_list()[0]))
+#     )
 
 # ~ 1b ~
 # Validate Organisations
@@ -214,6 +285,15 @@ newOrgs[['name','identifier']] = dt.Frame([
 #     for d in release['organization_name'].to_list()[0]
 # ])
 
+
+# ~ 1c ~
+# Validate Tissue Types
+
+dt.Frame([
+    recodeValue(mappings = tissueTypeMappings, value = d, label='Tissue Type')
+    for d in release['samples_tissueType'].to_list()[0]
+])
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~
@@ -260,8 +340,7 @@ subjectInfo['subjectID'] = subjectInfo['id']
 # Pull relevant columns for the samples table. This table is populated by data
 # from the portal. Not much is needed from other sources.
 samples = release[
-    :,
-    {
+    :, {
         'id': f.sampleID,
         'sampleID': None,
         'alternativeIdentifier': f.samples_alternativeIdentifier,
@@ -323,21 +402,24 @@ labinfo['seqType'] = dt.Frame([
 # subjects[:, f.subjectID].to_list()[0]
 # samples[:, f.sampleID].to_list()[0]
 # labinfo[:, f.experimentID].to_list()[0]
-portalUpdates = release[
-    functools.reduce(
-        operator.or_, (
-            f.subject_id == id for id in subjects[:, f.subjectID].to_list()[0]
-        )
-    ), {
-        'id': f.id,
-        'processed': True 
-    }
-]
+# portalUpdates = release[
+#     functools.reduce(
+#         operator.or_, (
+#             f.subject_id == id for id in subjects[:, f.subjectID].to_list()[0]
+#         )
+#     ), {
+#         'id': f.id,
+#         'processed': True 
+#     }
+# ]
 
-if portalUpdates.nrows != release.nrows:
-    raise SystemError('Error in release mapping: not all records were processed')
-else:
-    statusMsg('All records have been processed! :-)')
+# if portalUpdates.nrows != release.nrows:
+#     raise SystemError('Error in release mapping: not all records were processed')
+# else:
+#     statusMsg('All records have been processed! :-)')
+
+
+portalUpdates=release[:, {'id':f.id, 'processed': True}]
 
 #//////////////////////////////////////////////////////////////////////////////
 

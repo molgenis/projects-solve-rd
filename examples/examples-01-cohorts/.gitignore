@@ -1,0 +1,6 @@
+.Rproj.user
+.Rhistory
+!data
+
+# Make sure this is commented. This was added for the purposes of the workshop.
+!.env

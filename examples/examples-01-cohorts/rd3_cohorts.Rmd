@@ -1,0 +1,137 @@
+---
+title: "SolveRD Workshop on Creating Cohorts"
+author: 
+    - Joeri van der Velde^[University Medical Center Groningen]
+    - David Ruvolo^[University Medical Center Groningen]
+date: 19 May 2022
+---
+
+**Solve-RD Workshop**: 19 May 2022
+
+## Getting Started
+
+The purpose of this example is to demonstrate how to create cohorts using the [Discovery Nexus](https://rd.discovery-nexus.org/) platform and the [Molgenis](https://www.molgenis.org/) RD3 database in order to locate gVCF files in the sandbox environment. This file is the longer version of the file `rd3_cohorts.R` located in the `R` folder. This version contains more information about requesting access, connecting to RD3, and retrieving data via the API. The R script contains only the code that is discussed in this file.
+
+If you experience any issues during this script or you have a question, please open a new GitHub issue at [https://github.com/molgenis/molgenis-solve-rd/issues](https://github.com/molgenis/molgenis-solve-rd/issues).
+
+### Requesting Access
+
+Before you can start working with the database, you will need to request access to the RD3 database and the Sandbox. You must be a member of the DATF and/or DITF in order to access these systems. If you are, complete the following steps.
+
+1. Read the Data Sharing Policy
+2. Read and sign page 3 of the Code of Conduct
+3. Send a new account request to `molgenis-support @ umcg.nl`
+4. Send a request for a new account to the Sandbox environment to `hpc.helpdesk @ umcg.nl`. For more information, please consult the [Fender HPC cluster](https://docs.gcc.rug.nl/fender/index.html).
+
+When your request is approved, you will be sent a link to activate your OpenID account. This account gives you access to the RD3 database and the Discovery Nexus platform. (You can also activate your account using Elixir which allows you to log in via your institution.) If you would like to work with the API, you will need a separate account.
+
+You will also be notified when your Sandbox account is activated and log in instructions.
+
+### Setting up R
+
+This example uses [renv](https://github.com/rstudio/renv) for package management. On your local machine run the following command to install all of the R packages used in this example.
+
+```{r installingPackages, eval=FALSE}
+renv::restore()
+```
+
+RD3 credentials are stored in an environment file and loaded into the R session using the [dotenv](https://github.com/gaborcsardi/dotenv) package. Copy and paste your API username and password into the `.env` file.
+
+```{text settingUpEnvFile, eval=FALSE}
+MOLGENIS_USERNAME=my_rd3_api_username
+MOLGENIS_PASSWORD=my_rd3_api_password
+```
+
+## RD3 Demo: Creating a Cohort
+
+### Building a Query
+
+To start off, let's create a cohort using the Discovery Nexus platform.
+
+1. Login in to RD3 using your OpenID account
+2. Click the Discovery Nexus link at the top of the page. This will bring you to the "Query Builder" page where you can find subjects based on a number of attributes, including phenotype (HPO), disease code (ORDO), gene, and ERN affiliation.
+3. Create a cohort using as many of these options as you like. When you are satisfied with your selections, click the "Build Query" button. A summary of the results by ERN will be shown at the bottom of the page.
+4. Results are grouped by source (i.e., ERN). For each source, click the counts button to view the results in more detail. This will bring up a popup menu where you can select subjects that you would like to include in the cohort. You can select every record or just a few. When you have made your selection, click the "Get Full Data for Selected Subjects" button to view the results in RD3.
+5. When the page has loaded, copy the url and paste it into the file `data/DiscoveryNexusQueryResult.txt`.
+
+Now that we have created the cohort, we can retrieve the samples and file metadata for these subjects from R.
+
+### Connecting to RD3
+
+The R Molgenis client is available on the server at `/molgenis.R`. Read the file and login using your API account credentials.
+
+```{r connectedToRD3, eval=TRUE, message=FALSE, warning=FALSE, warn=FALSE}
+renv::activate()
+dotenv::load_dot_env()
+
+# source Molgenis client and login
+source("https://solve-rd.gcc.rug.nl/molgenis.R")
+molgenis.login(
+    username = Sys.getenv("MOLGENIS_USERNAME"),
+    password = Sys.getenv("MOLGENIS_PASSWORD")
+)
+```
+
+### Extract Subject Information from Query URL
+
+Next, read the file `data/DiscoveryNexusQueryResult.txt` and parse the subject identifiers from the URL. This will allow us to retrieve the sample- and file identifiers associated with these subjects. In this step, we will also adjust each identifier to match the internal RD3 identifier format by appending each ID with `_original`, and then formatting the IDs as a comma separated string.
+
+```{r extractingSubjectIdentifiers, eval=TRUE}
+rd_nexus_query <- readLines("data/DiscoveryNexusQueryResult.txt")
+subjects <- paste(
+    paste0(
+        stringr::str_extract_all(
+            string = rd_nexus_query,
+            pattern = "P\\d+"
+        )[[1]],
+        "_original"
+    ),
+    collapse = ","
+)
+
+print(subjects)
+```
+
+### Retrieving Samples Metadata
+
+We will use the subject identifiers to retrieve all of the samples associated with the subjects in our cohort. Sample metadata is stored in the table `rd3_freeze1_sample`. To include the subject IDs in the API request, we will define the filter using the `q` argument and format the filter using the format: `subject=in=(subjects)`.
+
+```{r fetchingSampleMetadata,eval=TRUE, warn=FALSE}
+samples <- molgenis.get(
+    entity = "rd3_freeze1_sample",
+    q = paste0("subject=in=(", subjects, ")"),
+    attributes = "id,sampleID,subject"
+)
+
+head(samples)
+```
+
+### Retrieving gVCF File Metadata
+
+Like the previous step, we will use the sample identifiers to retrieve the gVCF file metadata for the subjects in our cohort. The files are stored in the table `rd3_freeze1_file`.
+
+```{r fetchingFileMetadata,eval=TRUE, warn=FALSE}
+sample_identifiers <- paste(samples$id, collapse = ",")
+files <- molgenis.get(
+    entity = "rd3_freeze1_file",
+    q = paste0(
+        "samples=in=(", sample_identifiers, ")",
+        ";typeFile==vcf"
+    ),
+    attributes = "name,typeFile,samples,experimentID"
+)
+
+head(files)
+```
+
+Finally, save the file name and sample identifiers for use in the Sandbox.
+
+```{r savingData, eval=TRUE, warning=FALSE}
+write.table(
+    files[, c("name", "samples")],
+    file = "cohort_file_metadata.tsv",
+    sep = "\t",
+    row.names = FALSE,
+    quote = FALSE
+)
+```

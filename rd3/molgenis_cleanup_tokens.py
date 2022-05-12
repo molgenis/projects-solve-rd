@@ -35,7 +35,6 @@ db.login(
 # token='${molgenisToken}'
 # db = molgenis.Session(url=host, token=token)
 
-
 def molgenisApiTimestamp(tz='Europe/Amsterdam'):
     """Molgenis API Timestamp
     Create ISO 8601 timestamp minus UTC offset for use in API requests
@@ -47,13 +46,15 @@ def molgenisApiTimestamp(tz='Europe/Amsterdam'):
     return datetime.now(tz=pytz.timezone(tz)).isoformat().split('+')[0]
     
     
-def setApiTimeFilter(columnName, endingOn,startingOn=None) -> str:
+def setApiTimeFilter(columnName, endingOn,startingOn=None):
     """Set API Time Filter
     Format datetime range as a string
     
     @param columnName name of the column in the database that is a date
     @param endingOn ISO-8601 datetime string indicating the most recent datetime
     @param startingOn ISO 8601 datetime string indicating the earliest datetime
+    
+    @return string containg a date range filter for use in API requests
     """
     timeFilter=f'{columnName}=le={endingOn}'
     if startingOn:

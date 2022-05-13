@@ -2,7 +2,7 @@
 #' FILE: molgenis_app_set_menu.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-01-18
-#' MODIFIED: 2022-04-25
+#' MODIFIED: 2022-05-13
 #' PURPOSE: Update the Menu setting in Application Settings
 #' STATUS: stable
 #' PACKAGES: rd3tools, dotenv, os, json
@@ -16,13 +16,17 @@ import json
 
 # set vars and init sessions for both Molgenis instances
 load_dotenv()
-rd3_acc = Molgenis(
-    url=environ['MOLGENIS_HOST_ACC'],
-    token=environ['MOLGENIS_TOKEN_ACC']
+rd3_acc = Molgenis(url=environ['MOLGENIS_ACC_HOST'])
+rd3_prod = Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+
+rd3_prod.login(
+    username=environ['MOLGENIS_PROD_USR'],
+    password=environ['MOLGENIS_PROD_PWD']
 )
-rd3_prod = Molgenis(
-    url=environ['MOLGENIS_HOST_PROD'], 
-    token=environ['MOLGENIS_TOKEN_PROD']
+
+rd3_acc.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
 )
 
 #//////////////////////////////////////////////////////////////////////////////

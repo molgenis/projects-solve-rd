@@ -2,7 +2,7 @@
 #' FILE: cluster_patch1_fix.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-10-12
-#' MODIFIED: 2022-04-25
+#' MODIFIED: 2022-05-13
 #' PURPOSE: pull data from the cluster filemetadata table in RD3
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -19,14 +19,13 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-host=environ['MOLGENIS_HOST_PROD']
-token=environ['MOLGENIS_TOKEN_PROD']
-# host=environ['MOLGENIS_HOST_ACC']
-# token=environ['MOLGENIS_TOKEN_ACC']
-# host="http://localhost/api" 
-# token="${molgenisToken}" 
-
-rd3=Molgenis(url=host, token=token)
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
 
 # pull RD3 data
 files=rd3.get(

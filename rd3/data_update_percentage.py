@@ -2,7 +2,7 @@
 # FILE: data_update_percentage.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-02-23
-# MODIFIED: 2022-04-25
+# MODIFIED: 2022-05-13
 # PURPOSE: Update tumor percentages for novel omics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -12,18 +12,20 @@
 from rd3.api.molgenis import Molgenis
 from rd3.utils.utils import dtFrameToRecords
 from datatable import dt, f, fread, as_type
+
+
+# for local dev
 from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-# host=environ['MOLGENIS_HOST_ACC']
-# token=environ['MOLGENIS_TOKEN_ACC']
-host=environ['MOLGENIS_HOST_PROD']
-token=environ['MOLGENIS_TOKEN_PROD']
-# host="http://localhost/api"
-# token="${molgenisToken}"
-
-rd3=Molgenis(url=host, token=token)
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
 
 #///////////////////////////////////////
 

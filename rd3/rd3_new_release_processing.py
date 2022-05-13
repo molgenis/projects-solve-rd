@@ -2,7 +2,7 @@
 #' FILE: rd3_new_release_processing.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-23
-#' MODIFIED: 2022-05-09
+#' MODIFIED: 2022-05-13
 #' PURPOSE: Process new RD3 releases
 #' STATUS: working
 #' PACKAGES: datatable
@@ -25,29 +25,23 @@ patchinfo = {
     'description': 'Data Freeze 3'      # a nice description
 }
 
-
 # for local dev use only
 from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-# host=environ['MOLGENIS_HOST_ACC']
-# token=environ['MOLGENIS_TOKEN_ACC']
-host=environ['MOLGENIS_HOST_PROD']
-token=environ['MOLGENIS_TOKEN_PROD']
-
-# use if running in Molgenis
-# host='http://localhost/api/'
-# token='${molgenisToken}'
-
-# connect to db
-rd3=Molgenis(url=host, token=token)
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
 
 # migrate data from one server to the other:
 # pull data then switch tokens and restart connection
 # portalData = rd3.get(releaseName,batch_size=10000)
 # rd3.importData(entity='rd3_portal_release_freeze3', data=portalData)
-
 
 #//////////////////////////////////////////////////////////////////////////////
 

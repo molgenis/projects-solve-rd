@@ -2,7 +2,7 @@
 #' FILE: freeze_phenopackets_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2022-01-12
+#' MODIFIED: 2022-05-13
 #' PURPOSE: push phenopackets metadata into RD3
 #' STATUS: stable
 #' PACKAGES: os, json, requests, urlib.parse, molgenis.client, dotenv
@@ -29,10 +29,15 @@ load_dotenv()
 currentReleaseType='patch' # or 'release'
 currentFreeze = 'freeze1' # 'freeze2'
 currentPatch = 'patch3' # 'patch1'
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-# host = environ['MOLGENIS_HOST_PROD']
-# token = environ['MOLGENIS_TOKEN_PROD']
+
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
+
 
 # build entity IDs and paths based on current freeze and patch
 paths = buildRd3Paths(
@@ -150,8 +155,7 @@ diseaseCodeMappings = {
 # processed and evaluated, we can import them into RD3. These values will be
 # imported into the `subject` and `subjectinfo` tables. The attributes that
 # are managed by this script are listed in the GET requests below.
-#
-rd3 = Molgenis(url = host, token=token)
+
 
 # pull subject metadata for the current freeze
 freeze=rd3.get(

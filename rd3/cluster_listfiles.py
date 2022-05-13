@@ -2,7 +2,7 @@
 #' FILE: cluster_listfiles.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-10-11
-#' MODIFIED: 2022-04-25
+#' MODIFIED: 2022-05-13
 #' PURPOSE: list and push phenopacket/ped files to RD3
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -20,14 +20,15 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-host=os.environ['MOLGENIS_HOST_PROD']
-token=os.environ['MOLGENIS_TOKEN_PROD']
-# host=os.environ['MOLGENIS_HOST_ACC']
-# token=os.environ['MOLGENIS_TOKEN_ACC']
-# host="http://localhost/api" 
-# token="${molgenisToken}" 
+# host=os.environ['MOLGENIS_PROD_HOST']
+host=os.environ['MOLGENIS_ACC_HOST']
+rd3 = Molgenis(url=host)
+rd3.login(
+    username=os.environ['MOLGENIS_ACC_USR'],
+    password=os.environ['MOLGENIS_ACC_PWD']
+)
 
-rd3 = Molgenis(url=host,token=token)
+
 
 # list available directories 
 directories=[

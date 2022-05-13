@@ -2,7 +2,7 @@
 # FILE: rd3_new_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-03-08
-# MODIFIED: 2022-04-26
+# MODIFIED: 2022-05-13
 # PURPOSE: process new novelomics data in the portal
 # STATUS: stable
 # PACKAGES: datatable, datetime, pytz, functools, operations, rd3tools
@@ -30,15 +30,14 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-# host = environ['MOLGENIS_HOST_ACC']
-# token = environ['MOLGENIS_TOKEN_ACC']
-# env = 'acc'
-
-host = environ['MOLGENIS_HOST_PROD']
-token = environ['MOLGENIS_TOKEN_PROD']
 env = 'prod'
-
-rd3 = Molgenis(url=host, token=token)
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
 
 # SET EXISTING NOVELOMICS RELEASES
 # Since there are many substudies in the Novel Omics space, these releases are

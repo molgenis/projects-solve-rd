@@ -2,7 +2,7 @@
 #' FILE: freeze_ped_import.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-06-02
-#' MODIFIED: 2022-04-28
+#' MODIFIED: 2022-05-13
 #' PURPOSE: extract metadata from PED files and import into Molgenis
 #' STATUS: stable
 #' PACKAGES: *see imports below*
@@ -24,14 +24,18 @@ import pandas as pd
 import re
 
 # set vars
-load_dotenv()
 currentReleaseType='patch' # or 'release'
 currentFreeze = 'freeze1'
 currentPatch = 'patch3'
-host = environ['MOLGENIS_HOST_ACC']
-token = environ['MOLGENIS_TOKEN_ACC']
-# host = environ['MOLGENIS_HOST_PROD']
-# token = environ['MOLGENIS_TOKEN_PROD']
+
+# host=environ['MOLGENIS_PROD_HOST']
+host=environ['MOLGENIS_ACC_HOST']
+rd3=Molgenis(url=host)
+rd3.login(
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
+)
+
 
 # build entity IDs and paths based on current freeze and patch
 paths = buildRd3Paths(
@@ -58,8 +62,6 @@ paths = buildRd3Paths(
 # the values that are in RD3 as PED files should be considered the most
 # up to date.
 
-# init session
-rd3 = Molgenis(url = host, token = token)
 
 # pull subject metadata for the current freeze
 freeze_subject_metadata = rd3.get(

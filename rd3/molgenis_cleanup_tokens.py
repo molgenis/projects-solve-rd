@@ -2,7 +2,7 @@
 # FILE: molgenis_cleanup_tokens.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-12
-# MODIFIED: 2022-05-12
+# MODIFIED: 2022-05-13
 # PURPOSE: clean up expired tokens in molgenis
 # STATUS: stable
 # PACKAGES: molgenis, datetime, pytz
@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-host=environ['MOLGENIS_HOST_ACC']
+host=environ['MOLGENIS_HOST_PROD']
 db=molgenis.Session(url=host)
 db.login(
     username=environ['MOLGENIS_USERNAME'],
@@ -70,4 +70,9 @@ expiredTokens=db.get(entity='sys_sec_Token', q=timeFilter, batch_size=10000)
 
 tokensToRemove=[row['id'] for row in expiredTokens]
 
-db.delete_list(entity='sys_sec_Token', entities=tokensToRemove)
+# delete in batches
+for d in range(0, len(tokensToRemove), 1000):
+    db.delete_list(
+        entity='sys_sec_Token',
+        entities=tokensToRemove[d:d+1000]
+    )

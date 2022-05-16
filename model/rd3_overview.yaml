@@ -1,0 +1,25 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3_overview.yaml
+# AUTHOR: David Ruvolo
+# DATE CREATED: 2022-05-16
+# DATE MODIFIED: 2022-05-16
+# PURPOSE: EMX for custom RD3 view
+# COMMENTS: NA
+#//////////////////////////////////////////////////////////////////////////////
+
+include: model/base_rd3_portal.yaml
+
+
+defaults:
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  readOnly: false
+  
+  
+entities:
+
+  - name: overview
+    label: Data Overview
+    description: RD3 Overview
+    tags: http://purl.obolibrary.org/obo/NCIT_C80271,

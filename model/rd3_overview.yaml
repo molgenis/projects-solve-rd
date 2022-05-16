@@ -36,11 +36,6 @@ entities:
         tags: http://purl.obolibrary.org/obo/GSSO_009418
         dataType: xref
         refEntity: rd3_sex
-        
-      - name: yearOfBirth
-        description: The year in which this person was born.
-        tags: http://purl.obolibrary.org/obo/NCIT_C83164
-        dataType: int
       
       - name: belongsToFamily
         description: A domestic group, or a number of domestic groups linked through descent (demonstrated or stipulated) from a common ancestor, marriage, or adoption.
@@ -111,34 +106,42 @@ entities:
 
       - name: numberOfSamples
         dataType: int
+        partOfAttribute: samples
         
       - name: df1Samples
         dataType: mref
         refEntity: rd3_freeze1_sample
+        partOfAttribute: samples
         
       - name: df2Samples
         dataType: mref
         refEntity: rd3_freeze2_sample
+        partOfAttribute: samples
       
       - name: df3Samples
         dataType: mref
         refEntity: rd3_freeze3_sample
+        partOfAttribute: samples
       
       - name: noveldeepwesSamples
         dataType: mref
         refEntity: rd3_noveldeepwes_sample
+        partOfAttribute: samples
       
       - name: novelrnaseqSamples
         dataType: mref
         refEntity: rd3_novelrnaseq_sample
+        partOfAttribute: samples
         
       - name: novelsrwgsSamples
         dataType: mref
         refEntity: rd3_novelsrwgs_sample
+        partOfAttribute: samples
       
       - name: novelwgsSamples
         dataType: mref
         refEntity: rd3_novelwgs_sample
+        partOfAttribute: samples
         
       #////////////////////////////////////////
       # compound for experiments
@@ -148,34 +151,42 @@ entities:
         
       - name: numberOfExperiments
         dataType: int
+        partOfAttribute: experiments
         
       - name: df1Experiments
         dataType: mref
         refEntity: rd3_freeze1_labinfo
+        partOfAttribute: experiments
       
       - name: df2Experiments
         dataType: mref
         refEntity: rd3_freeze2_labinfo
+        partOfAttribute: experiments
       
       - name: df3Experiments
         dataType: mref
         refEntity: rd3_freeze3_labinfo
+        partOfAttribute: experiments
       
       - name: noveldeepweesExperiments
         dataType: mref
         refEntity: rd3_noveldeepwes_labinfo
+        partOfAttribute: experiments
       
       - name: novelrnaseqExperiments
         dataType: mref
         refEntity: rd3_novelrnaseq_labinfo
+        partOfAttribute: experiments
       
       - name: novelsrwgsExperiments
         dataType: mref
         refEntity: rd3_novelsrwgs_labinfo
+        partOfAttribute: experiments
       
       - name: novelwgsExperiments
         dataType: mref
         refEntity: rd3_novelwgs_labinfo
+        partOfAttribute: experiments
         
       #////////////////////////////////////////
       # compound for files
@@ -185,31 +196,39 @@ entities:
         
       - name: numberOfFiles
         dataType: int
+        partOfAttribute: files
         
       - name: df1Files
         dataType: mref
         refEntity: rd3_freeze1_file
+        partOfAttribute: files
       
       - name: df2Files
         dataType: mref
         refEntity: rd3_freeze2_file
+        partOfAttribute: files
       
       - name: df3Files
         dataType: mref
         refEntity: rd3_freeze3_file
+        partOfAttribute: files
       
       - name: noveldeepwesFiles
         dataType: mref
         refEntity: rd3_noveldeepwes_file
+        partOfAttribute: files
       
       - name: novelrnaseqFiles
         dataType: mref
         refEntity: rd3_novelrnaseq_file
+        partOfAttribute: files
       
       - name: novelsrwgsFile
         dataType: mref
         refEntity: rd3_novelsrwgs_file
+        partOfAttribute: files
       
       - name: novelwgsFile
         dataType: mref
         refEntity: rd3_novelwgs_file
+        partOfAttribute: files

@@ -22,7 +22,6 @@ Overview on RD3 Subjects, samples, and experiments
 |:---- |:-----|:-----------|:---------|
 | subjectID&#8251; | - | A unique proper name or character sequence that identifies this particular individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored. | string |
 | genderAtBirth | - | Assigned gender is one's gender which was assigned at birth, typically by a medical and/or legal organization, and then later registered with other organizations. Such a designation is typically based off of the superficial appearance of external genitalia present at birth. | xref |
-| yearOfBirth | - | The year in which this person was born. | int |
 | belongsToFamily | - | A domestic group, or a number of domestic groups linked through descent (demonstrated or stipulated) from a common ancestor, marriage, or adoption. | string |
 | belongsToMother | - | A designation that has some relationship to motherhood. | xref |
 | belongsToFather | - | Having to do with the father, coming from the father, or related through the father. | xref |

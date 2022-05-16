@@ -1,0 +1,40 @@
+
+includes: model/base_rd3.yaml
+
+defaults:
+  dataType: string
+
+# define entities:
+entities:
+
+  # @name pathologicalstate
+  - name: pathologicalstate
+    label: Pathological State
+    description: Pathological State as defined by FAIR Genomes (v1.1)
+    attributes:
+    
+      - name: value
+        idAttribute: true
+        nillable: false
+        lookupAttribute: true
+        labelAttribute: true
+        tags: http://purl.obolibrary.org/obo/NCIT_C49100
+        description: The information contained in a data field. It may represent a numeric quantity, a textual characterization, a date or time measurement, or some other state, depending on the nature of the attribute.
+        
+      - name: description
+        dataType: text
+        tags: http://purl.obolibrary.org/obo/NCIT_C25365
+        description: A written or verbal account, representation, statement, or explanation of something
+      
+      - name: codesystem
+        tags: http://purl.obolibrary.org/obo/NCIT_C70895
+        description: A systematized collection of concepts that define corresponding codes.
+      
+      - name: code
+        tags: http://purl.obolibrary.org/obo/NCIT_C25162
+        description: A symbol or combination of symbols which is assigned to the members of a collection.
+      
+      - name: iri
+        dataType: hyperlink
+        tags: http://purl.obolibrary.org/obo/NCIT_C165071
+        description: A unique symbol that establishes identity of the resource.

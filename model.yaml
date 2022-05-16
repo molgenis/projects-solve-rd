@@ -2,7 +2,7 @@
 # FILE: model.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-09
-# UPDATED: 2022-05-09
+# UPDATED: 2022-05-16
 # PURPOSE: RD3 model build instructions
 # DEPENDENCES: **see index.py**
 # COMMENTS: The purpose of this script is to define how the RD3 model and
@@ -26,7 +26,7 @@ outputPaths:
 #
 models:
   - name: rd3_portal
-    active: true
+    active: false
     files: [
       'model/base_rd3_portal.yaml',
       'model/base_rd3_portal_release.yaml',
@@ -37,7 +37,7 @@ models:
     ]
     
   - name: rd3
-    active: true
+    active: false
     files: ["model/base_rd3.yaml"]
     # releaseID: release label
     releases: {
@@ -51,4 +51,11 @@ models:
     }
     releaseTemplate: [
       'model/base_rd3_freeze.yaml'
+    ]
+
+  - name: rd3_overview
+    active: true
+    files: [
+      'model/base_rd3.yaml',
+      'model/rd3_overview.yaml'
     ]

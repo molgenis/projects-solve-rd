@@ -2,7 +2,7 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2022-05-09
+#' MODIFIED: 2022-05-16
 #' PURPOSE: incorporate YAML to EMX generator
 #' STATUS: stable
 #' PACKAGES: yamlemxconvert
@@ -11,6 +11,7 @@
 
 from yamlemxconvert.convert import Convert
 from yaml import safe_load
+from rd3.utils.emxtools import buildEmxTags
 import re
 
 def updateReleaseInfo(data, releaseId, releaseLabel):
@@ -40,36 +41,45 @@ with open('model.yaml', 'r') as file:
 
 # build ENX models
 for model in config['models']:
-    print('Building EMX for',model['name'])
-    emx = Convert(files=model['files'])
-    emx.convert()
-    
-    # if releases are defined, render EMX files accordingly
-    if model.get('releases') and model.get('releaseTemplate'):
-        for release in model['releases']:
-            print('Building model for release',release)
-            releaseEmx=Convert(files=model['releaseTemplate'])
-            releaseEmx.convert()
+    if model['active']:
+        print('Building EMX for',model['name'])
+        emx = Convert(files=model['files'])
+        emx.convert()
+        
+        # build tags (if available)
+        tags = emx.tags
+        tags.extend(buildEmxTags(emx.packages))
+        tags.extend(buildEmxTags(emx.entities))
+        tags.extend(buildEmxTags(emx.attributes))
+        tags = list({d['identifier']: d for d in tags}.values())
+        emx.tags = sorted(tags, key = lambda d: d['identifier'])
+        
+        # if releases are defined, render EMX files accordingly
+        if model.get('releases') and model.get('releaseTemplate'):
+            for release in model['releases']:
+                print('Building model for release',release)
+                releaseEmx=Convert(files=model['releaseTemplate'])
+                releaseEmx.convert()
 
-            # fix emx components with current release identifier and label
-            updateReleaseInfo(
-                data=releaseEmx.packages,
-                releaseId=release,
-                releaseLabel=model['releases'][release]
-            )
-            updateReleaseInfo(
-                data=releaseEmx.entities,
-                releaseId=release,
-                releaseLabel=model['releases'][release]
-            )
-            updateReleaseInfo(
-                data=releaseEmx.attributes,
-                releaseId=release,
-                releaseLabel=model['releases'][release]
-            )
-                
-            emx.entities.extend(releaseEmx.entities)
-            emx.attributes.extend(releaseEmx.attributes)
+                # fix emx components with current release identifier and label
+                updateReleaseInfo(
+                    data=releaseEmx.packages,
+                    releaseId=release,
+                    releaseLabel=model['releases'][release]
+                )
+                updateReleaseInfo(
+                    data=releaseEmx.entities,
+                    releaseId=release,
+                    releaseLabel=model['releases'][release]
+                )
+                updateReleaseInfo(
+                    data=releaseEmx.attributes,
+                    releaseId=release,
+                    releaseLabel=model['releases'][release]
+                )
+                    
+                emx.entities.extend(releaseEmx.entities)
+                emx.attributes.extend(releaseEmx.attributes)
 
-    emx.write(name=model['name'],format='xlsx', outDir='dist')
-    emx.write_schema(f"schemas/{model['name']}.md")
+        emx.write(name=model['name'],format='xlsx', outDir='dist')
+        emx.write_schema(f"schemas/{model['name']}.md")

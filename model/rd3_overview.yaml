@@ -34,7 +34,7 @@ entities:
       - name: genderAtBirth
         description: Assigned gender is one's gender which was assigned at birth, typically by a medical and/or legal organization, and then later registered with other organizations. Such a designation is typically based off of the superficial appearance of external genitalia present at birth.
         tags: http://purl.obolibrary.org/obo/GSSO_009418
-        dataType: xref
+        dataType: mref
         refEntity: rd3_sex
       
       - name: belongsToFamily
@@ -62,7 +62,7 @@ entities:
         
       - name: primaryAffiliatedInstitute
         description: The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person.
-        dataType: xref
+        dataType: mref
         refEntity: rd3_organisation
         
       - name: participatesInStudy
@@ -97,6 +97,10 @@ entities:
         refEntity: rd3_disease
         description: A diagnosis made from a study of the signs and symptoms of a disease.
         tags: http://purl.obolibrary.org/obo/NCIT_C15607
+        
+      - name: emxRelease
+        dataType: string
+        description: identifier for nested EMX package
         
       #////////////////////////////////////////
       # compound for samples
@@ -190,6 +194,7 @@ entities:
         
       #////////////////////////////////////////
       # compound for files
+      # put hyperlinks to the tables
 
       - name: files
         dataType: compound
@@ -204,31 +209,25 @@ entities:
         partOfAttribute: files
       
       - name: df2Files
-        dataType: mref
-        refEntity: rd3_freeze2_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: df3Files
-        dataType: mref
-        refEntity: rd3_freeze3_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: noveldeepwesFiles
-        dataType: mref
-        refEntity: rd3_noveldeepwes_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: novelrnaseqFiles
-        dataType: mref
-        refEntity: rd3_novelrnaseq_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: novelsrwgsFile
-        dataType: mref
-        refEntity: rd3_novelsrwgs_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: novelwgsFile
-        dataType: mref
-        refEntity: rd3_novelwgs_file
+        dataType: hyperlink
         partOfAttribute: files

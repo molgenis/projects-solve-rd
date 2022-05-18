@@ -2,41 +2,48 @@
 #' FILE: rd3_data_overview_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-05-17
+#' MODIFIED: 2022-05-18
 #' PURPOSE: generate dataset for rd3_overview
-#' STATUS: in.progress
+#' STATUS: stable
 #' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
+
 from rd3.api.molgenis import Molgenis
 from rd3.utils.utils import statusMsg
+
 from datatable import dt, f, first
 from os import environ
 from dotenv import load_dotenv
 import numpy as np
+import urllib
 
-def flattenBoolArray(array):
+def flattenBoolArray(array, keepTrueValues=True):
     """Flatten Bool Array
     Collapse a list of boolean values. Remove null values before using this
     function.
     
     @param array list containing bool values
+    @param keepTrueValues if True, if the value 'True' exists in the array,
+        then True is returned.
     @examples
-    ```
-    data=[True,True,True]
-    flattenBoolArray(data)
+    ```py
+    flattenBoolArray([True,True,True, None])
+    
     #> True
     ```
     
     @return bool
     """
-    values = list(set(array))
+    values=list(set(filter(lambda d: d is not None, array)))
     if len(values) >= 2:
-        print('Multiple values detected. Joining as string....')
-        return ','.join(values)
+        if keepTrueValues:
+            return True in values
+        else:
+            return ','.join(map(str, values))
     elif len(values) == 1:
-        return values[0]
+        return values[0]        
     else:
         return None
         
@@ -49,7 +56,9 @@ def flattenStringArray(array):
     @examples
     ````
     array=['a,b,c', 'x,y,z', 'l,m,n,o,p']
+    
     flattenStringArray(array)
+    
     #> 'a,b,c,l,m,n,o,p,x,y,z'
     ```
     
@@ -71,6 +80,27 @@ def flattenValueArray(array):
     ```
     """
     return ','.join(sorted(set(array)))
+    
+def createUrlFilter(columnName,array):
+    """Create Url Filter
+    Collapse an array of values into a molgenis friendly data explorer filter.
+    It is recommended to pass unique values. Make sure the returned value is
+    quoted. (urllib.parse.quote)
+    
+    @param columnName name of column used to limit the results
+    @param array list of values
+    
+    @examples
+    ```
+    createUrlFilter('gender', ['Female', 'Male'])
+    
+    #> 'gender=q=Female,gender=q=Male'
+    ```
+    
+    @return string
+    """
+    return ','.join([f"{columnName}=q={d}" for d in list(set(array))])
+
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -188,8 +218,10 @@ for release in availableReleases:
     statusMsg('Fetching file metadata for',release)
     data=rd3.get(
         entity=f"rd3_{release}_file",
-        batch_size=10000,
-        attributes=','.join(['EGA', 'experimentID'])
+        batch_size=1000,
+        attributes=','.join(['EGA','experimentID','typeFile']),
+        # remove PEDs and json for now
+        q="typeFile=in=(bai,bam,bed,cram,fastq,vcf)"
     )
     
     for row in data:
@@ -197,6 +229,10 @@ for release in availableReleases:
         #     row['samples']=row.get('samples')[0].get('id')
         # else:
         #     row['samples']=None
+        if row.get('typeFile'):
+            row['typeFile']=row.get('typeFile',{}).get('identifier')
+        else:
+            row['typeFile']=None
         # if row.get('patch'):
         #     if isinstance(row['patch'], dict):
         #         row['patch']=row.get('patch',{}).get('id')
@@ -232,8 +268,7 @@ del files['_href']
 # record.
 #
 # subjects[
-#     f.subjectID==subjects[
-#          :, dt.count(), dt.by(f.subjectID)][
+#     f.subjectID==subjects[:, dt.count(), dt.by(f.subjectID)][
 #          f.count>=5, :
 #     ].to_list()[0][:1][0],
 #     :
@@ -248,8 +283,6 @@ subjects['genderAtBirth'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['sex1']
-
 
 # collapse family identifier >> belongsToFamily
 statusMsg('Collapsing family identifiers....')
@@ -260,9 +293,6 @@ subjects['belongsToFamily'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['fid']
-
-
 # collapse maternal identifier >> belongsToMother
 statusMsg('Collapsing maternal identifiers....')
 subjects['belongsToMother'] = dt.Frame([
@@ -271,8 +301,6 @@ subjects['belongsToMother'] = dt.Frame([
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
-
-del subjects['mid']
 
 subjects['belongsToMother'] = dt.Frame([
     d.split('_original')[0]
@@ -289,8 +317,6 @@ subjects['belongsToFather'] = dt.Frame([
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
-
-del subjects['pid']
 
 subjects['belongsToFather'] = dt.Frame([
     d.split('_original')[0]
@@ -310,8 +336,6 @@ subjects['affectedStatus'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['clinical_status']
-
 
 # collapse disease >> clinicalDiagnosis
 statusMsg('Collapsing diagnoses....')
@@ -323,8 +347,6 @@ subjects['clinicalDiagnosis'] = dt.Frame([
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
-
-del subjects['disease']
 
 
 # collapse phenotype >> observedPhenotype
@@ -338,8 +360,6 @@ subjects['observedPhenotype'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['phenotype']
-
 
 # collapse hasNotPhenotype >> unobservedPhenotype
 statusMsg('Collapsing unobserved phenotypes....')
@@ -351,8 +371,6 @@ subjects['unobservedPhenotype'] = dt.Frame([
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
-
-del subjects['hasNotPhenotype']
 
 
 # collapse organisation >> primaryAffiliatedInstitute
@@ -366,34 +384,25 @@ subjects['primaryAffiliatedInstitute'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['organisation']
-
 
 # collapse ERN >> participatesInStudy
 statusMsg('Collapsing ERNs....')
 subjects['participatesInStudy'] = dt.Frame([
     flattenValueArray(
-        array=subjects[f.subjectID==d, f.ERN][f.ERN!=None,:].to_list()[0]
+        array=subjects[f.subjectID==d, f.ERN].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0][:1]
 ])
-
-del subjects['ERN']
 
 
 # collapse solved >> solvedStatus
 statusMsg('Collapsing solved status....')
 subjects['solvedStatus'] = dt.Frame([
     flattenBoolArray(
-        array=subjects[f.subjectID==d, f.solved][
-            f.solved != None, :
-        ].to_list()[0]
+        array=subjects[f.subjectID==d, f.solved].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
-
-del subjects['solved']
-
 
 # collapse patch >> partofDataRelease
 statusMsg('Collapsing patch information....')
@@ -406,12 +415,10 @@ subjects['partOfDataRelease'] = dt.Frame([
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-del subjects['patch']
-
 
 # collapse release
 statusMsg('Collapsing emx-release....')
-subjects['release'] = dt.Frame([
+subjects['emxRelease'] = dt.Frame([
     flattenValueArray(
         array=subjects[f.subjectID==d, f.release][
             f.release != None, :
@@ -426,6 +433,19 @@ subjects['release'] = dt.Frame([
 statusMsg('Complete! Selecting distinct records only....')
 
 del subjects['id']
+del subjects['sex1']
+del subjects['fid']
+del subjects['mid']
+del subjects['pid']
+del subjects['clinical_status']
+del subjects['disease']
+del subjects['phenotype']
+del subjects['hasNotPhenotype']
+del subjects['organisation']
+del subjects['ERN']
+del subjects['solved']
+del subjects['patch']
+
 subjects = subjects[:, first(f[:]), dt.by(f.subjectID)]
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -477,19 +497,16 @@ subjects=subjects[:, :, dt.join(samplesSummarized)]
 
 statusMsg('Summarizing experiment metadata....')
 
+
 # join patient identifiers with experiment identifiers via sample identifiers
 statusMsg('Joining sample and experiment identifiers....')
+experiments.names={'sample':'sampleID'}
 experiments['subjectID'] = dt.Frame([
     flattenValueArray(
-        array=samples[f.id==d, 'subjectID'].to_list()[0]
+        array=samples[f.id==d, 'subjectID'][f.subjectID!=None,:].to_list()[0]
     )
     for d in experiments['sampleID'].to_list()[0]
 ])
-
-# samplePatientIdentifiers.key='sampleID'
-# experiments.names={'sample': 'sampleID'}
-# experiments.key='sampleID'
-# experiments=experiments[:, :, dt.join(samplePatientIdentifiers)]
 
 # spread experiments by release and subject
 statusMsg('Spreading experiments by release and subject....')
@@ -498,8 +515,10 @@ experimentSummarized = dt.Frame([
         'subjectID': d[2].split('_')[0],
         'numberOfExperiments': experiments[f.subjectID == d[2], 'id'].nrows,
         d[1]: flattenValueArray(
-            array=samples[
+            array=experiments[
                 (f.subjectID==d[2]) & (f.release==d[1]), 'id' 
+            ][
+                f.id != None, :
             ].to_list()[0]
         )
     }
@@ -508,7 +527,9 @@ experimentSummarized = dt.Frame([
 ])[:, first(f[:]), dt.by(f.subjectID)]
 
 
-# rename columns
+# rename columns - run with all key pairs uncommented. It is possible that
+# new data has become availble since the prior run. Comment items if a KeyError
+# is thrown
 experimentSummarized.names = {
     'freeze1': 'df1Experiments',
     'freeze2': 'df2Experiments',
@@ -522,22 +543,32 @@ experimentSummarized.names = {
 experimentSummarized.key='subjectID'
 subjects=subjects[:, :, dt.join(experimentSummarized)]
 
-
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 4 ~
 # RESHAPE FILES
+statusMsg('Summarizing file metadata....')
 
-# make sure all experiment identifiers are formatted properly
+# Computing Subject identifier
+# Joining the data doesn't really work as there needs to be a unique identifier
+# in the files table that is linked to an experiment, sample, or subject. This
+# process largely depends on the availability of any identifier that can help
+# us link files with another record.
+#
+# since this table does not reference the experiment table directly, all
+# identifiers need to be formatted correctly. If the release is associated with
+# one of the main data freezes, than the identifier should be given the suffix
+# '_original'. This was formatted differently for other releases.
 files['experimentID2']=dt.Frame([
-    f"{d}_original"
-    if not '_original' in d
-    else d
-    for d in files[:, 'experimentID'].to_list()[0]
+    f'{d[0]}_original'
+    if d[1] in ['freeze1','freeze2','freeze3']
+    else d[0]
+    for d in files[:, (f.experimentID, f.release)].to_tuples()
 ])
 
-# bring over subjectID - join doesn't work as experimentID isn't unique in the
-# files table
+
+# for rows that do not already have a subject ID, find it in the experiment data
+statusMsg('Finding subjectIDs in experiments....')
 files['subjectID'] = dt.Frame([
     flattenValueArray(
         array=experiments[f.id==d, 'subjectID'].to_list()[0]
@@ -545,28 +576,46 @@ files['subjectID'] = dt.Frame([
     for d in files['experimentID2'].to_list()[0]
 ])
 
-# create hyperlinks
-files['url'] = dt.Frame([
-    f"?entity=rd3_{d[0]}_file&hideselect=true&filter=experimentID=={d[1]}"
-    for d in files[:, (f.release, f.experimentID)].to_tuples()
-])
+# check coverage (this should be zero)
+files.nrows - files[f.subjectID!=None,:].nrows
 
 
-# spread links to file and experiments
-
-fileSummarized = dt.Frame([
-    {
-        'subjectID': d[0].split('_')[0],
-        d[1] : flattenValueArray(
-            array=files[(f.subjectID==d[0]) & (f.release==d[1]), 'url'].to_list()[0]
-        )
-    }
-    for d in files[:, (f.subjectID,f.release,f.url)].to_tuples()
-])[f.subjectID!="", :][
-    :, first(f[:]), dt.by(f.subjectID)
+# Summarize data
+# The fastest way to summarize the data is to create row counts by subjectID,
+# release, and experimentID.
+statusMsg('Summarizing data by subject, release, and experiments....')
+filesCountsGrouped=files[(f.subjectID!=''), :][
+    :, dt.count(), dt.by(f.subjectID, f.release, f.experimentID)
 ]
 
-fileSummarized.names = {
+# Next, spread the data wide by release and create a dataexplorer URL for all 
+# unique experiments by release.
+statusMsg('Spreading file metadata by release....')
+filesSummarized=dt.Frame([
+    {
+        'subjectID': d[0].split('_')[0],
+        'numberOfFiles': sum(filesCountsGrouped[f.subjectID==d[0],'count'].to_list()[0]),
+        d[1]: '?entity=rd3_{}_file&hideselect=true&filter=({})'.format(
+            d[1],
+            urllib.parse.quote(
+                createUrlFilter(
+                    columnName='experimentID',
+                    array=filesCountsGrouped[
+                        (f.subjectID==d[0]) & (f.release==d[1]), 'experimentID'
+                    ].to_list()[0]
+                )
+            )
+        )
+    }
+    for d in filesCountsGrouped[:, (f.subjectID, f.release)].to_tuples()
+])[:, first(f[:]), dt.by(f.subjectID)]
+
+
+# rename columns - run with all key pairs uncommented. It is possible that
+# new data has become availble since the prior run. Comment items if a KeyError
+# is thrown. Run the following command to check names:
+# > filesSummarized.names
+filesSummarized.names = {
     'freeze1': 'df1Files',
     'freeze2': 'df2Files',
     # 'freeze3': 'df3Files',
@@ -576,23 +625,25 @@ fileSummarized.names = {
     # 'novelwgs': 'novelwgsFiles',
 }
 
-
-
+# join with subjects
 subjects.key='subjectID'
-fileSummarized.key='subjectID'
-subjects=subjects[:, :, dt.join(fileSummarized)]
+filesSummarized.key='subjectID'
+subjects=subjects[:, :, dt.join(filesSummarized)]
 
-subjects.names={'release': 'emxRelease'}
+# subjects.names={'release': 'emxRelease'}
 
 
 #///////////////////////////////////////
 
 # import data
+statusMsg('Importing data....')
 
-overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
-
+# import subject IDs first
 rd3.importData(
     entity='rd3_overview',
     data=subjects['subjectID'].to_pandas().to_dict('records')
 )
+
+# import row data
+overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
 rd3.updateRows(entity='rd3_overview', data=overviewData)

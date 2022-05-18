@@ -204,8 +204,7 @@ entities:
         partOfAttribute: files
         
       - name: df1Files
-        dataType: mref
-        refEntity: rd3_freeze1_file
+        dataType: hyperlink
         partOfAttribute: files
       
       - name: df2Files

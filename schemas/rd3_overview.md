@@ -54,7 +54,7 @@ Overview on RD3 Subjects, samples, and experiments
 | novelwgsExperiments | - | - | mref |
 | files | - | - | compound |
 | numberOfFiles | - | - | int |
-| df1Files | - | - | mref |
+| df1Files | - | - | hyperlink |
 | df2Files | - | - | hyperlink |
 | df3Files | - | - | hyperlink |
 | noveldeepwesFiles | - | - | hyperlink |

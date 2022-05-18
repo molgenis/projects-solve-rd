@@ -1,43 +1,7 @@
-#'////////////////////////////////////////////////////////////////////////////
-#' FILE: molgenis_app_set_menu.py
-#' AUTHOR: David Ruvolo
-#' CREATED: 2022-01-18
-#' MODIFIED: 2022-05-13
-#' PURPOSE: Update the Menu setting in Application Settings
-#' STATUS: stable
-#' PACKAGES: rd3tools, dotenv, os, json
-#' COMMENTS: NA
-#'////////////////////////////////////////////////////////////////////////////
-
-from rd3.api.molgenis import Molgenis
-from dotenv import load_dotenv
-from os import environ
-import json
-
-# set vars and init sessions for both Molgenis instances
-load_dotenv()
-rd3_acc = Molgenis(url=environ['MOLGENIS_ACC_HOST'])
-rd3_prod = Molgenis(url=environ['MOLGENIS_PROD_HOST'])
-
-rd3_prod.login(
-    username=environ['MOLGENIS_PROD_USR'],
-    password=environ['MOLGENIS_PROD_PWD']
-)
-
-rd3_acc.login(
-    username=environ['MOLGENIS_ACC_USR'],
-    password=environ['MOLGENIS_ACC_PWD']
-)
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 1 ~
-# Define Menu
-menu = {
+{
     "id":"main",
     "label":"Home",
     "items":[
-        # KEEP
         {"type":"plugin","id":"home","label":"Home"},
         {
             "type":"plugin",
@@ -45,12 +9,12 @@ menu = {
             "label":"Discovery Nexus",
             "params":"url=https://rdnexus.molgeniscloud.org/Discover/Index"
         },
-        {"type":"plugin","id":"app-getstarted","label":"Get Started","params":""},
-        
-        #//////////////////////////////////////////////////////////////////////
-        
-        # EDIT THE ITEMS BELOW
-        # Create dropdown menu for subjects
+        {
+            "type":"plugin",
+            "id":"app-get-started",
+            "label":"Get Started",
+            "params":""
+        },
         {
             "type":"menu",
             "id":"subjects",
@@ -89,12 +53,35 @@ menu = {
                 {
                     "type":"plugin",
                     "id":"dataexplorer",
-                    "label":"Novel Omics 1 Subjects",
-                    "params":"entity=rd3_novelomics_subject&filter=patch==novelomics_original&hideselect=true&mod=data"
+                    "label":"Freeze 3 Subjects",
+                    "params":"entity=rd3_freeze3_subject&filter=patch==freeze2_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics Deep-WES 1 Subjects",
+                    "params":"entity=rd3_noveldeepwes_subject&filter=patch==noveldeepwes_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics RNAseq 1 Subjects",
+                    "params":"entity=rd3_novelrnaseq_subject&filter=patch==novelrnaseq_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics SR-WGS 1 Subjects",
+                    "params":"entity=rd3_novelsrwgs_subject&filter=patch==novelsrwgs_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics WGS 1 Subjects",
+                    "params":"entity=rd3_novelwgs_subject&filter=patch==novelwgs_original&hideselect=true&mod=data"
                 }
             ]
         },
-        # Create Dropdown for Samples
         {
             "type":"menu",
             "id":"samples",
@@ -121,13 +108,35 @@ menu = {
                 {
                     "type":"plugin",
                     "id":"dataexplorer",
-                    "label":"Novel Omics 1 Samples",
-                    "params":"entity=rd3_novelomics_sample&filter=patch==novelomics_original&hideselect=true&mod=data"
+                    "label":"Freeze 3 Samples",
+                    "params":"entity=rd3_freeze3_sample&filter=patch==freeze3_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics Deep-WES 1 Samples",
+                    "params":"entity=rd3_noveldeepwes_sample&filter=patch==noveldeepwes_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics RNAseq 1 Samples",
+                    "params":"entity=rd3_novelrnaseq_sample&filter=patch==novelrnaseq_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics SR-WGS 1 Samples",
+                    "params":"entity=rd3_novelsrwgs_sample&filter=patch==novelsrwgs_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics WGS 1 Samples",
+                    "params":"entity=rd3_novelwgs_samples&filter=patch==novelwgs_original&hideselect=true&mod=data"
                 }
             ]
         },
-        
-        # Create Dropdown for Labs
         {
             "type":"menu",
             "id":"labs",
@@ -154,13 +163,35 @@ menu = {
                 {
                     "type":"plugin",
                     "id":"dataexplorer",
-                    "label":"Novel Omics 1 Labs WGS",
-                    "params":"entity=rd3_novelomics_labinfo_wgs&filter=patch==novelomics_original&hideselect=true&mod=data"
+                    "label":"Freeze 3 Labs",
+                    "params":"entity=rd3_freeze3_labinfo&filter=patch==freeze3_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics Deep-WES 1 Labs",
+                    "params":"entity=rd3_noveldeepwes_labinfo&filter=patch==noveldeepwes_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics RNAseq 1 Labs",
+                    "params":"entity=rd3_novelrnaseq_labinfo&filter=patch==novelrnaseq_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics SR-WGS 1 Labs",
+                    "params":"entity=rd3_novelsrwgs_labinfo&filter=patch==novelsrwgs_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics WGS 1 Labs",
+                    "params":"entity=rd3_novelwgs_labinfo&filter=patch==novelwgs_original&hideselect=true&mod=data"
                 }
             ]
         },
-        
-        # Dropdown for Files
         {
             "type":"menu","id":"files","label":"Files",
             "items":[
@@ -185,15 +216,41 @@ menu = {
                 {
                     "type":"plugin",
                     "id":"dataexplorer",
-                    "label":"Novelomics 1 Files",
-                    "params":"entity=rd3_novelomics_file&filter=patch==novelomics_original&hideselect=true&mod=data"
+                    "label":"Freeze 3 Files",
+                    "params":"entity=rd3_freeze3_file&filter=patch==freeze3_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics Deep-WES 1 Files",
+                    "params":"entity=rd3_noveldeepwes_file&filter=patch==noveldeepwes_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics RNAseq 1 Files",
+                    "params":"entity=rd3_novelrnaseq_file&filter=patch==novelrnaseq_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics SR-WGS 1 Files",
+                    "params":"entity=rd3_novelsrwgs_file&filter=patch==novelsrwgs_original&hideselect=true&mod=data"
+                },
+                {
+                    "type":"plugin",
+                    "id":"dataexplorer",
+                    "label":"Novel Omics WGS 1 Files",
+                    "params":"entity=rd3_novelwgs_file&filter=patch==novelwgs_original&hideselect=true&mod=data"
                 }
             ]
         },
-        #//////////////////////////////////////////////////////////////////////
-        
-        # KEEP
-        {"type":"plugin","id":"navigator","label":"Navigate all tables","params":""},
+        {
+            "type":"plugin",
+            "id":"navigator",
+            "label":"Navigate all tables",
+            "params":""
+        },
         {
             "type":"menu","id":"admin","label":"Admin",
             "items":[
@@ -227,8 +284,3 @@ menu = {
         {"type":"plugin","id":"useraccount","label":"Account"}
     ]
 }
-
-# push to RD3
-menuStringified = json.dumps(menu,separators=(',', ':'))
-rd3_acc.update_one(entity='sys_set_app', id_='app', attr='molgenis_menu', value=menuStringified)
-rd3_prod.update_one(entity='sys_set_app', id_='app', attr='molgenis_menu', value=menuStringified)

@@ -2,7 +2,7 @@
 #' FILE: utils.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-04-25
-#' MODIFIED: 2022-04-26
+#' MODIFIED: 2022-05-30
 #' PURPOSE: misc RD3 tools
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -55,12 +55,96 @@ def buildRd3Paths(freeze, patch, baseFilePath):
         'cluster_phenopacket': f'{clusterBasePath}/phenopacket/'
     }
     
+
+def createUrlFilter(columnName,array):
+    """Create Url Filter
+    Collapse an array of values into a molgenis friendly data explorer filter.
+    It is recommended to pass unique values. Make sure the returned value is
+    quoted. (urllib.parse.quote)
+    
+    @param columnName name of column used to limit the results
+    @param array list of values
+    
+    @examples
+    ```
+    createUrlFilter('gender', ['Female', 'Male'])
+    
+    #> 'gender=q=Female,gender=q=Male'
+    ```
+    
+    @return string
+    """
+    return ','.join([f"{columnName}=q={d}" for d in list(set(array))])
+    
 def dtFrameToRecords(data):
     """Datatable object to records
     @param data : datatable object
     @return list of dictionaries
     """
     return data.to_pandas().replace({np.nan: None}).to_dict('records')
+
+
+def flattenBoolArray(array, keepTrueValues=True):
+    """Flatten Bool Array
+    Collapse a list of boolean values. Remove null values before using this
+    function.
+    
+    @param array list containing bool values
+    @param keepTrueValues if True, if the value 'True' exists in the array,
+        then True is returned.
+    @examples
+    ```py
+    flattenBoolArray([True,True,True, None])
+    
+    #> True
+    ```
+    
+    @return bool
+    """
+    values=list(set(filter(lambda d: d is not None, array)))
+    if len(values) >= 2:
+        if keepTrueValues:
+            return True in values
+        else:
+            return ','.join(map(str, values))
+    elif len(values) == 1:
+        return values[0]        
+    else:
+        return None
+        
+def flattenStringArray(array):
+    """Flatten String Array
+    Return a comma separated string of unique values for multiple items in
+    an array
+    
+    @param array list containing values
+    @examples
+    ````
+    array=['a,b,c', 'x,y,z', 'l,m,n,o,p']
+    
+    flattenStringArray(array)
+    
+    #> 'a,b,c,l,m,n,o,p,x,y,z'
+    ```
+    
+    @return string
+    """
+    values=set([value for element in array for value in element.split(',')])
+    return ','.join(sorted(values))
+    
+def flattenValueArray(array):
+    """Flatten Value Array
+    Return a string unique values from a list of values
+    
+    @param array list containing values
+    @example
+    ```
+    array=['apple','orange','pear','lemon','apple']
+    flattenValueArray(array)
+    #> 'apple,lemon,orange,pear'
+    ```
+    """
+    return ','.join(sorted(set(array)))
 
 
 def recodeValue(mappings: None, value: str=None, label:str=None, warn=True):

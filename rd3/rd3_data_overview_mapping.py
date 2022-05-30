@@ -2,7 +2,7 @@
 #' FILE: rd3_data_overview_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-05-18
+#' MODIFIED: 2022-05-30
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -11,7 +11,10 @@
 
 
 from rd3.api.molgenis import Molgenis
-from rd3.utils.utils import statusMsg
+from rd3.utils.utils import (
+    statusMsg,
+    flattenBoolArray, flattenStringArray, flattenValueArray
+)
 
 from datatable import dt, f, first
 from os import environ
@@ -19,90 +22,6 @@ from dotenv import load_dotenv
 import numpy as np
 import urllib
 
-def flattenBoolArray(array, keepTrueValues=True):
-    """Flatten Bool Array
-    Collapse a list of boolean values. Remove null values before using this
-    function.
-    
-    @param array list containing bool values
-    @param keepTrueValues if True, if the value 'True' exists in the array,
-        then True is returned.
-    @examples
-    ```py
-    flattenBoolArray([True,True,True, None])
-    
-    #> True
-    ```
-    
-    @return bool
-    """
-    values=list(set(filter(lambda d: d is not None, array)))
-    if len(values) >= 2:
-        if keepTrueValues:
-            return True in values
-        else:
-            return ','.join(map(str, values))
-    elif len(values) == 1:
-        return values[0]        
-    else:
-        return None
-        
-def flattenStringArray(array):
-    """Flatten String Array
-    Return a comma separated string of unique values for multiple items in
-    an array
-    
-    @param array list containing values
-    @examples
-    ````
-    array=['a,b,c', 'x,y,z', 'l,m,n,o,p']
-    
-    flattenStringArray(array)
-    
-    #> 'a,b,c,l,m,n,o,p,x,y,z'
-    ```
-    
-    @return string
-    """
-    values=set([value for element in array for value in element.split(',')])
-    return ','.join(sorted(values))
-    
-def flattenValueArray(array):
-    """Flatten Value Array
-    Return a string unique values from a list of values
-    
-    @param array list containing values
-    @example
-    ```
-    array=['apple','orange','pear','lemon','apple']
-    flattenValueArray(array)
-    #> 'apple,lemon,orange,pear'
-    ```
-    """
-    return ','.join(sorted(set(array)))
-    
-def createUrlFilter(columnName,array):
-    """Create Url Filter
-    Collapse an array of values into a molgenis friendly data explorer filter.
-    It is recommended to pass unique values. Make sure the returned value is
-    quoted. (urllib.parse.quote)
-    
-    @param columnName name of column used to limit the results
-    @param array list of values
-    
-    @examples
-    ```
-    createUrlFilter('gender', ['Female', 'Male'])
-    
-    #> 'gender=q=Female,gender=q=Male'
-    ```
-    
-    @return string
-    """
-    return ','.join([f"{columnName}=q={d}" for d in list(set(array))])
-
-
-#//////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~ 
 # Fetch Metadata for all releases

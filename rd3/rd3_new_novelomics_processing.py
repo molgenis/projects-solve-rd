@@ -30,12 +30,12 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-# host=environ['MOLGENIS_PROD_HOST']
-host=environ['MOLGENIS_ACC_HOST']
+host=environ['MOLGENIS_PROD_HOST']
+# host=environ['MOLGENIS_ACC_HOST']
 rd3=Molgenis(url=host)
 rd3.login(
-    username=environ['MOLGENIS_ACC_USR'],
-    password=environ['MOLGENIS_ACC_PWD']
+    username=environ['MOLGENIS_PROD_USR'],
+    password=environ['MOLGENIS_PROD_PWD']
 )
 
 # SET EXISTING NOVELOMICS RELEASES
@@ -318,6 +318,21 @@ materialTypeMappings.update({
 
 del materialTypes
 
+
+# ~ 0d.v ~
+# Create pathological state mappings
+
+pathologicalState = dt.Frame(rd3.get('rd3_pathologicalstate'))
+pathologicalState['id'] = dt.Frame([
+    d.lower() for d in pathologicalState['value'].to_list()[0]
+])
+
+pathologicalStateMappings=toKeyPairs(
+    data=dtFrameToRecords(data=pathologicalState),
+    keyAttr='id',
+    valueAttr='value'
+)
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
@@ -421,6 +436,23 @@ shipment['tissue_type'] = dt.Frame([
         label = 'Tissue Type'
     )
     for d in shipment['tissue_type'].to_list()[0]
+])
+
+# recode pathological state
+shipment['pathological_state'] = dt.Frame([
+    recodeValue(
+        mappings = pathologicalStateMappings,
+        value = d.lower().strip(),
+        label = 'Pathological Stte'
+    )
+    if d else None
+    for d in shipment['pathological_state'].to_list()[0]
+])
+
+# recode tumor percentage
+shipment['tumor_cell_fraction'] = dt.Frame([
+    None if d == 'UK' else d
+    for d in shipment['tumor_cell_fraction'].to_list()[0]
 ])
 
 
@@ -654,6 +686,8 @@ samples = shipment[
     'subject': f.subjectID,
     'tissueType': f.tissue_type,
     'materialType': f.sample_type,
+    'pathologicalState': f.pathological_state,
+    'percentageTumorCells': f.tumor_cell_fraction,
     'patch': f.patch,
     'batch': f.batch,
     'typeOfAnalysis': f.type_of_analysis,
@@ -897,6 +931,7 @@ else:
 
 # import
 rd3_shipment_updates = dtFrameToRecords(shipmentUpdates)
+# rd3_shipment_updates = dtFrameToRecords(shipment[:, {'molgenis_id': f.molgenis_id, 'processed':True}])
 rd3.updateColumn(
     entity = 'rd3_portal_novelomics_shipment',
     attr = 'processed',

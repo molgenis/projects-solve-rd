@@ -2,7 +2,7 @@
 # FILE: rd3_new_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-03-08
-# MODIFIED: 2022-05-13
+# MODIFIED: 2022-05-30
 # PURPOSE: process new novelomics data in the portal
 # STATUS: stable
 # PACKAGES: datatable, datetime, pytz, functools, operations, rd3tools
@@ -30,7 +30,6 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-env = 'prod'
 # host=environ['MOLGENIS_PROD_HOST']
 host=environ['MOLGENIS_ACC_HOST']
 rd3=Molgenis(url=host)
@@ -67,7 +66,7 @@ statusMsg('Pulling data from the portal....')
 shipment = dt.Frame(
     rd3.get(
         entity='rd3_portal_novelomics_shipment',
-        # q='processed==False',
+        q='processed==False',
         batch_size=10000
     )
 )
@@ -75,7 +74,7 @@ shipment = dt.Frame(
 experiment = dt.Frame(
     rd3.get(
         entity='rd3_portal_novelomics_experiment',
-        # q='processed==False',
+        q='processed==False',
         batch_size=10000
     )
 )
@@ -101,7 +100,7 @@ del patchinfo['_href']
 # find all analysis types (i.e., patches)
 patches = dt.unique(shipment['type_of_analysis'])[:, {
     'id': f.type_of_analysis,
-    'type': 'freeze' if env == 'prod' else 'release',
+    'type': 'freeze',
     'name': f.type_of_analysis,
     'date' : timestamp(),
     'description': None
@@ -149,65 +148,73 @@ patchIDs = toKeyPairs(
 # information will be used to validate new metadata.
 statusMsg('Compiling lists of existing identifiers....')
 
-# get existing subjects
+# get existing subject metadata
 existingSubjects = dt.Frame()
 for release in novelOmicsReleases:
     statusMsg('Pulling subjects from', novelOmicsReleases[release])
-    existingSubjects = existingSubjects.rbind(
-        existingSubjects,
-        dt.Frame(
-            rd3.get(
-                entity = f'{novelOmicsReleases[release]}_subject',
-                attributes = 'id,subjectID,patch',
-                batch_size=10000
-            )
-        )[:, {
-            'id': f.id,
-            'subjectID': f.subjectID,
-            'patch': f.patch,
-            'release': release
-        }]
+    tmpSubjectData = rd3.get(
+        entity = f'{novelOmicsReleases[release]}_subject',
+        attributes = 'id,subjectID,patch',
+        batch_size=10000
     )
+    for row in tmpSubjectData:
+        if 'patch' in row:
+            row['patch']= ','.join([patch['id'] for patch in row['patch']])
+    
+    tmpSubjectData=dt.Frame(tmpSubjectData)[:, {
+        'id': f.id,
+        'subjectID': f.subjectID,
+        'patch': f.patch,
+        'release': release
+    }]
+    
+    existingSubjects = dt.rbind(existingSubjects, tmpSubjectData)
 
-# get existing samples
+# get existing sample metadata
 existingSamples = dt.Frame()
 for release in novelOmicsReleases:
     statusMsg('Pulling samples from', novelOmicsReleases[release])
-    existingSamples = existingSamples.rbind(
-        existingSamples,
-        dt.Frame(
-            rd3.get(
-                entity = f'{novelOmicsReleases[release]}_sample',
-                attributes = 'id,sampleID,patch',
-                batch_size=10000
-            )
-        )[: {
-            'id': f.id,
-            'subjectID': f.sampleID,
-            'patch': f.patch,
-            'release': release
-        }]
+    tmpSampleData=rd3.get(
+        entity = f'{novelOmicsReleases[release]}_sample',
+        attributes = 'id,sampleID,patch',
+        batch_size=10000
     )
+    
+    for row in tmpSampleData:
+        if 'patch' in row:
+            row['patch']=','.join([patch['id'] for patch in row['patch']])
+    
+    tmpSampleData=dt.Frame(tmpSampleData)[:, {
+        'id': f.id,
+        'sampleID': f.sampleID,
+        'patch': f.patch,
+        'release': release
+    }]
+    
+    existingSamples = dt.rbind(existingSamples,tmpSampleData)
 
-# get existin experiments
+# get existing experiment metadata
 existingExperiments = dt.Frame()
 for release in novelOmicsReleases:
     statusMsg('Pulling experiments from', novelOmicsReleases[release])
-    existingExperiments = existingExperiments.rbind(
-        existingExperiments,
-        dt.Frame(
-            rd3.get(
-                entity = f'{novelOmicsReleases[release]}_labinfo',
-                attributes = 'id,experimentID,patch',
-                batch_size=10000
-            )
-        )[:, {
-            'id': f.id,
-            'experimentID': f.experimentID,
-            'patch': f.patch,
-            'release': release
-        }]
+    tmpExperimentData=rd3.get(
+        entity = f'{novelOmicsReleases[release]}_labinfo',
+        attributes = 'id,experimentID,patch',
+        batch_size=10000
     )
+    
+    for row in tmpExperimentData:
+        if 'patch' in row:
+            row['patch']=','.join([patch['id'] for patch in row['patch']])
+            
+    tmpExperimentData=dt.Frame(tmpExperimentData)[:, {
+        'id': f.id,
+        'experimentID': f.experimentID,
+        'patch': f.patch,
+        'release': release
+    }]
+    
+    existingExperiments = dt.rbind(existingExperiments,tmpExperimentData)
 
 
 #///////////////////////////////////////
@@ -259,7 +266,8 @@ organisationMappings = toKeyPairs(
 
 organisationMappings.update({
     'malgorzata  dec-cwiek': 'malgorzata-dec-cwiek',
-    'cheo-lochmuller ': 'cheo-lochmuller'
+    'cheo-lochmuller ': 'cheo-lochmuller',
+    'lafe-vilchez': 'lafe-vilchez'
 })
 
 del organisations
@@ -416,19 +424,26 @@ shipment['tissue_type'] = dt.Frame([
 ])
 
 
+# set releases to match existingSubjects.release
+shipment['release'] = dt.Frame([
+    d.lower().replace('-','')
+    for d in shipment['type_of_analysis'].to_list()[0]
+])
+
+
 # ~ 1a.iii ~
 # Triage Subjects and Samples
 # Using a list of existing subject- and sample identifiers, identify new
 # samples and subjects.
 
 shipment['isNewSubject'] = dt.Frame([
-    d not in existingSubjects['subjectID'].to_list()[0]
-    for d in shipment['participant_subject'].to_list()[0]
+    existingSubjects[(f.subjectID == row[0]) & (f.release == row[1]), :].nrows == 0
+    for row in shipment[:, ['participant_subject','release']].to_tuples()
 ])
 
 shipment['isNewSample'] = dt.Frame([
-    d not in existingSamples['sampleID'].to_list()[0]
-    for d in shipment['sample_id'].to_list()[0]
+    existingSamples[(f.sampleID == row[0]) & (f.release==row[1]), :].nrows == 0
+    for row in shipment[:,['sample_id','release']].to_tuples()
 ])
 
 #///////////////////////////////////////
@@ -580,10 +595,12 @@ experiment['isNewExperiment'] = dt.Frame([
 # At this point, you don't have to worry about creating the subjectinfo table.
 # That table will be built at import time.
 #
-
+# We only need to select new subjects
 
 # select columns of interest and unique rows
 subjects = shipment[
+    f.isNewSubject==True,:
+][
     :, dt.first(f[:]), dt.by(f.subjectID)
 ][:,{
     'id': f.subjectID,
@@ -627,6 +644,8 @@ statusMsg('Creating samples tables')
 
 # select columns of interest and unique rows
 samples = shipment[
+    f.isNewSample==True,:
+][
     :, dt.first(f[:]), dt.by(f.sampleID)
 ][:, {
     'id': f.sampleID,

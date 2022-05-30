@@ -26,14 +26,14 @@ outputPaths:
 #
 models:
   - name: rd3_portal
-    active: false
+    active: true
     files: [
       'model/base_rd3_portal.yaml',
-      'model/base_rd3_portal_release.yaml',
-      'model/rd3_portal_cluster.yaml',
-      'model/rd3_portal_demographics.yaml',
+      # 'model/base_rd3_portal_release.yaml',
+      # 'model/rd3_portal_cluster.yaml',
+      # 'model/rd3_portal_demographics.yaml',
       'model/rd3_portal_novelomics.yaml',
-      'model/rd3_portal_release.yaml'
+      # 'model/rd3_portal_release.yaml'
     ]
     
   - name: rd3
@@ -54,7 +54,7 @@ models:
     ]
 
   - name: rd3_overview
-    active: true
+    active: false
     files: [
       'model/base_rd3.yaml',
       'model/rd3_overview.yaml'

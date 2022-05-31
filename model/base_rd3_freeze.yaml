@@ -2,11 +2,11 @@
 # NAME: base_rd3_freeze.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2021-09-21
-# MODIFIED: 2022-03-07
+# MODIFIED: 2022-05-31
 # PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
 # COMMENTS:
 #   - Build model with the following script: index.py
-#   - Set release accordingly in the model.yaml file
+#   - Set release accordingly in the model.yaml file **see releases prop**
 #   - Do not change the pattern <freeze_label> and <freeze_identifier> as
 #     this is used in the build script. If you create new tables, make sure
 #     this pattern is followed.
@@ -520,56 +520,56 @@ entities:
         description: Filepath Sandbox
         
   # RD3: jobs
-  # - name: job
-  #   label: <freeze_label> Jobs
-  #   description: Jobs used to process sampledata within <freeze_label>
-  #   attributes:
-  #     - name: status
-  #       label: status
-  #       description: status of job (running, completed, or error)
-  #       dataType: enum
-  #       enumOptions: completed,error,running
+  - name: job
+    label: <freeze_label> Jobs
+    description: Jobs used to process sampledata within <freeze_label>
+    attributes:
+      - name: status
+        label: status
+        description: status of job (running, completed, or error)
+        dataType: enum
+        enumOptions: completed,error,running
         
-  #     - name: identifier
-  #       label: identifier
-  #       description: unique identifier job
-  #       nillable: false
-  #       unique: true
-  #       visible: true
-  #       idAttribute: true
-  #       labelAttribute: true
-  #       readOnly: true
-  #       lookupAttribute: true
+      - name: identifier
+        label: identifier
+        description: unique identifier job
+        nillable: false
+        unique: true
+        visible: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
         
-  #     - name: run
-  #       label: run
-  #       description: job is part of run
-  #       dataType: xref
-  #       refEntity: rd3_run
-  #       nillable: false
+      - name: run
+        label: run
+        description: job is part of run
+        dataType: xref
+        refEntity: rd3_run
+        nillable: false
         
-  #     - name: log
-  #       label: log
-  #       description: uri referencing to logfile
+      - name: log
+        label: log
+        description: uri referencing to logfile
         
-  #     - name: inputfile
-  #       label: inputfile
-  #       description: inputfile, link to file used in job
-  #       dataType: mref
-  #       refEntity: rd3_<freeze_identifier>_file
+      - name: inputfile
+        label: inputfile
+        description: inputfile, link to file used in job
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_file
         
-  #     - name: outputfile
-  #       label: outputfile
-  #       description: file produced with job
-  #       dataType: mref
-  #       refEntity: rd3_<freeze_identifier>_file
+      - name: outputfile
+        label: outputfile
+        description: file produced with job
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_file
         
-  #     - name: jobstart
-  #       label: jobstart
-  #       description: start date and time of job
-  #       dataType: datetime
+      - name: jobstart
+        label: jobstart
+        description: start date and time of job
+        dataType: datetime
         
-  #     - name: jobend
-  #       label: jobend
-  #       description: end date and time of job
-  #       dataType: datetime
+      - name: jobend
+        label: jobend
+        description: end date and time of job
+        dataType: datetime

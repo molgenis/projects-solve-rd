@@ -2,7 +2,7 @@
 # FILE: model.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-09
-# UPDATED: 2022-05-16
+# UPDATED: 2022-05-31
 # PURPOSE: RD3 model build instructions
 # DEPENDENCES: **see index.py**
 # COMMENTS: The purpose of this script is to define how the RD3 model and
@@ -13,7 +13,6 @@
 outputPaths:
   main: dist/
   schemas: schemas/
-
 
 # define models to build
 # Each entity creates a new file using the given name. All EMX-YAML files
@@ -26,7 +25,7 @@ outputPaths:
 #
 models:
   - name: rd3_portal
-    active: true
+    active: false
     files: [
       'model/base_rd3_portal.yaml',
       # 'model/base_rd3_portal_release.yaml',
@@ -41,13 +40,14 @@ models:
     files: ["model/base_rd3.yaml"]
     # releaseID: release label
     releases: {
-      'freeze1': 'Data Freeze 1',
-      'freeze2': 'Data Freeze 2',
-      'freeze3': 'Data Freeze 3',
-      'noveldeepwes': 'Novel Omics Deep-WES',
-      'novelrnaseq': 'Novel Omics RNAseq',
-      'novelsrwgs': 'Novel Omics SR-WGS',
-      'novelwgs': 'Novel Omics WGS'
+      # 'freeze1': 'Data Freeze 1',
+      # 'freeze2': 'Data Freeze 2',
+      # 'freeze3': 'Data Freeze 3',
+      # 'noveldeepwes': 'Novel Omics Deep-WES',
+      # 'novelrnaseq': 'Novel Omics RNAseq',
+      'novellrwgs': 'Novel Omics LR-WGS',
+      # 'novelsrwgs': 'Novel Omics SR-WGS',
+      # 'novelwgs': 'Novel Omics WGS'
     }
     releaseTemplate: [
       'model/base_rd3_freeze.yaml'

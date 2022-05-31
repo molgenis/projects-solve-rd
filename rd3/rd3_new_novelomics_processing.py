@@ -2,7 +2,7 @@
 # FILE: rd3_new_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-03-08
-# MODIFIED: 2022-05-30
+# MODIFIED: 2022-05-31
 # PURPOSE: process new novelomics data in the portal
 # STATUS: stable
 # PACKAGES: datatable, datetime, pytz, functools, operations, rd3tools
@@ -33,6 +33,10 @@ load_dotenv()
 host=environ['MOLGENIS_PROD_HOST']
 # host=environ['MOLGENIS_ACC_HOST']
 rd3=Molgenis(url=host)
+# rd3.login(
+#     username=environ['MOLGENIS_ACC_USR'],
+#     password=environ['MOLGENIS_ACC_PWD']
+# )
 rd3.login(
     username=environ['MOLGENIS_PROD_USR'],
     password=environ['MOLGENIS_PROD_PWD']
@@ -45,6 +49,7 @@ novelOmicsReleases = {
     'deepwes': 'rd3_noveldeepwes',
     'rnaseq': 'rd3_novelrnaseq',
     'srwgs': 'rd3_novelsrwgs',
+    'lrwgs': 'rd3_novellrwgs'
 }
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -125,7 +130,7 @@ patches['isNewRelease'] = dt.Frame([
 
 
 # import new patches
-# newPatches = to_records(patches[f.isNewRelease, f[:].remove(f.isNewRelease)])
+# newPatches = dtFrameToRecords(patches[f.isNewRelease, f[:].remove(f.isNewRelease)])
 # rd3.importData(entity = 'rd3_patch', data=newPatches)
 
 # add typeofanalysis
@@ -333,6 +338,8 @@ pathologicalStateMappings=toKeyPairs(
     valueAttr='value'
 )
 
+del pathologicalState
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
@@ -438,22 +445,32 @@ shipment['tissue_type'] = dt.Frame([
     for d in shipment['tissue_type'].to_list()[0]
 ])
 
+# add alternative identifier if not present
+if 'alternative_sample_identifier' not in shipment.names:
+    shipment['alternative_sample_identifier']=None
+
 # recode pathological state
-shipment['pathological_state'] = dt.Frame([
-    recodeValue(
-        mappings = pathologicalStateMappings,
-        value = d.lower().strip(),
-        label = 'Pathological Stte'
-    )
-    if d else None
-    for d in shipment['pathological_state'].to_list()[0]
-])
+if 'pathological_state' in shipment.names:
+    shipment['pathological_state'] = dt.Frame([
+        recodeValue(
+            mappings = pathologicalStateMappings,
+            value = d.lower().strip(),
+            label = 'Pathological Stte'
+        )
+        if d else None
+        for d in shipment['pathological_state'].to_list()[0]
+    ])
+else:
+    shipment['pathological_state']=None
 
 # recode tumor percentage
-shipment['tumor_cell_fraction'] = dt.Frame([
-    None if d == 'UK' else d
-    for d in shipment['tumor_cell_fraction'].to_list()[0]
-])
+if 'tumor_cell_fraction' in shipment.names:
+    shipment['tumor_cell_fraction'] = dt.Frame([
+        None if d == 'UK' else d
+        for d in shipment['tumor_cell_fraction'].to_list()[0]
+    ])
+else:
+    shipment['tumor_cell_fraction']=None
 
 
 # set releases to match existingSubjects.release
@@ -477,6 +494,10 @@ shipment['isNewSample'] = dt.Frame([
     existingSamples[(f.sampleID == row[0]) & (f.release==row[1]), :].nrows == 0
     for row in shipment[:,['sample_id','release']].to_tuples()
 ])
+
+
+# shipment[f.isNewSubject,:]
+# shipment[f.isNewSample,:]
 
 #///////////////////////////////////////
 
@@ -675,11 +696,7 @@ del type, dataByAnalysisType
 statusMsg('Creating samples tables')
 
 # select columns of interest and unique rows
-samples = shipment[
-    f.isNewSample==True,:
-][
-    :, dt.first(f[:]), dt.by(f.sampleID)
-][:, {
+samples = shipment[f.isNewSample==True,:][:, dt.first(f[:]), dt.by(f.sampleID)][:, {
     'id': f.sampleID,
     'sampleID': f.sample_id,
     'alternativeIdentifier': f.alternative_sample_identifier,
@@ -812,52 +829,29 @@ else:
 
 # ~ 6a ~ 
 # Import data into rd3_<release>_subject and rd3_<release>_subjectinfo
-subjectsByAnalysis.pop('_nrows')
 for dataset in subjectsByAnalysis:
-    statusMsg('Importing subject data into', novelOmicsReleases[dataset])
+    if dataset != '_nrows':
+        statusMsg('Importing subject data into', novelOmicsReleases[dataset])
     
-    # convert to records
-    rd3_subject = dtFrameToRecords(
-        data = subjectsByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
-    )
+        rd3_subject = dtFrameToRecords(subjectsByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)])
+        rd3_subjectinfo = dtFrameToRecords(subjectsByAnalysis[dataset][:, {
+            'id': f.id,
+            'subjectID': f.id,
+            'patch': f.patch
+        }])
     
-    # create subject info
-    rd3_subjectinfo = dtFrameToRecords(
-        data = subjectsByAnalysis[dataset][
-            :, {
-                'id': f.id,
-                'subjectID': f.id,
-                'patch': f.patch
-            }
-        ]
-    )
-    
-    # import data
-    rd3.importData(
-        entity=f'{novelOmicsReleases[dataset]}_subject',
-        data = rd3_subject
-    )
-    rd3.importData(
-        entity=f'{novelOmicsReleases[dataset]}_subjectinfo',
-        data = rd3_subjectinfo
-    )
+        # import data
+        rd3.importData(entity=f'{novelOmicsReleases[dataset]}_subject', data=rd3_subject)
+        rd3.importData(entity=f'{novelOmicsReleases[dataset]}_subjectinfo',data=rd3_subjectinfo)
 
 # ~ 6b ~
 # Import rd3_<release>_sample
-samplesByAnalysis.pop('_nrows')
 for dataset in samplesByAnalysis:
-    statusMsg('Importing samples into', novelOmicsReleases[dataset])
+    if dataset != '_nrows':
+        statusMsg('Importing samples into', novelOmicsReleases[dataset])
     
-    # convert to records
-    rd3_sample = dtFrameToRecords(
-        data = samplesByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)]
-    )
-    
-    # import
-    rd3.importData(
-        entity = f'{novelOmicsReleases[dataset]}_sample',
-        data = rd3_sample
-    )
+        rd3_sample = dtFrameToRecords(samplesByAnalysis[dataset][:, f[:].remove(f.typeOfAnalysis)])
+        rd3.importData(entity=f'{novelOmicsReleases[dataset]}_sample', data=rd3_sample)
     
 
 # ~ 6c ~
@@ -908,30 +902,30 @@ statusMsg('Updating portal statuses....')
 
 # ~ 6e.i ~
 # update shipment table
-shipmentUpdates = shipment[
-    functools.reduce(
-        operator.or_, (
-            f.participant_subject == id for id in subjects[:,f.subjectID].to_list()[0]
-        )
-    ), {
-        'molgenis_id': f.molgenis_id,
-        'processed': True 
-    }
-]
+# shipmentUpdates = shipment[
+#     functools.reduce(
+#         operator.or_, (
+#             f.participant_subject == id for id in subjects[:,f.subjectID].to_list()[0]
+#         )
+#     ), {
+#         'molgenis_id': f.molgenis_id,
+#         'processed': True 
+#     }
+# ]
 
 # check updates
-if shipmentUpdates.nrows != shipment.nrows:
-    statusMsg(
-        'Not all records were processed. There are',
-        shipment.nrows - shipmentUpdates.nrows,
-        'records remaining.'
-    )
-else:
-    statusMsg('All records were processed! :-)')
+# if shipmentUpdates.nrows != shipment.nrows:
+#     statusMsg(
+#         'Not all records were processed. There are',
+#         shipment.nrows - shipmentUpdates.nrows,
+#         'records remaining.'
+#     )
+# else:
+#     statusMsg('All records were processed! :-)')
 
 # import
-rd3_shipment_updates = dtFrameToRecords(shipmentUpdates)
-# rd3_shipment_updates = dtFrameToRecords(shipment[:, {'molgenis_id': f.molgenis_id, 'processed':True}])
+# rd3_shipment_updates = dtFrameToRecords(shipmentUpdates)
+rd3_shipment_updates = dtFrameToRecords(shipment[:, {'molgenis_id': f.molgenis_id, 'processed':True}])
 rd3.updateColumn(
     entity = 'rd3_portal_novelomics_shipment',
     attr = 'processed',

@@ -2,18 +2,20 @@
 #' FILE: rd3_data_overview_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-05-30
+#' MODIFIED: 2022-05-31
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-
 from rd3.api.molgenis import Molgenis
 from rd3.utils.utils import (
     statusMsg,
-    flattenBoolArray, flattenStringArray, flattenValueArray
+    flattenBoolArray,
+    flattenStringArray,
+    flattenValueArray,
+    createUrlFilter
 )
 
 from datatable import dt, f, first
@@ -21,6 +23,7 @@ from os import environ
 from dotenv import load_dotenv
 import numpy as np
 import urllib
+from tqdm import tqdm
 
 
 # ~ 0 ~ 
@@ -45,6 +48,7 @@ availableReleases=[
     'freeze3',
     'noveldeepwes',
     'novelrnaseq',
+    'novellrwgs',
     'novelsrwgs',
     'novelwgs'
 ]
@@ -164,7 +168,7 @@ for release in availableReleases:
         row['release']=release
     
     files.extend(data)
-    
+
     
 # convert objects to datatable objects
 statusMsg('Converting to datatable objects....')
@@ -193,98 +197,84 @@ del files['_href']
 #     :
 # ]
 
-# collapse sex1 >> genderAtBirth
+# collapse sex1
 statusMsg('Collapsing sex....')
-subjects['genderAtBirth'] = dt.Frame([
-    flattenValueArray(
-        array=subjects[f.subjectID==d,f.sex1][f.sex1!=None,:].to_list()[0]
-    )
+subjects['sex1'] = dt.Frame([
+    flattenValueArray(subjects[f.subjectID==d,'sex1'][f.sex1!=None,:].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
 
-# collapse family identifier >> belongsToFamily
+# collapse family identifier
 statusMsg('Collapsing family identifiers....')
-subjects['belongsToFamily'] = dt.Frame([
-    flattenValueArray(
-        array=subjects[f.subjectID==d,f.fid][f.fid!=None,:].to_list()[0]
-    )
+subjects['fid'] = dt.Frame([
+    flattenValueArray(subjects[f.subjectID==d,'fid'][f.fid!=None,:].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-# collapse maternal identifier >> belongsToMother
+# collapse maternal identifier
 statusMsg('Collapsing maternal identifiers....')
-subjects['belongsToMother'] = dt.Frame([
-    flattenValueArray(
-        array=subjects[f.subjectID==d, f.mid][f.mid!=None,:].to_list()[0]
-    )
+subjects['mid'] = dt.Frame([
+    flattenValueArray(subjects[f.subjectID==d,'mid'][f.mid!=None,:].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-subjects['belongsToMother'] = dt.Frame([
+subjects['mid'] = dt.Frame([
     d.split('_original')[0]
-    for d in subjects['belongsToMother'].to_list()[0]
+    for d in subjects['mid'].to_list()[0]
     if d is not None
 ])
 
 
-# collapse paternal identifier >> belongsToFather
+# collapse paternal identifier
 statusMsg('Collapsing paternal identifiers....')
-subjects['belongsToFather'] = dt.Frame([
-    flattenValueArray(
-        array=subjects[f.subjectID==d,f.pid][f.pid!=None,:].to_list()[0]
-    )
+subjects['pid'] = dt.Frame([
+    flattenValueArray(subjects[f.subjectID==d,'pid'][f.pid!=None,:].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-subjects['belongsToFather'] = dt.Frame([
+subjects['pid'] = dt.Frame([
     d.split('_original')[0]
-    for d in subjects['belongsToFather'].to_list()[0]
+    for d in subjects['pid'].to_list()[0]
     if d is not None
 ])
 
 
-# collapse clinical status >> affectedStatus
+# collapse clinical status
 statusMsg('Collapsing clinical status....')
-subjects['affectedStatus'] = dt.Frame([
+subjects['clinical_status'] = dt.Frame([
     flattenBoolArray(
-        array=subjects[f.subjectID==d, f.clinical_status][
-            f.clinical_status!= None, :
-        ].to_list()[0]
+        array=subjects[f.subjectID==d,'clinical_status'][f.clinical_status!= None, :].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
 
-# collapse disease >> clinicalDiagnosis
+# collapse disease
 statusMsg('Collapsing diagnoses....')
-subjects['clinicalDiagnosis'] = dt.Frame([
+subjects['disease'] = dt.Frame([
     flattenStringArray(
-        array=subjects[f.subjectID==d, f.disease][
-            f.disease != None, :
-        ].to_list()[0]
+        array=subjects[f.subjectID==d, 'disease'][f.disease != None, :].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
 
-# collapse phenotype >> observedPhenotype
+# collapse phenotype
 statusMsg('Collapsing observed phenotypes....')
-subjects['observedPhenotype'] = dt.Frame([
+subjects['phenotype'] = dt.Frame([
     flattenStringArray(
-        array=subjects[
-            f.subjectID==d, f.phenotype
-        ][f.phenotype!=None,:].to_list()[0]
+        array=subjects[f.subjectID==d, 'phenotype'][f.phenotype!=None,:].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
 
-# collapse hasNotPhenotype >> unobservedPhenotype
+# collapse hasNotPhenotype
 statusMsg('Collapsing unobserved phenotypes....')
-subjects['unobservedPhenotype'] = dt.Frame([
+subjects['hasNotPhenotype'] = dt.Frame([
     flattenStringArray(
-        array=subjects[f.subjectID==d,f.hasNotPhenotype][
+        array=subjects[f.subjectID==d, 'hasNotPhenotype'][
             f.hasNotPhenotype != None, :
         ].to_list()[0]
     )
@@ -292,11 +282,11 @@ subjects['unobservedPhenotype'] = dt.Frame([
 ])
 
 
-# collapse organisation >> primaryAffiliatedInstitute
+# collapse organisation
 statusMsg('Collapsing organisation....')
-subjects['primaryAffiliatedInstitute'] = dt.Frame([
+subjects['organisation'] = dt.Frame([
     flattenValueArray(
-        array=subjects[f.subjectID==d, f.organisation][
+        array=subjects[f.subjectID==d, 'organisation'][
             f.organisation!=None, :
         ].to_list()[0]
     )
@@ -304,32 +294,26 @@ subjects['primaryAffiliatedInstitute'] = dt.Frame([
 ])
 
 
-# collapse ERN >> participatesInStudy
+# collapse ERN
 statusMsg('Collapsing ERNs....')
-subjects['participatesInStudy'] = dt.Frame([
-    flattenValueArray(
-        array=subjects[f.subjectID==d, f.ERN].to_list()[0]
-    )
+subjects['ERN'] = dt.Frame([
+    flattenValueArray(array=subjects[f.subjectID==d, f.ERN].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0][:1]
 ])
 
 
-# collapse solved >> solvedStatus
+# collapse solved
 statusMsg('Collapsing solved status....')
-subjects['solvedStatus'] = dt.Frame([
-    flattenBoolArray(
-        array=subjects[f.subjectID==d, f.solved].to_list()[0]
-    )
+subjects['solved'] = dt.Frame([
+    flattenBoolArray(array=subjects[f.subjectID==d, f.solved].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
-# collapse patch >> partofDataRelease
+# collapse patch
 statusMsg('Collapsing patch information....')
-subjects['partOfDataRelease'] = dt.Frame([
+subjects['patch'] = dt.Frame([
     flattenStringArray(
-        array=subjects[
-            f.subjectID==d, f.patch
-        ][f.patch!=None, :].to_list()[0]
+        array=subjects[f.subjectID==d, f.patch][f.patch!=None, :].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
@@ -337,11 +321,9 @@ subjects['partOfDataRelease'] = dt.Frame([
 
 # collapse release
 statusMsg('Collapsing emx-release....')
-subjects['emxRelease'] = dt.Frame([
+subjects['associatedRD3Release'] = dt.Frame([
     flattenValueArray(
-        array=subjects[f.subjectID==d, f.release][
-            f.release != None, :
-        ].to_list()[0]
+        array=subjects[f.subjectID==d, f.release][f.release != None, :].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
@@ -351,47 +333,73 @@ subjects['emxRelease'] = dt.Frame([
 # possible to select only the distinct records.
 statusMsg('Complete! Selecting distinct records only....')
 
-del subjects['id']
-del subjects['sex1']
-del subjects['fid']
-del subjects['mid']
-del subjects['pid']
-del subjects['clinical_status']
-del subjects['disease']
-del subjects['phenotype']
-del subjects['hasNotPhenotype']
-del subjects['organisation']
-del subjects['ERN']
-del subjects['solved']
-del subjects['patch']
-
 subjects = subjects[:, first(f[:]), dt.by(f.subjectID)]
 
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~ 
 # RESHAPE SAMPLES
-
+# Sample metadata will need to be processed a bit differently than subject
+# metadata. The idea is to have all samples listed horizontally by subject.
+# This means that for each subject there will be a column for all samples
+# released in DF1, DF2, DF3, and so on. It was done this way since so that
+# references to other tables can be made.
 statusMsg('Summarizing sample metadata....')
 
+# recode subjectID --- extract subject ID only (i.e., remove '_original', etc.)
 samples.names={'subject': 'subjectID'}
+samples['subjectID']=dt.Frame([
+    d.split('_')[0]
+    if d is not None else None
+    for d in samples['subjectID'].to_list()[0]
+])
 
-# spread samples by release and subject
-statusMsg('Spreading samples by release and subject....')
-samplesSummarized=dt.Frame([
-    {
-        'subjectID': d[2].split('_')[0],
-        'numberOfSamples': samples[f.subjectID==d[2], 'id'].nrows,
-        d[1]: flattenValueArray(
-            array = samples[
-                (f.subjectID==d[2]) & (f.release==d[1]), 'id'
-            ].to_list()[0]
+
+# summarize samples by subject and release, and then spread to wide format
+samplesSummarized=dt.Frame()
+sampleSubjectIDs=dt.unique(samples[f.subjectID!=None,'subjectID']).to_list()[0]
+processedSubjectIDs=[]
+
+for id in tqdm(sampleSubjectIDs):
+    if id not in processedSubjectIDs:
+        
+        # pull subject level information
+        tmpSamplesBySubjects=samples[f.subjectID==id, :]
+        
+        # collapse all sampleIDs by release --- this flattens all IDs so that
+        # duplicate rows can be removed without removing unique sample IDs
+        tmpSamplesBySubjects['idsCollapsed'] = dt.Frame([
+            flattenValueArray(
+                array=tmpSamplesBySubjects[f.release==d, 'id'].to_list()[0]
+            )
+            for d in tmpSamplesBySubjects['release'].to_list()[0]
+        ])
+        
+        # spread data by subjectID and release the previous step collapses
+        # multiple samples for a release so we can drop duplicate values here
+        subjectSamplesSummarized=dt.Frame(
+            tmpSamplesBySubjects
+            .to_pandas()
+            .drop_duplicates(subset=['subjectID','release'],keep='first')
+            .pivot(index='subjectID', columns='release', values='idsCollapsed')
+            .reset_index()
         )
-    }
-    for d in samples[:,(f.id,f.release,f.subjectID)].to_tuples()
-    if d[2] is not None
-])[:, first(f[:]), dt.by(f.subjectID)]
+        
+        # bind to parent object
+        subjectSamplesSummarized['numberOfSamples']=tmpSamplesBySubjects.nrows
+        samplesSummarized=dt.rbind(
+            samplesSummarized,
+            subjectSamplesSummarized,
+            force=True
+        )
+        
+        # store processed ids
+        processedSubjectIDs.append(id)
 
+del subjectSamplesSummarized
+del tmpSamplesBySubjects
+del processedSubjectIDs
+del sampleSubjectIDs
 
 # rename columns
 samplesSummarized.names={
@@ -400,6 +408,7 @@ samplesSummarized.names={
     'freeze3': 'df3Samples',
     'noveldeepwes': 'noveldeepwesSamples',
     'novelrnaseq': 'novelrnaseqSamples',
+    'novellrwgs': 'novellrwgsSamples',
     'novelsrwgs': 'novelsrwgsSamples',
     'novelwgs': 'novelwgsSamples',
 }
@@ -413,7 +422,11 @@ subjects=subjects[:, :, dt.join(samplesSummarized)]
 
 # ~ 3 ~
 # RESHAPE EXPERIMENTS
-
+# Like sample identifiers, experiment IDs need to be collapsed by subject and 
+# release before spreading to wide format. This means that for each subjectID
+# collapse experiment IDs by release, drop duplicate rows, and spread. Unlike
+# the sample metadata, subject identifiers aren't readily available in the
+# data. IDs can be joined using sample ID.
 statusMsg('Summarizing experiment metadata....')
 
 
@@ -429,38 +442,63 @@ experiments['subjectID'] = dt.Frame([
 
 # spread experiments by release and subject
 statusMsg('Spreading experiments by release and subject....')
-experimentSummarized = dt.Frame([
-    {
-        'subjectID': d[2].split('_')[0],
-        'numberOfExperiments': experiments[f.subjectID == d[2], 'id'].nrows,
-        d[1]: flattenValueArray(
-            array=experiments[
-                (f.subjectID==d[2]) & (f.release==d[1]), 'id' 
-            ][
-                f.id != None, :
-            ].to_list()[0]
-        )
-    }
-    for d in experiments[:, (f.id, f.release, f.subjectID)].to_tuples()
-    if d[2] is not None
-])[:, first(f[:]), dt.by(f.subjectID)]
 
+experimentsSummarized = dt.Frame()
+experimentSubjectIDs = dt.unique(experiments['subjectID']).to_list()[0]
+processedSubjectIDs=[]
+
+for id in tqdm(experimentSubjectIDs):
+    if id not in processedSubjectIDs:
+        
+        # pull all subject-experiment rows
+        tmpExperimentsBySubject=experiments[f.subjectID==id, :]
+        
+        # collapse all experiment IDs by release: this flattens all IDs so that
+        # duplicate rows can be removed without removing unique sample IDs
+        tmpExperimentsBySubject['idsCollapsed'] = dt.Frame([
+            flattenValueArray(
+                array=tmpExperimentsBySubject[f.release==d, 'id'].to_list()[0]
+            )
+            for d in tmpExperimentsBySubject['release'].to_list()[0]
+        ])
+        
+        # spread data by subjectID and release the previous step collapses
+        # multiple samples for a release so we can drop duplicate values here
+        subjectExperimentsSummarized=dt.Frame(
+            tmpExperimentsBySubject
+            .to_pandas()
+            .drop_duplicates(subset=['subjectID','release'],keep='first')
+            .pivot(index='subjectID', columns='release', values='idsCollapsed')
+            .reset_index()
+        )
+        
+        # bind to parent object
+        subjectExperimentsSummarized['numberOfExperiments']=tmpExperimentsBySubject.nrows
+        experimentsSummarized=dt.rbind(
+            experimentsSummarized,
+            subjectExperimentsSummarized,
+            force=True
+        )
+        
+        # store processed ids
+        processedSubjectIDs.append(id)
 
 # rename columns - run with all key pairs uncommented. It is possible that
 # new data has become availble since the prior run. Comment items if a KeyError
 # is thrown
-experimentSummarized.names = {
+experimentsSummarized.names = {
     'freeze1': 'df1Experiments',
     'freeze2': 'df2Experiments',
     'freeze3': 'df3Experiments',
     # 'noveldeepwes': 'noveldeepwesExperiments',
     # 'novelrnaseq': 'novelrnaseqExperiments',
+    # 'novellrwgs': 'novellrwgsExperiments',
     'novelsrwgs': 'novelsrwgsExperiments',
     'novelwgs': 'novelwgsExperiments',
 }
 
-experimentSummarized.key='subjectID'
-subjects=subjects[:, :, dt.join(experimentSummarized)]
+experimentsSummarized.key='subjectID'
+subjects=subjects[:, :, dt.join(experimentsSummarized)]
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -540,6 +578,7 @@ filesSummarized.names = {
     # 'freeze3': 'df3Files',
     # 'noveldeepwes': 'noveldeepwesFiles',
     # 'novelrnaseq': 'novelrnaseqFiles',
+    # 'novellrwgs': 'novellrwgsFiles',
     'novelsrwgs': 'novelsrwgsFiles',
     # 'novelwgs': 'novelwgsFiles',
 }

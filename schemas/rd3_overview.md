@@ -28,7 +28,7 @@ Overview on RD3 Subjects, samples, and experiments
 | patch | Patch | The act of making data or other structured information accessible to the public or to the user group of a database. | mref |
 | organisation | Organisation | The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person. | mref |
 | ERN | ERN | Reference to the study or studies in which this person participates. | mref |
-| affectedStatus | Affected Status | Individuals in a pedigree who exhibit the specific phenotype under study. | bool |
+| clinical_status | Affected Status | Individuals in a pedigree who exhibit the specific phenotype under study. | bool |
 | solved | - | Solved status for RD3 (True/False) | bool |
 | phenotype | - | The outward appearance of the individual. In medical context, these are often the symptoms caused by a disease. | mref |
 | hasNotPhenotype | None | Phenotypes or symptoms that were looked for but not observed, which may help in differential diagnosis or establish incomplete penetrance. | mref |

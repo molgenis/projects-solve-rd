@@ -78,7 +78,7 @@ entities:
         dataType: mref
         refEntity: rd3_ERN
         
-      - name: affectedStatus
+      - name: clinical_status
         label: Affected Status
         dataType: bool
         description: Individuals in a pedigree who exhibit the specific phenotype under study.

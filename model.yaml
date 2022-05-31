@@ -54,7 +54,7 @@ models:
     ]
 
   - name: rd3_overview
-    active: false
+    active: true
     files: [
       'model/base_rd3.yaml',
       'model/rd3_overview.yaml'

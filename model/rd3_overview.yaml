@@ -1,8 +1,8 @@
 #//////////////////////////////////////////////////////////////////////////////
 # FILE: rd3_overview.yaml
 # AUTHOR: David Ruvolo
-# DATE CREATED: 2022-05-16
-# DATE MODIFIED: 2022-05-16
+# CREATED: 2022-05-16
+# MODIFIED: 2022-05-31
 # PURPOSE: EMX for custom RD3 view
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
@@ -31,76 +31,81 @@ entities:
         labelAttribute: true
         nillable: true
       
-      - name: genderAtBirth
+      - name: sex1
+        label: Claimed Sex
         description: Assigned gender is one's gender which was assigned at birth, typically by a medical and/or legal organization, and then later registered with other organizations. Such a designation is typically based off of the superficial appearance of external genitalia present at birth.
         tags: http://purl.obolibrary.org/obo/GSSO_009418
         dataType: mref
         refEntity: rd3_sex
       
-      - name: belongsToFamily
+      - name: fid
+        label: FamilyID
         description: A domestic group, or a number of domestic groups linked through descent (demonstrated or stipulated) from a common ancestor, marriage, or adoption.
         tags: http://purl.obolibrary.org/obo/NCIT_C25173
         dataType: string
         
-      - name: belongsToMother
+      - name: mid
+        label: MaternalID
         dataType: xref
         refEntity: rd3_overview
         description: A designation that has some relationship to motherhood.
         tags: http://purl.obolibrary.org/obo/NCIT_C89336
       
-      - name: belongsToFather
+      - name: pid
+        label: PaternalID
         dataType: xref
         refEntity: rd3_overview
         description: Having to do with the father, coming from the father, or related through the father.
         tags: http://purl.obolibrary.org/obo/NCIT_C89336
         
-      - name: partOfDataRelease
+      - name: patch
+        label: Patch
         dataType: mref
         refEntity: rd3_patch
         description: The act of making data or other structured information accessible to the public or to the user group of a database.
         tags: http://purl.obolibrary.org/obo/NCIT_C172217
         
-      - name: primaryAffiliatedInstitute
+      - name: organisation
+        label: Organisation
         description: The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person.
         dataType: mref
         refEntity: rd3_organisation
         
-      - name: participatesInStudy
+      - name: ERN
+        label: ERN
         description: Reference to the study or studies in which this person participates.
         tags: http://purl.obolibrary.org/obo/RO_0000056
         dataType: mref
         refEntity: rd3_ERN
         
       - name: affectedStatus
+        label: Affected Status
         dataType: bool
         description: Individuals in a pedigree who exhibit the specific phenotype under study.
         tags: http://purl.obolibrary.org/obo/NCIT_C64917
         
-      - name: solvedStatus
+      - name: solved
         dataType: bool
         description: Solved status for RD3 (True/False)
         
-      - name: observedPhenotype
+      - name: phenotype
         dataType: mref
         refEntity: rd3_phenotype
         description: The outward appearance of the individual. In medical context, these are often the symptoms caused by a disease.
         tags: http://purl.obolibrary.org/obo/NCIT_C16977
 
-      - name: unobservedPhenotype
+      - name: hasNotPhenotype
+        label: 
         dataType: mref
         refEntity: rd3_phenotype
         description: Phenotypes or symptoms that were looked for but not observed, which may help in differential diagnosis or establish incomplete penetrance.
         tags: http://purl.bioontology.org/ontology/HL7/C0442737
         
-      - name: clinicalDiagnosis
+      - name: disease
         dataType: mref
         refEntity: rd3_disease
         description: A diagnosis made from a study of the signs and symptoms of a disease.
         tags: http://purl.obolibrary.org/obo/NCIT_C15607
-        
-      - name: emxRelease
-        dataType: string
-        description: identifier for nested EMX package
         
       #////////////////////////////////////////
       # compound for samples
@@ -109,40 +114,54 @@ entities:
         dataType: compound
 
       - name: numberOfSamples
+        label: Total Number of Samples
         dataType: int
         partOfAttribute: samples
         
       - name: df1Samples
+        label: DF1 Samples
         dataType: mref
         refEntity: rd3_freeze1_sample
         partOfAttribute: samples
         
       - name: df2Samples
+        label: DF2 Samples
         dataType: mref
         refEntity: rd3_freeze2_sample
         partOfAttribute: samples
       
       - name: df3Samples
+        label: DF3 Samples
         dataType: mref
         refEntity: rd3_freeze3_sample
         partOfAttribute: samples
       
       - name: noveldeepwesSamples
+        label: NovelOmics Deep-WES Samples
         dataType: mref
         refEntity: rd3_noveldeepwes_sample
         partOfAttribute: samples
       
       - name: novelrnaseqSamples
+        label: NovelOmics RNAseq Samples
         dataType: mref
         refEntity: rd3_novelrnaseq_sample
         partOfAttribute: samples
         
+      - name: novellrwgsSamples
+        label: NovelOmics LR-WGS Samples
+        dataType: mref
+        refEntity: rd3_novellrwgs_sample
+        partOfAttribute: samples
+      
       - name: novelsrwgsSamples
+        label: NovelOmics SR-WGS Samples
         dataType: mref
         refEntity: rd3_novelsrwgs_sample
         partOfAttribute: samples
       
       - name: novelwgsSamples
+        label: NovelOmics WGS Samples
         dataType: mref
         refEntity: rd3_novelwgs_sample
         partOfAttribute: samples
@@ -154,40 +173,48 @@ entities:
         dataType: compound
         
       - name: numberOfExperiments
+        label: Total Number of Experiments
         dataType: int
         partOfAttribute: experiments
         
       - name: df1Experiments
+        label: DF1 Experiments
         dataType: mref
         refEntity: rd3_freeze1_labinfo
         partOfAttribute: experiments
       
       - name: df2Experiments
+        label: DF2 Experiments
         dataType: mref
         refEntity: rd3_freeze2_labinfo
         partOfAttribute: experiments
       
       - name: df3Experiments
+        label: DF1 Experiments
         dataType: mref
         refEntity: rd3_freeze3_labinfo
         partOfAttribute: experiments
       
       - name: noveldeepweesExperiments
+        label: NovelOmics Deep-WES Experiments
         dataType: mref
         refEntity: rd3_noveldeepwes_labinfo
         partOfAttribute: experiments
       
       - name: novelrnaseqExperiments
+        label: NovelOmics RNAseq Experiments
         dataType: mref
         refEntity: rd3_novelrnaseq_labinfo
         partOfAttribute: experiments
       
       - name: novelsrwgsExperiments
+        label: NovelOmics SR-WGS Experiments
         dataType: mref
         refEntity: rd3_novelsrwgs_labinfo
         partOfAttribute: experiments
       
       - name: novelwgsExperiments
+        label: NovelOmics WGS Experiments
         dataType: mref
         refEntity: rd3_novelwgs_labinfo
         partOfAttribute: experiments
@@ -200,33 +227,49 @@ entities:
         dataType: compound
         
       - name: numberOfFiles
+        label: Total Number of Files
         dataType: int
         partOfAttribute: files
         
       - name: df1Files
+        label: DF1 Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: df2Files
+        label: DF2 Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: df3Files
+        label: DF3 Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: noveldeepwesFiles
+        label: NovelOmics Deep-WES Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: novelrnaseqFiles
+        label: NovelOmics RNAseq Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: novelsrwgsFile
+        label: NovelOmics SR-WGS Files
         dataType: hyperlink
         partOfAttribute: files
       
       - name: novelwgsFile
+        label: NovelOmics WGS Files
         dataType: hyperlink
         partOfAttribute: files
+      
+      #////////////////////////////////
+      
+      # Other row metadata
+
+      - name: associatedRD3Releases
+        dataType: string
+        description: identifier for nested EMX package

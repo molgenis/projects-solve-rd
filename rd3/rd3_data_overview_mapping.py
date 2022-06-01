@@ -2,7 +2,7 @@
 #' FILE: rd3_data_overview_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-05-31
+#' MODIFIED: 2022-06-01
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -11,6 +11,7 @@
 
 from rd3.api.molgenis import Molgenis
 from rd3.utils.utils import (
+    dtFrameToRecords,
     statusMsg,
     flattenBoolArray,
     flattenStringArray,
@@ -321,7 +322,7 @@ subjects['patch'] = dt.Frame([
 
 # collapse release
 statusMsg('Collapsing emx-release....')
-subjects['associatedRD3Release'] = dt.Frame([
+subjects['associatedRD3Releases'] = dt.Frame([
     flattenValueArray(
         array=subjects[f.subjectID==d, f.release][f.release != None, :].to_list()[0]
     )
@@ -541,31 +542,83 @@ files.nrows - files[f.subjectID!=None,:].nrows
 # The fastest way to summarize the data is to create row counts by subjectID,
 # release, and experimentID.
 statusMsg('Summarizing data by subject, release, and experiments....')
-filesCountsGrouped=files[(f.subjectID!=''), :][
+fileCountsGrouped=files[(f.subjectID!=''), :][
     :, dt.count(), dt.by(f.subjectID, f.release, f.experimentID)
 ]
 
-# Next, spread the data wide by release and create a dataexplorer URL for all 
-# unique experiments by release.
-statusMsg('Spreading file metadata by release....')
-filesSummarized=dt.Frame([
-    {
-        'subjectID': d[0].split('_')[0],
-        'numberOfFiles': sum(filesCountsGrouped[f.subjectID==d[0],'count'].to_list()[0]),
-        d[1]: '?entity=rd3_{}_file&hideselect=true&filter=({})'.format(
-            d[1],
-            urllib.parse.quote(
-                createUrlFilter(
-                    columnName='experimentID',
-                    array=filesCountsGrouped[
-                        (f.subjectID==d[0]) & (f.release==d[1]), 'experimentID'
-                    ].to_list()[0]
+
+# spread the data
+fileSubjectIDs = dt.unique(fileCountsGrouped['subjectID']).to_list()[0]
+filesSummarized=dt.Frame()
+processedSubjectIDs=[]
+
+for id in tqdm(fileSubjectIDs):
+    if id not in processedSubjectIDs:
+        
+        # pull all subject-file rows
+        tmpFilesBySubject=fileCountsGrouped[f.subjectID==id, :]
+        
+        # collapse all experiment IDs by release: this flattens all IDs so that
+        # duplicate rows can be removed without removing unique file IDs
+        tmpFilesBySubject['idsCollapsed'] = dt.Frame([
+            '?entity=rd3_{}_file&hideselect=true&filter=({})'.format(
+                d,
+                urllib.parse.quote(
+                    createUrlFilter(
+                        columnName='experimentID',
+                        array=tmpFilesBySubject[f.release==d, 'experimentID'].to_list()[0]
+                    )
                 )
             )
+            for d in tmpFilesBySubject['release'].to_list()[0]
+        ])
+        
+        # spread data by subjectID and release the previous step collapses
+        # multiple samples for a release so we can drop duplicate values here
+        subjectFilesSummarized=dt.Frame(
+            tmpFilesBySubject
+            .to_pandas()
+            .drop_duplicates(subset=['subjectID','release'],keep='first')
+            .pivot(index='subjectID', columns='release', values='idsCollapsed')
+            .reset_index()
         )
-    }
-    for d in filesCountsGrouped[:, (f.subjectID, f.release)].to_tuples()
-])[:, first(f[:]), dt.by(f.subjectID)]
+        
+        # bind to parent object
+        subjectFilesSummarized['numberOfFiles']=sum(tmpFilesBySubject['count'].to_list()[0])
+        filesSummarized=dt.rbind(
+            filesSummarized,
+            subjectFilesSummarized,
+            force=True
+        )
+
+
+del subjectFilesSummarized
+del tmpFilesBySubject
+del fileSubjectIDs
+del processedSubjectIDs
+
+
+# Next, spread the data wide by release and create a dataexplorer URL for all 
+# unique experiments by release.
+# statusMsg('Spreading file metadata by release....')
+# filesSummarized=dt.Frame([
+#     {
+#         'subjectID': d[0].split('_')[0],
+#         'numberOfFiles': sum(filesCountsGrouped[f.subjectID==d[0],'count'].to_list()[0]),
+#         d[1]: '?entity=rd3_{}_file&hideselect=true&filter=({})'.format(
+#             d[1],
+#             urllib.parse.quote(
+#                 createUrlFilter(
+#                     columnName='experimentID',
+#                     array=filesCountsGrouped[
+#                         (f.subjectID==d[0]) & (f.release==d[1]), 'experimentID'
+#                     ].to_list()[0]
+#                 )
+#             )
+#         )
+#     }
+#     for d in filesCountsGrouped[:, (f.subjectID, f.release)].to_tuples()
+# ])[:, first(f[:]), dt.by(f.subjectID)]
 
 
 # rename columns - run with all key pairs uncommented. It is possible that
@@ -605,3 +658,37 @@ rd3.importData(
 # import row data
 overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
 rd3.updateRows(entity='rd3_overview', data=overviewData)
+
+
+# update values for a column
+# rd3.updateColumn(
+#     entity='rd3_overview',
+#     attr='numberOfFiles',
+#     data=dtFrameToRecords(
+#         data=subjects[f.numberOfFiles!=None,['subjectID','numberOfFiles']]
+#     )
+# )
+
+# rd3.updateColumn(
+#     entity='rd3_overview',
+#     attr='df1Files',
+#     data=dtFrameToRecords(
+#         data=subjects[f.df1Files!=None,['subjectID','df1Files']]
+#     )
+# )
+
+# rd3.updateColumn(
+#     entity='rd3_overview',
+#     attr='df2Files',
+#     data=dtFrameToRecords(
+#         data=subjects[f.df2Files!=None,['subjectID','df2Files']]
+#     )
+# )
+
+# rd3.updateColumn(
+#     entity='rd3_overview',
+#     attr='novelsrwgsFiles',
+#     data=dtFrameToRecords(
+#         data=subjects[f.novelsrwgsFiles!=None,['subjectID','novelsrwgsFiles']]
+#     )
+# )

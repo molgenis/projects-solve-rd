@@ -2,7 +2,7 @@
 # FILE: rd3_overview.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-16
-# MODIFIED: 2022-05-31
+# MODIFIED: 2022-06-01
 # PURPOSE: EMX for custom RD3 view
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
@@ -256,12 +256,12 @@ entities:
         dataType: hyperlink
         partOfAttribute: files
       
-      - name: novelsrwgsFile
+      - name: novelsrwgsFiles
         label: NovelOmics SR-WGS Files
         dataType: hyperlink
         partOfAttribute: files
       
-      - name: novelwgsFile
+      - name: novelwgsFiles
         label: NovelOmics WGS Files
         dataType: hyperlink
         partOfAttribute: files

@@ -59,8 +59,8 @@ Overview on RD3 Subjects, samples, and experiments
 | df3Files | DF3 Files | - | hyperlink |
 | noveldeepwesFiles | NovelOmics Deep-WES Files | - | hyperlink |
 | novelrnaseqFiles | NovelOmics RNAseq Files | - | hyperlink |
-| novelsrwgsFile | NovelOmics SR-WGS Files | - | hyperlink |
-| novelwgsFile | NovelOmics WGS Files | - | hyperlink |
+| novelsrwgsFiles | NovelOmics SR-WGS Files | - | hyperlink |
+| novelwgsFiles | NovelOmics WGS Files | - | hyperlink |
 | associatedRD3Releases | - | identifier for nested EMX package | string |
 
 Note: The symbol &#8251; denotes attributes that are primary keys

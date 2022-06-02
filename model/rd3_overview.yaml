@@ -2,7 +2,7 @@
 # FILE: rd3_overview.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-16
-# MODIFIED: 2022-06-01
+# MODIFIED: 2022-06-02
 # PURPOSE: EMX for custom RD3 view
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
@@ -64,6 +64,10 @@ entities:
         refEntity: rd3_patch
         description: The act of making data or other structured information accessible to the public or to the user group of a database.
         tags: http://purl.obolibrary.org/obo/NCIT_C172217
+        
+      - name: hasOnlyNovelOmics
+        description: If true, this subject does not have data in any data freeze (1,2,3,etc.)
+        dataType: bool
         
       - name: organisation
         label: Organisation

@@ -26,6 +26,7 @@ Overview on RD3 Subjects, samples, and experiments
 | mid | MaternalID | A designation that has some relationship to motherhood. | xref |
 | pid | PaternalID | Having to do with the father, coming from the father, or related through the father. | xref |
 | patch | Patch | The act of making data or other structured information accessible to the public or to the user group of a database. | mref |
+| hasOnlyNovelOmics | - | If true, this subject does not have data in any data freeze (1,2,3,etc.) | bool |
 | organisation | Organisation | The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person. | mref |
 | ERN | ERN | Reference to the study or studies in which this person participates. | mref |
 | clinical_status | Affected Status | Individuals in a pedigree who exhibit the specific phenotype under study. | bool |

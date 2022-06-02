@@ -33,11 +33,17 @@ from tqdm import tqdm
 # init database connection
 statusMsg('Connecting to RD3....')
 load_dotenv()
-host=environ['MOLGENIS_ACC_HOST'] # or use `*_PROD_*`
-rd3=Molgenis(url=host)
+
+# rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
+# rd3.login(
+#     username=environ['MOLGENIS_ACC_USR'],
+#     password=environ['MOLGENIS_ACC_PWD']
+# )
+
+rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
 rd3.login(
-    username=environ['MOLGENIS_ACC_USR'],
-    password=environ['MOLGENIS_ACC_PWD']
+    username=environ['MOLGENIS_PROD_USR'],
+    password=environ['MOLGENIS_PROD_PWD']
 )
 
 
@@ -307,7 +313,7 @@ subjects['organisation'] = dt.Frame([
 # collapse ERN
 statusMsg('Collapsing ERNs....')
 subjects['ERN'] = dt.Frame([
-    flattenValueArray(array=subjects[f.subjectID==d, f.ERN].to_list()[0])
+    flattenValueArray(array=subjects[f.subjectID==d, 'ERN'].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0][:1]
 ])
 
@@ -315,7 +321,7 @@ subjects['ERN'] = dt.Frame([
 # collapse solved
 statusMsg('Collapsing solved status....')
 subjects['solved'] = dt.Frame([
-    flattenBoolArray(array=subjects[f.subjectID==d, f.solved].to_list()[0])
+    flattenBoolArray(array=subjects[f.subjectID==d, 'solved'].to_list()[0])
     for d in subjects[:, f.subjectID].to_list()[0]
 ])
 
@@ -614,30 +620,6 @@ del tmpFilesBySubject
 del fileSubjectIDs
 del processedSubjectIDs
 
-
-# Next, spread the data wide by release and create a dataexplorer URL for all 
-# unique experiments by release.
-# statusMsg('Spreading file metadata by release....')
-# filesSummarized=dt.Frame([
-#     {
-#         'subjectID': d[0].split('_')[0],
-#         'numberOfFiles': sum(filesCountsGrouped[f.subjectID==d[0],'count'].to_list()[0]),
-#         d[1]: '?entity=rd3_{}_file&hideselect=true&filter=({})'.format(
-#             d[1],
-#             urllib.parse.quote(
-#                 createUrlFilter(
-#                     columnName='experimentID',
-#                     array=filesCountsGrouped[
-#                         (f.subjectID==d[0]) & (f.release==d[1]), 'experimentID'
-#                     ].to_list()[0]
-#                 )
-#             )
-#         )
-#     }
-#     for d in filesCountsGrouped[:, (f.subjectID, f.release)].to_tuples()
-# ])[:, first(f[:]), dt.by(f.subjectID)]
-
-
 # rename columns - run with all key pairs uncommented. It is possible that
 # new data has become availble since the prior run. Comment items if a KeyError
 # is thrown. Run the following command to check names:
@@ -657,8 +639,6 @@ filesSummarized.names = {
 subjects.key='subjectID'
 filesSummarized.key='subjectID'
 subjects=subjects[:, :, dt.join(filesSummarized)]
-
-# subjects.names={'release': 'emxRelease'}
 
 
 #///////////////////////////////////////

@@ -2,7 +2,7 @@
 #' FILE: rd3_data_overview_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-06-01
+#' MODIFIED: 2022-06-02
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -43,16 +43,25 @@ rd3.login(
 
 # SET RELEASES
 # If new releases are added to RD3, add package identifier to the list below.
-availableReleases=[
+# Since the aim of the table is to be able to identify subjects that are
+# lacking genetic data, it is best to separate novelomics releases from 
+# regular freezes, and then merge the two arrays
+
+regularReleases=[
     'freeze1',
     'freeze2',
-    'freeze3',
+    'freeze3'
+]
+
+novelomicsReleases=[
     'noveldeepwes',
     'novelrnaseq',
     'novellrwgs',
     'novelsrwgs',
     'novelwgs'
 ]
+
+availableReleases = regularReleases + novelomicsReleases
 
 statusMsg('Pulling metadata....')
 
@@ -317,6 +326,14 @@ subjects['patch'] = dt.Frame([
         array=subjects[f.subjectID==d, f.patch][f.patch!=None, :].to_list()[0]
     )
     for d in subjects[:, f.subjectID].to_list()[0]
+])
+
+# determine if the subject is novel omics only
+statusMsg('Flagging subjects that have only novel omics data....')
+novelomicsReleasesFormatted=[f'{d}_original' for d in novelomicsReleases]
+subjects['hasOnlyNovelOmics'] = dt.Frame([
+    d in novelomicsReleasesFormatted
+    for d in subjects['patch'].to_list()[0]
 ])
 
 
@@ -659,6 +676,15 @@ rd3.importData(
 overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
 rd3.updateRows(entity='rd3_overview', data=overviewData)
 
+
+# update values
+# rd3.updateColumn(
+#     entity='rd3_overview',
+#     attr='hasOnlyNovelOmics',
+#     data=dtFrameToRecords(
+#         data=subjects[:,['subjectID', 'hasOnlyNovelOmics']]
+#     )
+# )
 
 # update values for a column
 # rd3.updateColumn(

@@ -2,7 +2,7 @@
 #' FILE: emx.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2021-09-16
-#' MODIFIED: 2022-05-31
+#' MODIFIED: 2022-06-02
 #' PURPOSE: incorporate YAML to EMX generator
 #' STATUS: stable
 #' PACKAGES: yamlemxconvert
@@ -52,13 +52,12 @@ for model in activeEmxModels:
     emx.convert()
         
     # build tags (if available)
-    if emx.tags:
-        tags = emx.tags
-        tags.extend(buildEmxTags(emx.packages))
-        tags.extend(buildEmxTags(emx.entities))
-        tags.extend(buildEmxTags(emx.attributes))
-        tags = list({d['identifier']: d for d in tags}.values())
-        emx.tags = sorted(tags, key = lambda d: d['identifier'])
+    tags = emx.tags
+    tags.extend(buildEmxTags(emx.packages))
+    tags.extend(buildEmxTags(emx.entities))
+    tags.extend(buildEmxTags(emx.attributes))
+    tags = list({d['identifier']: d for d in tags}.values())
+    emx.tags = sorted(tags, key = lambda d: d['identifier'])
         
     # if releases are defined, render EMX files accordingly
     if model.get('releases') and model.get('releaseTemplate'):

@@ -2,7 +2,7 @@
 # FILE: model.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-05-09
-# UPDATED: 2022-05-31
+# UPDATED: 2022-06-14
 # PURPOSE: RD3 model build instructions
 # DEPENDENCES: **see index.py**
 # COMMENTS: The purpose of this script is to define how the RD3 model and
@@ -54,8 +54,14 @@ models:
     ]
 
   - name: rd3_overview
-    active: true
+    active: false
     files: [
       'model/base_rd3.yaml',
       'model/rd3_overview.yaml'
+    ]
+    
+  - name: rd3stats
+    active: true
+    files: [
+      'model/rd3stats.yaml'
     ]

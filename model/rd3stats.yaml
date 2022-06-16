@@ -1,0 +1,28 @@
+
+name: rd3stats
+label: RD3 Stats
+description: Additional summaries and processed data
+version: 1.0.0
+date: 2022-06-14
+
+defaults:
+  idAttribute: false
+  dataType: string
+  labelAttribute: false
+  lookupAttribute: false
+  
+entities:
+  - name: json
+    label: JSON Stringified data
+    description: Preprocessed JSON stringified objects for vue applications
+    attributes:
+      - name: id
+        description: identifier of the object
+        idAttribute: true
+        dataType: string
+      
+      - name: value
+        description: json stringified object
+        dataType: text
+        
+        

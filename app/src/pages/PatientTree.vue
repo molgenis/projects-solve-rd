@@ -4,9 +4,8 @@
       <Section id="patient-tree-viz">
         <h2>Patient Tree</h2>
         <p>The Patient Tree view was designed to link all samples and experiments across RD3 releases at the patient-level. Click a patient ID with the folder icon to view all linked samples. Continue clicking items until all items have been expanded.</p>
-        <div class="loading" v-if="loading">
-          <p>Loading....</p>
-        </div>
+        <p v-if="requestHasFailed">Error: Unable to retrieve data. Are you signed in?</p>
+        <p v-else-if="loading && !requestHasFailed">Loading data....</p>
         <TreeView id="patient-tree" :data="treeData.children" v-else/>
       </Section>
     </main>
@@ -22,6 +21,7 @@ export default {
   data () {
     return {
       loading: true,
+      requestHasFailed: false,
       treeData: []
     }
   },
@@ -48,6 +48,9 @@ export default {
       this.treeData = JSON.parse(treeData)
     }).then(() => {
       this.loading = false
+    }).catch(error => {
+      this.requestHasFailed = true
+      console.error(error)
     })
   }
 }

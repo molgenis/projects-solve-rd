@@ -49,7 +49,6 @@ export default {
     padding: 1.5em;
     border: 1px solid #c4c4c4;
     list-style: none;
-    padding: 0;
     margin: 0;
     .tree__item {
       position: relative;

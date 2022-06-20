@@ -27,7 +27,7 @@ export default {
   props: {
     href: {
       type: String,
-      require: true
+      required: true
     },
     showExternalLinkIcon: {
       type: Boolean,

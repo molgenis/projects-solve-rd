@@ -22,13 +22,11 @@ export default {
     },
     title: {
       type: String,
-      required: true,
-      default: 'Example Title'
+      required: true
     },
     subtitle: {
       type: String,
-      required: true,
-      default: 'Example Subtitle'
+      required: true
     },
     imageSrc: {
       type: String,

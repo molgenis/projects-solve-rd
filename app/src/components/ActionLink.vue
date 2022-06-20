@@ -25,8 +25,10 @@
 export default {
   name: 'ActionLink',
   props: {
-    href: String,
-    label: String,
+    href: {
+      type: String,
+      require: true
+    },
     showExternalLinkIcon: {
       type: Boolean,
       default: false

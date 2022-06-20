@@ -1,5 +1,5 @@
 <template>
-  <div :id="`accordion_${id}`" :class="accordionClass">
+  <div :id="`accordion_${id}`" :class="visible ? 'accordion visible' : 'accordion'">
     <h3 class="heading">
       <button
         type="button"
@@ -11,7 +11,7 @@
       >
         <span class="toggle_label">{{ title }}</span>
         <svg
-          :class="iconClass"
+          :class="visible ? 'toggle_icon rotated' : 'toggle_icon'"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           width="24"
@@ -34,13 +34,7 @@
       role="region"
       v-show="visible"
     >
-      <ul :id="`package_links_${id}`">
-        <li v-for="link in links" :key="link.id">
-          <a :href="`/menu/main/dataexplorer?entity=${link.id}&hideselect=true&mod=data`">
-          {{ link.label }}
-          </a>
-        </li>
-      </ul>
+      <slot></slot>
     </section>
   </div>
 </template>
@@ -48,7 +42,16 @@
 <script>
 export default {
   name: 'AccordionSection',
-  props: ['id', 'title', 'links'],
+  props: {
+    id: {
+      type: String,
+      required: true
+    },
+    title: {
+      type: String,
+      required: true
+    }
+  },
   data () {
     return {
       visible: false
@@ -57,14 +60,6 @@ export default {
   methods: {
     onclick () {
       this.visible = !this.visible
-    }
-  },
-  computed: {
-    accordionClass () {
-      return this.visible ? 'accordion visible' : 'accordion'
-    },
-    iconClass () {
-      return this.visible ? 'toggle_icon rotated' : 'toggle_icon'
     }
   }
 }

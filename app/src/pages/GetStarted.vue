@@ -32,17 +32,24 @@
     </Section>
     <Section id="getstarted-releases" aria-labelledby="getstarted-releases-title" class="section-bg-plain">
       <h2 id="getstarted-releases-title">Current RD3 Releases</h2>
-      <p>There have been <strong>{{ Object.keys(packages).length }} releases</strong> to date. All RD3 data freezes have an identical table structure. This table structure provides a standard format for structuring and storing data, as well as makes it easier to switch between the different data freezes. Tables are linked by one or more identifiers so you can view referenced data in the browser.</p>
-      <p>Click the name of the release below to view all tables available in RD3. Follow the links to view the data. If you would like to view a certain patch, click one of links below and select the "patch" filter.</p>
-      <div class="col-md-8 m-auto">
-        <Accordion
-          v-for="pkg in packages"
-          :key="pkg.id"
-          :id="pkg.id"
-          :title="pkg.label"
-          :links="pkg.links"
-        />
-      </div>
+      <template v-if="!requestHasFailed">
+        <p>There have been <strong>{{ Object.keys(packages).length }} releases</strong> to date. All RD3 data freezes have an identical table structure. This table structure provides a standard format for structuring and storing data, as well as makes it easier to switch between the different data freezes. Tables are linked by one or more identifiers so you can view referenced data in the browser.</p>
+        <p>Click the name of the release below to view all tables available in RD3. Follow the links to view the data. If you would like to view a certain patch, click one of links below and select the "patch" filter.</p>
+        <div class="col-md-8 m-auto" v-if="!loading">
+          <Accordion :id="pkg.id" :title="pkg.label" v-for="pkg in packages" :key="pkg.id">
+            <ul :id="`package_links_${pkg.id}`">
+              <li v-for="link in pkg.links" :key="link.id">
+                <a :href="`/menu/main/dataexplorer?entity=${link.id}&hideselect=true&mod=data`">
+                {{ link.label }}
+                </a>
+              </li>
+            </ul>
+          </Accordion>
+        </div>
+      </template>
+      <template v-else>
+        <p class="error_message">Unable to retrieve information on the latest RD3 releases. Sign in to continue.</p>
+      </template>
     </Section>
   </Page>
 </template>
@@ -61,7 +68,9 @@ export default {
       packages: {},
       images: {
         rd3Overview: require('../assets/rd3-data-flow.png')
-      }
+      },
+      loading: true,
+      requestHasFailed: false
     }
   },
   components: {
@@ -110,36 +119,25 @@ export default {
       return this.fetch(url)
     }).then((result) => {
       this.extractEmxEntities(result)
+      this.loading = false
+    }).catch(error => {
+      this.requestHasFailed = true
+      console.error(error)
     })
   }
 }
 </script>
 
 <style lang="scss">
-  .mg-page .mg-page-content {
-    margin-top: 0;
-  }
-  
-  #getstarted-links-section {
-    background-color: #f6f6f6;
-  }
-  
-  .action-link-container {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 1em;
-    justify-content: center;
-  }
+#getstarted-links {
+  background-color: #f6f6f6;
+}
 
-  #solverd-table-defs {
-    background-color: #f6f6f6;
-    padding: 24px;
-    width: 90%;
-    margin: 16px auto;
-    
-    @media screen and (min-width: 925px) {
-      max-width: 500px;
-    }
-  }
+.action-link-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1em;
+  justify-content: center;
+}
 </style>

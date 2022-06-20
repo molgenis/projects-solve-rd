@@ -1,30 +1,38 @@
 <template>
-  <header :id="setidentifier" :class="setclass" :style="setstyle">
+  <header :id="id" class="header" :style="imageSrc ? `background-image: url(${imageSrc})` : ''">
     <div class="header-content">
-      <h1 :id="setidentifier + '-title'" class="header-title">
+      <h1 :id="id + '-title'" class="header-title">
         {{ title }}
       </h1>
-      <h2 :id="setidentifier + '-subtitle'" class="header-subtitle">
+      <h2 :id="id + '-subtitle'" class="header-subtitle">
         {{ subtitle }}
       </h2>
     </div>
-    <div class="header-filter" v-if="imageSrc"></div>
+    <div class="header-filter" v-if="imageSrc" aria-hidden="true"></div>
   </header>
 </template>
 
 <script>
 export default {
   name: 'PageHeader',
-  props: ['id', 'title', 'subtitle', 'imageSrc'],
-  computed: {
-    setidentifier () {
-      return this.id.toLowerCase().replace(' ', '')
+  props: {
+    id: {
+      type: String,
+      required: true
     },
-    setclass () {
-      return this.imageSrc ? 'header header-bg-image' : 'header'
+    title: {
+      type: String,
+      required: true,
+      default: 'Example Title'
     },
-    setstyle () {
-      return this.imageSrc ? `background-image: url(${this.imageSrc})` : ''
+    subtitle: {
+      type: String,
+      required: true,
+      default: 'Example Subtitle'
+    },
+    imageSrc: {
+      type: String,
+      required: false
     }
   }
 }
@@ -68,7 +76,6 @@ export default {
 
   &.header-bg-image {
     background-size: cover;
-    // background-position: 0 60%;
     background-position: center;
 
     .header-filter {

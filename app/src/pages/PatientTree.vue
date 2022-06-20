@@ -3,11 +3,11 @@
     <main>
       <Section id="patient-tree-viz">
         <h2>Patient Tree</h2>
-        <p>Exercitation reprehenderit aliquip amet qui esse cillum sint tempor ipsum cillum minim labore id irure. Esse laboris est Lorem quis. Tempor tempor qui aute qui amet aliquip in commodo elit eiusmod. Consectetur nisi mollit id pariatur enim tempor voluptate do ad tempor amet. Est cillum dolor nostrud adipisicing reprehenderit consectetur tempor reprehenderit incididunt. Culpa occaecat mollit culpa in. Proident elit reprehenderit pariatur laborum irure anim in consectetur excepteur.</p>
+        <p>The Patient Tree view was designed to link all samples and experiments across RD3 releases at the patient-level. Click a patient ID with the folder icon to view all linked samples. Continue clicking items until all items have been expanded.</p>
         <div class="loading" v-if="loading">
           <p>Loading....</p>
         </div>
-        <TreeView id="patient-tree" :data="treeData" v-else/>
+        <TreeView id="patient-tree" :data="treeData.children" v-else/>
       </Section>
     </main>
   </Page>
@@ -56,7 +56,7 @@ export default {
 
 <style lang="scss">
 // this is for demo purposes only
-#patient-tree-viz-section {
+#patient-tree-viz {
   min-height: calc(100vh - 9em);
 }
 </style>

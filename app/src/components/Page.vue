@@ -1,5 +1,5 @@
 <template>
-  <div class="__page">
+  <div class="page">
     <div class="__pseudo__nav">
       <ul>
         <li><router-link to="/">Home</router-link></li>
@@ -8,8 +8,8 @@
       </ul>
     </div>
     <slot></slot>
-    <div class="__footer">
-      <img :src="MolgenisLogo" alt="molgenis open source data platform" class="molgenis-logo"/>
+    <div class="page__footer">
+      <img :src="MolgenisLogo" alt="molgenis open source data platform" class="molgenis_logo"/>
       <slot name="footer"></slot>
     </div>
   </div>
@@ -44,15 +44,15 @@ footer.footer {
   display: none;
 }
 
-.__page {
+.page {
   min-height: 100vh;
   background-color: #f6f6f6;
   
-  .__footer {
+  .page__footer {
     padding: 2em 1em;
     background-color: #282d32;
     
-    .molgenis-logo {
+    .molgenis_logo {
       width: 124px;
     }
   }

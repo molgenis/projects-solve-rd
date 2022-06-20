@@ -5,7 +5,12 @@
 <script>
 export default {
   name: 'PageImage',
-  props: ['src']
+  props: {
+    src: {
+      type: String,
+      require: true
+    }
+  }
 }
 </script>
 

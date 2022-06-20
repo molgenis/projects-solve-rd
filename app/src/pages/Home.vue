@@ -1,15 +1,10 @@
 <template>
   <Page>
-    <Header
-      id="rd3-home-header"
-      title="SolveRD"
-      subtitle="The rare disease database for solving the unsolved rare diseases"
-    />
     <main class="container-fluid">
       <Section aria-labelledby="solverd-getstarted-title" id="solverd-getstarted" class="section-bg-plain">
         <div class="row">
           <div class="col-sm-8">
-            <h2>Welcome to RD3</h2>
+            <h1>Welcome to RD3</h1>
             <p>The RD3 &mdash;or Rare Disease Data about Data&mdash; database provides an overview of Solve-RD
               &quot;asset collections&quot;. This includes metadata and files associated with patients and samples, as
               well as an overview on the analyses that were performed.</p>
@@ -88,7 +83,6 @@
 
 <script>
 import Page from '../components/Page.vue'
-import Header from '../components/Header.vue'
 import Section from '../components/Section.vue'
 import ActionLink from '../components/ActionLink.vue'
 
@@ -96,7 +90,6 @@ export default {
   name: 'HomePage',
   components: {
     Page,
-    Header,
     Section,
     ActionLink
   }

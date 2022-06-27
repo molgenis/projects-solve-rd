@@ -28,13 +28,17 @@ entities:
     label: Patient Tree Data
     description: JSON stringified objects of sample-experiment links per subject
     attributes:
-      - name: subjectID
-        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+      - name: id
+        description: identifier of the object
         idAttribute: true
-        labelAttribute: true
-        lookupAttribute: true
         nillable: false
         dataType: string
+    
+      - name: subjectID
+        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+        dataType: string
+        labelAttribute: true
+        lookupAttribute: true
         # tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
       
       - name: familyID

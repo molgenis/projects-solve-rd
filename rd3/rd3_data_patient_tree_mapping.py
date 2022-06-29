@@ -99,7 +99,6 @@ for id in subjectidentifiers:
     patientJson['children'] = []
     for sampleID in patientSampleIds:
       sample = patientEntries[dt.f.sampleID == sampleID, :]
-
       patientSampleJson = {
         'id':  f"RDI-{counter}.{samplecounter}",
         'name': sampleID,
@@ -120,7 +119,7 @@ for id in subjectidentifiers:
             })
             experimentcounter += 1
       samplecounter += 1
-    patientJson['children'].append(patientSampleJson)
+      patientJson['children'].append(patientSampleJson)
 
   patientRow = {
     'id': f"RDI-{counter}",

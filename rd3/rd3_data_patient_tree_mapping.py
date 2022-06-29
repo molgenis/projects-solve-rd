@@ -11,10 +11,17 @@
 
 from datatable import dt
 from rd3.api.molgenis import Molgenis
-# from tqdm import tqdm
+from tqdm import tqdm
 import json
 
 def getExperiment(table,sample):
+  """Get Experiment
+  Find all corresponding experiment identifiers from a specific table by
+  a sample identifier
+  
+  @param table name of a table in the database
+  @param sample sample identifier
+  """
   labEndpoint = table.replace('_sample', '_labinfo')
   result = rd3.get(
     entity=labEndpoint,
@@ -24,6 +31,27 @@ def getExperiment(table,sample):
     return result[0]['id']
   else:
     return None
+    
+def cleanIdentifier(value):
+  """Clearn Identifier
+  For sample and experiment IDs, format IDs by parsing the internal
+  identifier in order to extract the experiment type
+  
+  @param value string containing a sample or experiment identifier
+  
+  @examples
+  cleanIdentifier('12345_original')
+  cleanIdentifier('12345_experiment_original')
+  
+  @return string
+  """
+  valueSplit = value.split('_')
+  id = valueSplit[0]
+  experiment = [val for val in valueSplit[1:] if val != 'original']
+  if experiment:
+    return f"{id} ({','.join(experiment)})"
+  else:
+    return id
 
 
 # connect to DB --- local dev only
@@ -83,7 +111,7 @@ subjectidentifiers = dt.unique(patientsamples[:,'subjectID']).to_list()[0]
 jsonData = []
 counter = 0
 
-for id in subjectidentifiers:
+for id in tqdm(subjectidentifiers):
   patientEntries = patientsamples[dt.f.subjectID == id,:]
   patientJson = {
     'id': f"RDI-{counter}",
@@ -101,7 +129,7 @@ for id in subjectidentifiers:
       sample = patientEntries[dt.f.sampleID == sampleID, :]
       patientSampleJson = {
         'id':  f"RDI-{counter}.{samplecounter}",
-        'name': sampleID,
+        'name': cleanIdentifier(sampleID),
         'group': 'sample' 
       }
       
@@ -114,7 +142,7 @@ for id in subjectidentifiers:
           if experimentID is not None:
             patientSampleJson['children'].append({
               "id": f"RDI-{counter}.{samplecounter}.{experimentcounter}",
-              "name": experimentID,
+              "name": cleanIdentifier(experimentID),
               "group": 'experiment'
             })
             experimentcounter += 1

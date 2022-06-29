@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 import App from './App.vue'
 import Home from './pages/Home.vue'
@@ -13,8 +13,13 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(),
-  routes
+  history: createWebHistory(),
+  routes,
+  scrollBehavior (to, from, savedPosition) {
+    return {
+      top: 0
+    }
+  }
 })
 
 const app = createApp(App)

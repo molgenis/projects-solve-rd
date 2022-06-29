@@ -3,10 +3,13 @@
     <main>
       <Section id="patient-tree-viz">
         <h2>Patient Tree</h2>
-        <p>The Patient Tree view was designed to link all samples and experiments across RD3 releases at the patient-level. Click a patient ID with the folder icon to view all linked samples. Continue clicking items until all items have been expanded.</p>
-        <p v-if="requestHasFailed">Error: Unable to retrieve data. Are you signed in?</p>
+        <p>The <strong>Patient Tree</strong> visualizes the connection between patients, samples, and experiments. Search for records using one or more subject- or family identifiers. At the top level, are patients. Click a patient ID to view all linked samples. Click a sample ID to view all linked experiments.</p>
+        <Errorbox v-if="requestHasFailed">
+          <p class="text-error">Unable to retrieve data due to:</p>
+          {{ error }}
+        </Errorbox>
         <p v-else-if="loading && !requestHasFailed">Loading data....</p>
-        <TreeView id="patient-tree" :data="treeData.children" v-else/>
+        <TreeView id="patient-tree" :data="treedata" v-else/>
       </Section>
     </main>
   </Page>
@@ -16,19 +19,23 @@
 import Page from '../components/Page.vue'
 import Section from '../components/Section'
 import TreeView from '../components/TreeView.vue'
+import Errorbox from '../components/Errorbox.vue'
 
 export default {
+  name: 'page-patient-tree',
+  components: {
+    Page,
+    Section,
+    Errorbox,
+    TreeView
+  },
   data () {
     return {
       loading: true,
       requestHasFailed: false,
-      treeData: []
+      error: null,
+      treedata: []
     }
-  },
-  components: {
-    Page,
-    Section,
-    TreeView
   },
   methods: {
     async fetchData (url) {
@@ -37,20 +44,17 @@ export default {
     }
   },
   mounted () {
-    const endpoint = '/api/v2/rd3stats_json'
+    const endpoint = '/api/v2/rd3stats_treedata?attributes=id,json'
     Promise.all([
       this.fetchData(endpoint)
     ]).then(result => {
-      const rawData = result[0]
-      const treeData = rawData.items.map(row => {
-        return row.id === 'patient-sample-viz' ? row.value : null
-      })[0]
-      this.treeData = JSON.parse(treeData)
+      const treedata = result[0].items
+      this.treedata = treedata
     }).then(() => {
       this.loading = false
     }).catch(error => {
       this.requestHasFailed = true
-      console.error(error)
+      this.error = error
     })
   }
 }
@@ -61,5 +65,13 @@ export default {
 // this is for demo purposes only
 #patient-tree-viz {
   min-height: calc(100vh - 9em);
+  
+  .tree__icon__patient {
+    fill: #DEAF02
+  }
+  
+  .tree__icon__sample {
+    fill: #478DAE;
+  }
 }
 </style>

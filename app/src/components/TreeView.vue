@@ -6,8 +6,9 @@
       <li class="tree__item" v-for="row in data" :key="row.id">
         <TreeViewItem
           :id="row.id"
-          :name="row.name"
-          :children="row.children ? row.children : null"
+          :name="row.subjectID"
+          :group="JSON.parse(row.json).group"
+          :children="JSON.parse(row.json).children"
         />
       </li>
     </ul>

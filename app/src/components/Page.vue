@@ -17,7 +17,7 @@
 
 <script>
 export default {
-  name: 'uiPage',
+  name: 'ui-page',
   data () {
     return {
       MolgenisLogo: require('../assets/molgenis-logo-blue-small.png')

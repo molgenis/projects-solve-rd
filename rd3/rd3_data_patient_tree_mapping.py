@@ -47,7 +47,11 @@ def cleanIdentifier(value):
   """
   valueSplit = value.split('_')
   id = valueSplit[0]
+<<<<<<< HEAD
   experiment = [val for val in valueSplit[1:] if val != 'original']
+=======
+  experiment = [val.upper() for val in valueSplit[1:] if val != 'original']
+>>>>>>> c6b2d17 (added method for extracting experiment from ID)
   if experiment:
     return f"{id} ({','.join(experiment)})"
   else:

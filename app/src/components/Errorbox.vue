@@ -15,6 +15,7 @@ export default {
   background-color: hsl(1, 100%, 95%);
   color: hsl(10, 90%, 55%);
   box-sizing: padding-box;
-  padding: 1.06em;
+  padding: 1em;
+  margin: 12px 0;
 }
 </style>

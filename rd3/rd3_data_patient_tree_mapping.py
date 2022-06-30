@@ -14,50 +14,6 @@ from rd3.api.molgenis import Molgenis
 from tqdm import tqdm
 import json
 
-def getExperiment(table,sample):
-  """Get Experiment
-  Find all corresponding experiment identifiers from a specific table by
-  a sample identifier
-  
-  @param table name of a table in the database
-  @param sample sample identifier
-  """
-  labEndpoint = table.replace('_sample', '_labinfo')
-  result = rd3.get(
-    entity=labEndpoint,
-    q =f'sample=={sample}'
-  )
-  if result:
-    return result[0]['id']
-  else:
-    return None
-    
-def cleanIdentifier(value):
-  """Clearn Identifier
-  For sample and experiment IDs, format IDs by parsing the internal
-  identifier in order to extract the experiment type
-  
-  @param value string containing a sample or experiment identifier
-  
-  @examples
-  cleanIdentifier('12345_original')
-  cleanIdentifier('12345_experiment_original')
-  
-  @return string
-  """
-  valueSplit = value.split('_')
-  id = valueSplit[0]
-<<<<<<< HEAD
-  experiment = [val for val in valueSplit[1:] if val != 'original']
-=======
-  experiment = [val.upper() for val in valueSplit[1:] if val != 'original']
->>>>>>> c6b2d17 (added method for extracting experiment from ID)
-  if experiment:
-    return f"{id} ({','.join(experiment)})"
-  else:
-    return id
-
-
 # connect to DB --- local dev only
 from os import environ
 from dotenv import load_dotenv
@@ -68,6 +24,51 @@ usr=environ['MOLGENIS_ACC_USR']
 pwd=environ['MOLGENIS_ACC_PWD']
 rd3 = Molgenis(host)
 rd3.login(usr, pwd)
+
+def getExperiment(table,sample):
+  """Get Experiment
+  Find all corresponding experiment identifiers from a specific table by
+  a sample identifier
+  
+  @param table name of a table in the database
+  @param sample sample identifier
+  """
+  labEndpoint = table.replace('_sample', '_labinfo')
+  result = rd3.get(entity=labEndpoint, q =f'sample=={sample}')
+  if result:
+    return result[0]['id']
+  else:
+    return None
+    
+def cleanIdentifier(value, patterns=None):
+  """Clearn Identifier
+  For sample and experiment IDs, format IDs by parsing the internal
+  identifier in order to extract the experiment type
+  
+  @param value string containing a sample or experiment identifier
+  @param patterns an object of values to determine if the first
+    element post-split is an experiment type or an ID. To preserve the
+    structure of the incoming data, some experiment IDs are structured
+    like `<experiment_type>_<identifier>` where the reverse pattern is
+    used for all other experiments.
+  
+  @examples
+  cleanIdentifier('12345_original')
+  cleanIdentifier('12345_experiment_original')
+  
+  @return string
+  """
+  valueSplit = value.split('_')
+  id = valueSplit[0]
+  if (patterns) and (id in patterns):
+    experiment = [pattern for pattern in patterns if pattern == id][0]
+    id = valueSplit[1].upper()
+  else:
+    experiment = ','.join([val.upper() for val in valueSplit[1:] if val != 'original'])
+  if experiment:
+    return f"{id} ({experiment})"
+  else:
+    return id
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -146,7 +147,7 @@ for id in tqdm(subjectidentifiers):
           if experimentID is not None:
             patientSampleJson['children'].append({
               "id": f"RDI-{counter}.{samplecounter}.{experimentcounter}",
-              "name": cleanIdentifier(experimentID),
+              "name": cleanIdentifier(experimentID, ['SR-WGS']),
               "group": 'experiment'
             })
             experimentcounter += 1
@@ -171,4 +172,5 @@ for id in tqdm(subjectidentifiers):
 # Import Data
 
 # rd3.delete('rd3stats_treedata')
-rd3.importData(entity='rd3stats_treedata', data=jsonData)
+# rd3.importData(entity='rd3stats_treedata', data=jsonData)
+rd3.updateRows(entity='rd3stats_treedata', data=jsonData)

@@ -16,7 +16,7 @@
 </template>
 
 <script>
-import TreeViewItem from './TreeVueItem.vue'
+import TreeViewItem from './TreeViewItem.vue'
 
 export default {
   name: 'tree-view',
@@ -47,14 +47,11 @@ export default {
   }
   .tree {
     box-sizing: border-box;
-    padding: 1.5em;
-    border: 1px solid #c4c4c4;
-    list-style: none;
+    border-radius: 6px;
+    padding: 0;
     margin: 0;
+    list-style: none;
     .tree__item {
-      position: relative;
-      margin-left: 6px;
-      margin-bottom: 8px;
       font-size: 11pt;
     }
   }

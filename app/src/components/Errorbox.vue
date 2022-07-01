@@ -17,5 +17,6 @@ export default {
   box-sizing: padding-box;
   padding: 1em;
   margin: 12px 0;
+  border-radius: 6px;
 }
 </style>

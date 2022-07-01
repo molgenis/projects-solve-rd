@@ -7,9 +7,10 @@
         <div class="form-chart-area">
           <Form
             id="patient-tree-search"
-            title="Search"
-            description="Find and view data for specific patients. You can also search for more than one identifier by entering the values like so: 'value1, value2, value3, etc.'"
+            title="Search or patients or families"
+            description="Find and view data for specific patients or families. You can also search for more than one identifier by entering the values like so 'value1, value2, value3, etc.'"
             class="area-aside"
+            @submit.prevent
           >
             <FormSection>
               <Errorbox v-if="validation.hasError">
@@ -18,15 +19,17 @@
               <InputSearch
                 id="search-patient-id"
                 label="Subject"
+                ref="formInputSubjectID"
                 description="Enter one or more subject identifier"
-                @search="(value) => {filters.subjectID = value; resetError(value)}"
+                @search="(value) => updateSubjectID(value)"
               />
-              <!-- <InputSearch
+              <InputSearch
                 id="search-family-id"
+                ref="formInputFamilyID"
                 label="Families"
                 description="Enter one or more family identifier"
-                @search="(value) => {filters.familyID = value; resetError(value)}"
-              /> -->
+                @search="(value) => updateFamilyID(value)"
+              />
             </FormSection>
             <SearchButton
               id="search-patient-tree"
@@ -35,11 +38,10 @@
           </Form>
           <div class="area-main">
             <Errorbox v-if="request.hasError">
-              <p class="text-error">Error: Unable to retrieve data</p>
               <span>{{ request.message }}</span>
             </Errorbox>
             <p v-else-if="!request.hasError && !request.isLoading && !treedata.length">
-              Search for subjects to view the patient tree.
+              Search for subjects or families to display the patient tree.
             </p>
             <p v-else-if="!request.hasError && request.isLoading && !treedata.length">
               Retrieving data....
@@ -100,9 +102,19 @@ export default {
       const response = await fetch(url)
       return response.json()
     },
+    updateSubjectID (value) {
+      this.filters.subjectID = value
+      this.resetError(value)
+    },
+    updateFamilyID (value) {
+      this.filters.familyID = value
+      this.resetError(value)
+    },
     resetError (value) {
       if (value.length) {
         this.validation.hasError = false
+        this.request.hasError = false
+        this.request.message = null
       }
     },
     getData () {
@@ -112,19 +124,25 @@ export default {
         this.validation.message = 'Filters are blank. Enter one or more subject identifiers to view the patient tree.'
       } else {
         const filters = objectToUrlFilterArray(userinput)
-        const filterurl = buildFilterUrl(filters)
+        const filterurl = buildFilterUrl(filters, ',')
         const url = this.endpoint + '?q=' + filterurl
         this.request.isLoading = true
         Promise.all([
           this.fetchData(url)
         ]).then(result => {
           const treedata = result[0].items
+          if (treedata.length === 0) {
+            const msg = `No results returned with the search parameters ${filters}`
+            throw new Error(msg)
+          }
           this.treedata = treedata
           this.request.isLoading = false
         }).catch(error => {
           this.request.isLoading = false
           this.request.hasError = true
           this.request.message = error
+          this.$refs.formInputSubjectID.value = ''
+          this.$refs.formInputFamilyID.value = ''
         })
       }
     }
@@ -145,6 +163,7 @@ export default {
     background-color: #ffffff;
     box-sizing: border-box;
     padding: 2em;
+    border-radius: 6px;
   }
   
   @media screen and (min-width: 762px) {
@@ -155,15 +174,7 @@ export default {
 }
 
 // this is for demo purposes only
-// #patient-tree-viz {
-//   min-height: calc(100vh - 9em);
-  
-//   .tree__icon__patient {
-//     fill: #DEAF02
-//   }
-  
-//   .tree__icon__sample {
-//     fill: #478DAE;
-//   }
-// }
+#patient-tree-viz {
+  min-height: calc(100vh - 9em);
+}
 </style>

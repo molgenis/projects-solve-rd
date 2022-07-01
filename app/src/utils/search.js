@@ -27,8 +27,17 @@ const objectToUrlFilterArray = function (object) {
   return urlFilter
 }
 
-const buildFilterUrl = function (array) {
-  const filters = array.join(';')
+// @name buildFilterUrl
+// @description collapse output of `objectToUrlFilterArray`
+// @param array an array of strings that consist of column specific filters
+//    ['group=="group1"', 'gender'=='female', ...]
+// @param searchType character that indicates filter search type
+//    ';' = 'and'
+//    ',' = 'or'
+//
+// @return string containing the encoded filter parameter value
+const buildFilterUrl = function (array, searchType) {
+  const filters = array.join(searchType)
   return encodeURIComponent(filters)
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "solve-rd-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "App for homepage, get started, and other pages",
   "scripts": {
     "serve": "vue-cli-service serve",

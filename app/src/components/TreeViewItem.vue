@@ -17,6 +17,11 @@
       />
       <span class="tree__item__label">{{ name }}</span>
     </button>
+    <TreeViewItemLink
+      :href="href"
+      :hrefLabel="`go to ${group} ${name} in the database`"
+      v-if="href"
+    />
     <ul
       :id="`subtree-${id}`"
       class="tree__subtree"
@@ -28,6 +33,8 @@
           :id="child.id"
           :name="child.name"
           :group="child.group"
+          :href="child.href"
+          :hrefLabel="`go to ${child.group} ${child.name} in the database`"
           :children="child.children"
         />
       </li>
@@ -36,11 +43,17 @@
   <div v-else>
     <TreeViewItemIcon :iconType="group"/>
     <span class="tree__item__label">{{ name }}</span>
+    <TreeViewItemLink
+      :href="href"
+      :hrefLabel="`go to ${group} ${name} in the database`"
+      v-if="href"
+    />
   </div>
 </template>
 
 <script>
 import TreeViewItemIcon from './TreeViewItemIcon.vue'
+import TreeViewItemLink from './TreeViewItemLink.vue'
 
 export default {
   name: 'treeViewItem',
@@ -57,13 +70,18 @@ export default {
       type: String,
       required: true
     },
+    href: {
+      type: String,
+      required: false
+    },
     children: {
       type: Array,
       required: false
     }
   },
   components: {
-    TreeViewItemIcon
+    TreeViewItemIcon,
+    TreeViewItemLink
   },
   data () {
     return {
@@ -109,7 +127,7 @@ export default {
 }
 
 .tree__item {
-  margin: 4px 0;
+  margin: 6px 0;
 }
 
 .tree__item__label {

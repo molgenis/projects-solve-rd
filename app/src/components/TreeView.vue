@@ -8,6 +8,7 @@
           :id="row.id"
           :name="row.subjectID"
           :group="JSON.parse(row.json).group"
+          :href="JSON.parse(row.json).href"
           :children="JSON.parse(row.json).children"
         />
       </li>

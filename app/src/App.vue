@@ -1,10 +1,15 @@
 <template>
-  <router-view></router-view>
+  <div>
+    <Navbar />
+    <router-view></router-view>
+  </div>
 </template>
 
 <script>
+import Navbar from './components/tmpNavbar.vue'
 export default {
-  name: 'rd3-vue-app'
+  name: 'rd3-vue-app',
+  components: { Navbar }
 }
 </script>
 

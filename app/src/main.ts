@@ -7,13 +7,25 @@ import GetStarted from './pages/GetStarted.vue'
 import PatientTree from './pages/PatientTree.vue'
 
 const routes = [
-  { path: '/', component: Home },
-  { path: '/get-started', component: GetStarted },
-  { path: '/patient-tree', component: PatientTree }
+  {
+    name: 'home',
+    path: '/',
+    component: Home
+  },
+  {
+    name: 'getstarted',
+    path: '/get-started',
+    component: GetStarted
+  },
+  {
+    name: 'patienttree',
+    path: '/patient-tree',
+    component: PatientTree
+  }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(window.location.pathname),
   routes,
   scrollBehavior (to, from, savedPosition) {
     return {

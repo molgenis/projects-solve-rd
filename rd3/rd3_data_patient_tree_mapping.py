@@ -69,6 +69,16 @@ def cleanIdentifier(value, patterns=None):
     return f"{id} ({experiment})"
   else:
     return id
+    
+def createUrlFilter(entity, attribute, value):
+  """Create url filter
+  Generate dataexplorer url with attribute filter
+  
+  @param entity name of the table
+  @param attribute name of the column
+  @param value 
+  """
+  return f"/menu/plugins/dataexplorer?entity={entity}&filter={attribute}%3Dq%3D{value}"
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -104,8 +114,27 @@ for row in data:
 for row in patientdata:
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
 
+
+# generate hrefs
 patientsamples = dt.Frame(patientdata)
 
+patientsamples['subjectHref'] = dt.Frame([
+  createUrlFilter(d[0].replace('_sample','_subject'), 'subjectID', d[1])
+  if d[0] and d[1] else None
+  for d in patientsamples[:, ['table', 'subjectID']].to_tuples()
+])
+
+patientsamples['sampleHref'] = dt.Frame([
+  createUrlFilter(d[0], 'id', d[1])
+  if d[0] and d[1] else None
+  for d in patientsamples[:,['table','sampleID']].to_tuples()
+])
+
+patientsamples['experimentHref'] = dt.Frame([
+  createUrlFilter(d[0].replace('_sample', '_labinfo'), 'id', d[1])
+  if d[0] and d[1] else None
+  for d in patientsamples[:, ['table', 'experiment']].to_tuples()
+])
 
 # compile dataset
 # For each subject, create row-level data for the table (i.e., search attributes)
@@ -122,7 +151,8 @@ for id in tqdm(subjectidentifiers):
     'id': f"RDI-{counter}",
     'subjectID': patientEntries[0,'subjectID'],
     'familyID': patientEntries[0,'fid'],
-    'group': 'patient'
+    'group': 'patient',
+    'href': patientEntries[0,'subjectHref']
   }
   
   # process sample IDs if they exist
@@ -135,7 +165,8 @@ for id in tqdm(subjectidentifiers):
       patientSampleJson = {
         'id':  f"RDI-{counter}.{samplecounter}",
         'name': cleanIdentifier(sampleID),
-        'group': 'sample' 
+        'group': 'sample',
+        'href': sample[0, 'sampleHref']
       }
       
       # process experiment IDs if they exist
@@ -144,11 +175,13 @@ for id in tqdm(subjectidentifiers):
         patientSampleJson['children'] = []
         experimentcounter = 0
         for experimentID in patientExperimentIDs:
+          experiment = patientEntries[dt.f.experiment == experimentID, :]
           if experimentID is not None:
             patientSampleJson['children'].append({
-              "id": f"RDI-{counter}.{samplecounter}.{experimentcounter}",
-              "name": cleanIdentifier(experimentID, ['SR-WGS']),
-              "group": 'experiment'
+              'id': f"RDI-{counter}.{samplecounter}.{experimentcounter}",
+              'name': cleanIdentifier(experimentID, ['SR-WGS']),
+              'group': 'experiment',
+              'href': experiment[0, 'experimentHref']
             })
             experimentcounter += 1
       samplecounter += 1

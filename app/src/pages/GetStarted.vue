@@ -70,7 +70,8 @@ export default {
         rd3Overview: require('../assets/rd3-data-flow.png')
       },
       loading: true,
-      requestHasFailed: false
+      requestHasFailed: false,
+      error: null
     }
   },
   components: {
@@ -122,7 +123,7 @@ export default {
       this.loading = false
     }).catch(error => {
       this.requestHasFailed = true
-      console.error(error)
+      this.error = error
     })
   }
 }

@@ -7,7 +7,7 @@
         <div class="form-chart-area">
           <Form
             id="patient-tree-search"
-            title="Search or patients or families"
+            title="Search for patients or families"
             description="Find and view data for specific patients or families. You can also search for more than one identifier by entering the values like so 'value1, value2, value3, etc.'"
             class="area-aside"
             @submit.prevent

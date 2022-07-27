@@ -1,5 +1,5 @@
 <template>
-  <a class="action-link" :href="href">
+  <a class="action-link" :href="href" :target="showExternalLinkIcon ? '_blank' : false">
     <slot></slot>
     <svg
       v-if="showExternalLinkIcon"

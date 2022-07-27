@@ -9,9 +9,15 @@
       <h2 id="getstarted-links-title">Quick Links</h2>
       <p>Scroll down to learn more about RD3 or use the links below to view a specific page.</p>
       <div class="action-link-container">
-        <ActionLink href="/#/patient-tree">Patient Tree</ActionLink>
-        <ActionLink href="/menu/main/dataexplorer?entity=rd3_overview&hideselect=true" :showExternalLinkIcon="true">Go to Data Overview</ActionLink>
-        <ActionLink href="https://rdnexus.molgeniscloud.org/Discover/Index" :showExternalLinkIcon="true">Go to Discovery Nexus</ActionLink>
+        <router-link class="action-link" :to="{name: 'patienttree'}">
+          Patient Tree
+        </router-link>
+        <ActionLink href="/menu/main/dataexplorer?entity=rd3_overview&hideselect=true">
+          Data Overview
+        </ActionLink>
+        <ActionLink href="https://rdnexus.molgeniscloud.org/Discover/Index" :showExternalLinkIcon="true">
+          Discovery Nexus
+        </ActionLink>
       </div>
     </Section>
     <Section id="getstarted-learnmore" aria-labelledby="getstarted-learnmore-title" class="section-bg-plain">

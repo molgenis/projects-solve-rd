@@ -3,18 +3,17 @@
     <main>
       <Section id="patient-tree-viz">
         <h2>Patient Tree</h2>
-        <p>The <strong>Patient Tree</strong> visualizes the connection between patients, samples, and experiments. Search for records using one or more subject- or family identifiers. At the top level, are patients. Click a patient ID to view all linked samples. Click a sample ID to view all linked experiments.</p>
+        <p>The <strong>Patient Tree</strong> visualizes the connection between patients, samples, and experiments. Search for records using one or more subject- or family identifiers. To search for more than one identifier, separate values by a comma like so "firstID, secondID,...". At the top level, are patients. Click a patient ID to view all linked samples. Click a sample ID to view all linked experiments.</p>
         <div class="form-chart-area">
           <Form
             id="patient-tree-search"
             title="Search for patients or families"
-            description="Find and view data for specific patients or families. You can also search for more than one identifier by entering the values like so 'value1, value2, value3, etc.'"
             class="area-aside"
             @submit.prevent
           >
             <FormSection>
               <Errorbox v-if="validation.hasError">
-                <span>{{ validation.message }}</span>
+                <span><strong>Error:</strong> {{ validation.message }}</span>
               </Errorbox>
               <InputSearch
                 id="search-patient-id"
@@ -121,7 +120,7 @@ export default {
       const userinput = removeNullObjectKeys(this.filters)
       if (Object.keys(userinput).length === 0) {
         this.validation.hasError = true
-        this.validation.message = 'Filters are blank. Enter one or more subject identifiers to view the patient tree.'
+        this.validation.message = 'All fields are blank. Enter one or more identifier to build the patient tree.'
       } else {
         const filters = objectToUrlFilterArray(userinput)
         const filterurl = buildFilterUrl(filters, ',')

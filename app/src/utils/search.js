@@ -1,4 +1,13 @@
 
+async function fetchData (url) {
+  const response = await fetch(url)
+  if (response.status / 100 !== 2) {
+    const message = `\nStatus: ${response.status}\nMessage: ${response.statusText}\nUrl: ${response.url}`
+    throw new Error(message)
+  }
+  return response.json()
+}
+
 const removeNullObjectKeys = function (data) {
   const filters = data
   Object.keys(filters).forEach(key => {
@@ -48,6 +57,7 @@ const windowReplaceUrl = function (filterUrl) {
 }
 
 module.exports = {
+  fetchData,
   removeNullObjectKeys,
   objectToUrlFilterArray,
   buildFilterUrl,

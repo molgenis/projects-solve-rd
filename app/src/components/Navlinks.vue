@@ -1,5 +1,5 @@
 <template>
-  <div class="__pseudo__nav">
+  <div class="navlinks">
     <ul>
       <li><router-link :to="{name: 'home'}">Home</router-link></li>
       <li><router-link :to="{name: 'getstarted'}">Get Started</router-link></li>
@@ -15,8 +15,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.__pseudo__nav {
-  background-color: #f6f6f6;
+.navlinks {
   ul {
     list-style: none;
     padding: 0;
@@ -31,6 +30,7 @@ export default {
       
       a {
         text-decoration: underline;
+        color: currentColor;
       }
     }
   }

@@ -1,7 +1,7 @@
 {
-  "name": "solve-rd-app",
-  "version": "1.0.0",
-  "description": "App for homepage, get started, and other pages",
+  "name": "rd3",
+  "version": "1.1.0",
+  "description": "The SolveRD-RD3 Vue application",
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",

@@ -9,8 +9,8 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.api.molgenis2 import Molgenis
 from datatable import dt
+from rd3.api.molgenis2 import Molgenis
 from tqdm import tqdm
 import json
 
@@ -103,7 +103,6 @@ for row in data:
 
 for row in tqdm(patientdata):
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
-
 
 # generate hrefs
 patientsamples = dt.Frame(patientdata)

@@ -194,5 +194,5 @@ for id in tqdm(subjectidentifiers):
 # ~ 1 ~
 # Import Data
 
-patientTreeData = dt.Frame([ jsonData ])
+patientTreeData = dt.Frame(jsonData)
 rd3.importDatatableAsCsv(pkg_entity='rd3stats_treedata', data = patientTreeData)

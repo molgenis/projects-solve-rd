@@ -9,7 +9,6 @@
             id="patient-tree-search"
             title="Search for patients or families"
             class="area-aside"
-            @submit.prevent
           >
             <FormSection>
               <Errorbox v-if="validation.hasError">
@@ -30,21 +29,18 @@
                 @search="(value) => updateFamilyID(value)"
               />
             </FormSection>
-            <SearchButton
-              id="search-patient-tree"
-              @click="getData"
-            />
+            <SearchButton id="search-patient-tree" @click="getData" />
           </Form>
           <div class="area-main">
-            <Errorbox v-if="request.hasError">
-              <span>{{ request.message }}</span>
+            <Errorbox v-if="request.hasError" style="margin:0;">
+              <p style="margin:0;"><strong>Error:</strong> {{ request.message }}</p>
             </Errorbox>
-            <p v-else-if="!request.hasError && !request.isLoading && !treedata.length">
-              Search for subjects or families to display the patient tree.
-            </p>
-            <p v-else-if="!request.hasError && request.isLoading && !treedata.length">
-              Retrieving data....
-            </p>
+            <MessageBox v-else-if="!request.hasError && !request.isLoading && !treedata.length">
+              <p style="margin:0;">Search for subjects or families to display the patient tree.</p>
+            </MessageBox>
+            <MessageBox v-else-if="!request.hasError && request.isLoading && !treedata.length">
+              <p>Retrieving data....</p>
+            </MessageBox>
             <TreeView id="patient-tree" :data="treedata" v-else/>
           </div>
         </div>
@@ -57,13 +53,19 @@
 import Page from '../components/Page.vue'
 import Section from '../components/Section'
 import TreeView from '../components/TreeView.vue'
+import MessageBox from '../components/MessageBox.vue'
 import Errorbox from '../components/Errorbox.vue'
 import InputSearch from '../components/InputSearch.vue'
 import SearchButton from '../components/ButtonSearch.vue'
 import Form from '../components/Form.vue'
 import FormSection from '../components/FormSection.vue'
 
-import { removeNullObjectKeys, objectToUrlFilterArray, buildFilterUrl } from '../utils/search'
+import {
+  fetchData,
+  removeNullObjectKeys,
+  objectToUrlFilterArray,
+  buildFilterUrl
+} from '../utils/search'
 
 export default {
   name: 'page-patient-tree',
@@ -72,6 +74,7 @@ export default {
     Section,
     Form,
     FormSection,
+    MessageBox,
     Errorbox,
     TreeView,
     InputSearch,
@@ -97,9 +100,12 @@ export default {
     }
   },
   methods: {
-    async fetchData (url) {
-      const response = await fetch(url)
-      return response.json()
+    resetError (value) {
+      if (value.length) {
+        this.validation.hasError = false
+        this.request.hasError = false
+        this.request.message = null
+      }
     },
     updateSubjectID (value) {
       this.filters.subjectID = value
@@ -109,27 +115,21 @@ export default {
       this.filters.familyID = value
       this.resetError(value)
     },
-    resetError (value) {
-      if (value.length) {
-        this.validation.hasError = false
-        this.request.hasError = false
-        this.request.message = null
-      }
-    },
     getData () {
       const userinput = removeNullObjectKeys(this.filters)
       if (Object.keys(userinput).length === 0) {
         this.validation.hasError = true
-        this.validation.message = 'All fields are blank. Enter one or more identifier to build the patient tree.'
+        this.validation.message = 'All fields are blank. Enter one or more identifier to view the patient tree.'
       } else {
+        this.request.isLoading = true
         const filters = objectToUrlFilterArray(userinput)
         const filterurl = buildFilterUrl(filters, ',')
         const url = this.endpoint + '?q=' + filterurl
-        this.request.isLoading = true
+
         Promise.all([
-          this.fetchData(url)
-        ]).then(result => {
-          const treedata = result[0].items
+          fetchData(url)
+        ]).then(response => {
+          const treedata = response[0].items
           if (treedata.length === 0) {
             const msg = `No results returned with the search parameters ${filters}`
             throw new Error(msg)
@@ -139,7 +139,7 @@ export default {
         }).catch(error => {
           this.request.isLoading = false
           this.request.hasError = true
-          this.request.message = error
+          this.request.message = error.message
           this.$refs.formInputSubjectID.value = ''
           this.$refs.formInputFamilyID.value = ''
         })

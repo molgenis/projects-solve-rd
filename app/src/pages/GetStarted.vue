@@ -53,9 +53,9 @@
           </Accordion>
         </div>
       </template>
-      <template v-else>
-        <p class="error_message">Unable to retrieve information on the latest RD3 releases. Sign in to continue.</p>
-      </template>
+      <ErrorBox v-else>
+        <p class="error_message" style="margin:0;">Unable to retrieve information on the latest RD3 releases. Sign in to continue.</p>
+      </ErrorBox>
     </Section>
   </Page>
 </template>
@@ -67,6 +67,9 @@ import Section from '../components/Section.vue'
 import ActionLink from '../components/ActionLink.vue'
 import Accordion from '../components/Accordion.vue'
 import Image from '../components/Image.vue'
+import ErrorBox from '../components/Errorbox.vue'
+
+import { fetchData } from '../utils/search'
 
 export default {
   data () {
@@ -86,14 +89,10 @@ export default {
     Section,
     ActionLink,
     Accordion,
-    Image
+    Image,
+    ErrorBox
   },
   methods: {
-    async fetch (url) {
-      const response = await fetch(url)
-      const data = await response.json()
-      return data
-    },
     extractEmxPackages (data) {
       return data.reduce((accumulator, row) => {
         accumulator[row.id] = {
@@ -118,18 +117,20 @@ export default {
   },
   mounted () {
     Promise.all([
-      this.fetch('/api/v2/sys_md_Package?attrs=id,label&q=parent==rd3')
-    ]).then(packages => {
-      this.packages = this.extractEmxPackages(packages[0].items)
+      fetchData('/api/v2/sys_md_Package?attrs=id,label&q=parent==rd3')
+    ]).then(response => {
+      const emxPackageData = response[0].items
+      this.packages = this.extractEmxPackages(emxPackageData)
       const filter = Object.keys(this.packages).toString()
       const url = `/api/v2/sys_md_EntityType?attrs=id,label,package&q=package=in=(${filter})`
-      return this.fetch(url)
-    }).then((result) => {
-      this.extractEmxEntities(result)
+      return fetchData(url)
+    }).then(response => {
+      const emxEntityData = response
+      this.extractEmxEntities(emxEntityData)
       this.loading = false
     }).catch(error => {
       this.requestHasFailed = true
-      this.error = error
+      this.error = error.message
     })
   }
 }

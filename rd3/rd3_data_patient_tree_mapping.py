@@ -9,8 +9,8 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
+from rd3.api.molgenis2 import Molgenis
 from datatable import dt
-from rd3.api.molgenis import Molgenis
 from tqdm import tqdm
 import json
 
@@ -19,11 +19,8 @@ from os import environ
 from dotenv import load_dotenv
 load_dotenv()
 
-host=environ['MOLGENIS_ACC_HOST']
-usr=environ['MOLGENIS_ACC_USR']
-pwd=environ['MOLGENIS_ACC_PWD']
-rd3 = Molgenis(host)
-rd3.login(usr, pwd)
+rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 def getExperiment(table,sample):
   """Get Experiment
@@ -85,14 +82,7 @@ def createUrlFilter(entity, attribute, value):
 # ~ 0 ~
 # Prepare Tree Data
 
-# pull example data (a more complex example)
-# remove `q` and `num` when compiling the full batch
-data = rd3.get(
-  entity = 'rd3_overview',
-  attributes = "subjectID,fid,samples",
-  q="patch%3Din%3D(freeze1_original%2Cfreeze2_original%2Cfreeze3_original)%3Bpatch%3Din%3D(noveldeepwes_original%2Cnovellrwgs_original%2Cnovelrnaseq_original%2Cnovelsrwgs_original%2Cnovelwgs_original)",
-  num=25
-)
+data = rd3.get(entity = 'rd3_overview', attributes = "subjectID,fid,samples")
 
 # extract sample identifiers
 patientdata = []
@@ -111,7 +101,7 @@ for row in data:
         patientdata.append(newrecord)
 
 
-for row in patientdata:
+for row in tqdm(patientdata):
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
 
 
@@ -204,6 +194,5 @@ for id in tqdm(subjectidentifiers):
 # ~ 1 ~
 # Import Data
 
-# rd3.delete('rd3stats_treedata')
-# rd3.importData(entity='rd3stats_treedata', data=jsonData)
-rd3.updateRows(entity='rd3stats_treedata', data=jsonData)
+patientTreeData = dt.Frame([ jsonData ])
+rd3.importDatatableAsCsv(pkg_entity='rd3stats_treedata', data = patientTreeData)

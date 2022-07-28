@@ -9,9 +9,15 @@
       <h2 id="getstarted-links-title">Quick Links</h2>
       <p>Scroll down to learn more about RD3 or use the links below to view a specific page.</p>
       <div class="action-link-container">
-        <ActionLink href="/#/patient-tree">Patient Tree</ActionLink>
-        <ActionLink href="/menu/main/dataexplorer?entity=rd3_overview&hideselect=true" :showExternalLinkIcon="true">Go to Data Overview</ActionLink>
-        <ActionLink href="https://rdnexus.molgeniscloud.org/Discover/Index" :showExternalLinkIcon="true">Go to Discovery Nexus</ActionLink>
+        <router-link class="action-link" :to="{name: 'patienttree'}">
+          Patient Tree
+        </router-link>
+        <ActionLink href="/menu/main/dataexplorer?entity=rd3_overview&hideselect=true">
+          Data Overview
+        </ActionLink>
+        <ActionLink href="https://rdnexus.molgeniscloud.org/Discover/Index" :showExternalLinkIcon="true">
+          Discovery Nexus
+        </ActionLink>
       </div>
     </Section>
     <Section id="getstarted-learnmore" aria-labelledby="getstarted-learnmore-title" class="section-bg-plain">
@@ -47,9 +53,9 @@
           </Accordion>
         </div>
       </template>
-      <template v-else>
-        <p class="error_message">Unable to retrieve information on the latest RD3 releases. Sign in to continue.</p>
-      </template>
+      <ErrorBox v-else>
+        <p class="error_message" style="margin:0;">Unable to retrieve information on the latest RD3 releases. Sign in to continue.</p>
+      </ErrorBox>
     </Section>
   </Page>
 </template>
@@ -61,6 +67,9 @@ import Section from '../components/Section.vue'
 import ActionLink from '../components/ActionLink.vue'
 import Accordion from '../components/Accordion.vue'
 import Image from '../components/Image.vue'
+import ErrorBox from '../components/Errorbox.vue'
+
+import { fetchData } from '../utils/search'
 
 export default {
   data () {
@@ -70,7 +79,8 @@ export default {
         rd3Overview: require('../assets/rd3-data-flow.png')
       },
       loading: true,
-      requestHasFailed: false
+      requestHasFailed: false,
+      error: null
     }
   },
   components: {
@@ -79,14 +89,10 @@ export default {
     Section,
     ActionLink,
     Accordion,
-    Image
+    Image,
+    ErrorBox
   },
   methods: {
-    async fetch (url) {
-      const response = await fetch(url)
-      const data = await response.json()
-      return data
-    },
     extractEmxPackages (data) {
       return data.reduce((accumulator, row) => {
         accumulator[row.id] = {
@@ -111,18 +117,20 @@ export default {
   },
   mounted () {
     Promise.all([
-      this.fetch('/api/v2/sys_md_Package?attrs=id,label&q=parent==rd3')
-    ]).then(packages => {
-      this.packages = this.extractEmxPackages(packages[0].items)
+      fetchData('/api/v2/sys_md_Package?attrs=id,label&q=parent==rd3')
+    ]).then(response => {
+      const emxPackageData = response[0].items
+      this.packages = this.extractEmxPackages(emxPackageData)
       const filter = Object.keys(this.packages).toString()
       const url = `/api/v2/sys_md_EntityType?attrs=id,label,package&q=package=in=(${filter})`
-      return this.fetch(url)
-    }).then((result) => {
-      this.extractEmxEntities(result)
+      return fetchData(url)
+    }).then(response => {
+      const emxEntityData = response
+      this.extractEmxEntities(emxEntityData)
       this.loading = false
     }).catch(error => {
       this.requestHasFailed = true
-      console.error(error)
+      this.error = error.message
     })
   }
 }

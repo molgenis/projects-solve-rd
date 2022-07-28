@@ -6,8 +6,10 @@
       <li class="tree__item" v-for="row in data" :key="row.id">
         <TreeViewItem
           :id="row.id"
-          :name="row.name"
-          :children="row.children ? row.children : null"
+          :name="row.subjectID"
+          :group="JSON.parse(row.json).group"
+          :href="JSON.parse(row.json).href"
+          :children="JSON.parse(row.json).children"
         />
       </li>
     </ul>
@@ -15,7 +17,7 @@
 </template>
 
 <script>
-import TreeViewItem from './TreeVueItem.vue'
+import TreeViewItem from './TreeViewItem.vue'
 
 export default {
   name: 'tree-view',
@@ -46,14 +48,11 @@ export default {
   }
   .tree {
     box-sizing: border-box;
-    padding: 1.5em;
-    border: 1px solid #c4c4c4;
-    list-style: none;
+    border-radius: 6px;
+    padding: 0;
     margin: 0;
+    list-style: none;
     .tree__item {
-      position: relative;
-      margin-left: 6px;
-      margin-bottom: 8px;
       font-size: 11pt;
     }
   }

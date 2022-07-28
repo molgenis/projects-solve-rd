@@ -27,7 +27,7 @@ export default {
     margin: 0 auto;
     
     @media screen and (min-width: 972px) {
-      max-width: 972px;
+      max-width: 1024px;
     }
   }
 }

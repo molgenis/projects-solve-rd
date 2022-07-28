@@ -10,8 +10,8 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 from datatable import dt
-from rd3.api.molgenis import Molgenis
-# from tqdm import tqdm
+from rd3.api.molgenis2 import Molgenis
+from tqdm import tqdm
 import json
 
 def getExperiment(table,sample):
@@ -25,17 +25,12 @@ def getExperiment(table,sample):
   else:
     return None
 
-
 # connect to DB --- local dev only
 from os import environ
 from dotenv import load_dotenv
 load_dotenv()
-
-host=environ['MOLGENIS_ACC_HOST']
-usr=environ['MOLGENIS_ACC_USR']
-pwd=environ['MOLGENIS_ACC_PWD']
-rd3 = Molgenis(host)
-rd3.login(usr, pwd)
+rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -46,9 +41,7 @@ rd3.login(usr, pwd)
 # remove `q` and `num` when compiling the full batch
 data = rd3.get(
   entity = 'rd3_overview',
-  attributes = "subjectID,fid,samples",
-  q="patch%3Din%3D(freeze1_original%2Cfreeze2_original%2Cfreeze3_original)%3Bpatch%3Din%3D(noveldeepwes_original%2Cnovellrwgs_original%2Cnovelrnaseq_original%2Cnovelsrwgs_original%2Cnovelwgs_original)",
-  num=25
+  attributes = "subjectID,fid,samples"
 )
 
 # extract sample identifiers
@@ -68,8 +61,9 @@ for row in data:
         patientdata.append(newrecord)
 
 
-for row in patientdata:
+for row in tqdm(patientdata):
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
+
 
 patientsamples = dt.Frame(patientdata)
 
@@ -83,7 +77,7 @@ subjectidentifiers = dt.unique(patientsamples[:,'subjectID']).to_list()[0]
 jsonData = []
 counter = 0
 
-for id in subjectidentifiers:
+for id in tqdm(subjectidentifiers):
   patientEntries = patientsamples[dt.f.subjectID == id,:]
   patientJson = {
     'id': f"RDI-{counter}",
@@ -139,5 +133,5 @@ for id in subjectidentifiers:
 # ~ 1 ~
 # Import Data
 
-# rd3.delete('rd3stats_treedata')
-rd3.importData(entity='rd3stats_treedata', data=jsonData)
+patientTreeData = dt.Frame(jsonData)
+rd3.importDatatableAsCsv(pkg_entity='rd3stats_treedata',data = patientTreeData)

@@ -295,6 +295,9 @@ tissueTypeMappings = toKeyPairs(
 tissueTypeMappings.update({
     'blood': 'Whole Blood',
     'ffpe': 'Tumor',
+    'fetus': 'Foetus',
+    'heart': 'Heart',
+    'muscle': 'Muscle - Skeletal',
     'fibroblasts': 'Cells - Cultured fibroblasts',
     'pbmc': 'Peripheral Blood Mononuclear Cells',
     'whole blood': 'Whole Blood'

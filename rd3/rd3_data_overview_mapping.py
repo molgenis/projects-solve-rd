@@ -9,9 +9,17 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.api.molgenis import Molgenis
+from dotenv import load_dotenv
+from os import environ
+import sys
+load_dotenv()
+sys.path.append(environ['SYS_PATH'])
+
+from rd3.api.molgenis2 import Molgenis
+from datatable import dt, f, first
+import urllib
+from tqdm import tqdm
 from rd3.utils.utils import (
-    dtFrameToRecords,
     statusMsg,
     flattenBoolArray,
     flattenStringArray,
@@ -19,32 +27,23 @@ from rd3.utils.utils import (
     createUrlFilter
 )
 
-from datatable import dt, f, first
-from os import environ
-from dotenv import load_dotenv
-import numpy as np
-import urllib
-from tqdm import tqdm
-
-
 # ~ 0 ~ 
 # Fetch Metadata for all releases
 
 # init database connection
 statusMsg('Connecting to RD3....')
-load_dotenv()
 
-# rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
-# rd3.login(
-#     username=environ['MOLGENIS_ACC_USR'],
-#     password=environ['MOLGENIS_ACC_PWD']
-# )
-
-rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
 rd3.login(
-    username=environ['MOLGENIS_PROD_USR'],
-    password=environ['MOLGENIS_PROD_PWD']
+    username=environ['MOLGENIS_ACC_USR'],
+    password=environ['MOLGENIS_ACC_PWD']
 )
+
+# rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+# rd3.login(
+#     username=environ['MOLGENIS_PROD_USR'],
+#     password=environ['MOLGENIS_PROD_PWD']
+# )
 
 
 # SET RELEASES
@@ -646,15 +645,16 @@ subjects=subjects[:, :, dt.join(filesSummarized)]
 # import data
 statusMsg('Importing data....')
 
+rd3.importDatatableAsCsv(pkg_entity='rd3_overview', data=subjects)
 # import subject IDs first
-rd3.importData(
-    entity='rd3_overview',
-    data=subjects['subjectID'].to_pandas().to_dict('records')
-)
+# rd3.importData(
+#     entity='rd3_overview',
+#     data=subjects['subjectID'].to_pandas().to_dict('records')
+# )
 
-# import row data
-overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
-rd3.updateRows(entity='rd3_overview', data=overviewData)
+# # import row data
+# overviewData = subjects.to_pandas().replace({np.nan:None}).to_dict('records')
+# rd3.updateRows(entity='rd3_overview', data=overviewData)
 
 
 # update values

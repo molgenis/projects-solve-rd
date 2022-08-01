@@ -33,17 +33,17 @@ from rd3.utils.utils import (
 # init database connection
 statusMsg('Connecting to RD3....')
 
-rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
-rd3.login(
-    username=environ['MOLGENIS_ACC_USR'],
-    password=environ['MOLGENIS_ACC_PWD']
-)
-
-# rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+# rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
 # rd3.login(
-#     username=environ['MOLGENIS_PROD_USR'],
-#     password=environ['MOLGENIS_PROD_PWD']
+#     username=environ['MOLGENIS_ACC_USR'],
+#     password=environ['MOLGENIS_ACC_PWD']
 # )
+
+rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+rd3.login(
+    username=environ['MOLGENIS_PROD_USR'],
+    password=environ['MOLGENIS_PROD_PWD']
+)
 
 
 # SET RELEASES

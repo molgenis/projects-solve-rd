@@ -2,25 +2,31 @@
 #' FILE: rd3_data_patient_tree_mapping.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-06-20
-#' MODIFIED: 2022-06-27
+#' MODIFIED: 2022-08-01
 #' PURPOSE: mapping script for patient tree dataset
-#' STATUS: experimental
-#' PACKAGES: datatable, json
+#' STATUS: stable
+#' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
+
+from dotenv import load_dotenv
+from os import environ
+import sys
+load_dotenv()
+sys.path.append(environ['SYS_PATH'])
 
 from datatable import dt
 from rd3.api.molgenis2 import Molgenis
 from tqdm import tqdm
 import json
 
-# connect to DB --- local dev only
-from os import environ
-from dotenv import load_dotenv
-load_dotenv()
+# connect to database
 
-rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+# rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+# rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 def getExperiment(table,sample):
   """Get Experiment
@@ -79,16 +85,20 @@ def createUrlFilter(entity, attribute, value):
 
 #//////////////////////////////////////////////////////////////////////////////
 
-# ~ 0 ~
+# ~ 1 ~
 # Prepare Tree Data
 
+rd3._print('Pull data from overview table....')
 data = rd3.get(entity = 'rd3_overview', attributes = "subjectID,fid,samples")
 
+
+# ~ 1a ~
 # extract sample identifiers
+rd3._print('Building patient metadata....')
 patientdata = []
 columnsToIgnore = ['_href', 'subjectID', 'fid', 'numberOfSamples', 'numberOfExperiments']
 
-for row in data:
+for row in tqdm(data):
   for column in row.keys():
     if column not in columnsToIgnore:
       for entry in row[column]:
@@ -101,10 +111,17 @@ for row in data:
         patientdata.append(newrecord)
 
 
+# ~ 1b ~
+# Get EID from RD3
+rd3._print('Retrieving experiment data....')
 for row in tqdm(patientdata):
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
 
-# generate hrefs
+
+# ~ 1c ~
+# Generate Data Explorer URLS for use in the Vue application
+
+rd3._print('Generating Data Explorer urls....')
 patientsamples = dt.Frame(patientdata)
 
 patientsamples['subjectHref'] = dt.Frame([
@@ -125,10 +142,13 @@ patientsamples['experimentHref'] = dt.Frame([
   for d in patientsamples[:, ['table', 'experiment']].to_tuples()
 ])
 
+
+# ~ 1d ~
 # compile dataset
 # For each subject, create row-level data for the table (i.e., search attributes)
 # and the JSON stringified object. To make things easier, but all information
 # in the json object so you have access to it in the front end
+rd3._print('Compling Dataset and JSON objects....')
 
 subjectidentifiers = dt.unique(patientsamples[:,'subjectID']).to_list()[0]
 jsonData = []
@@ -193,5 +213,10 @@ for id in tqdm(subjectidentifiers):
 # ~ 1 ~
 # Import Data
 
+# reconnecting to database
+rd3._print('Refreshing database connection....')
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+
+rd3._print('Importing data....')
 patientTreeData = dt.Frame(jsonData)
 rd3.importDatatableAsCsv(pkg_entity='rd3stats_treedata', data = patientTreeData)

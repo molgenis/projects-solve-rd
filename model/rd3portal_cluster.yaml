@@ -1,0 +1,70 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-03-07
+# PURPOSE: YAML-EMX for cluster files
+# COMMENTS:
+#//////////////////////////////////////////////////////////////////////////////
+
+name: cluster
+label: Cluster Data
+description: Extracted metadata PED and Phenopacket files stored on the cluster
+date: 2022-08-01
+version: 0.9.0
+
+# set defaults
+defaults:
+  dataType: string
+  visible: true
+  lookupAttribute: false
+
+#  define tables
+entities:
+  - name: phenopacket
+    label: Phenopacket
+    description: Extracted data from Phenopacket files
+    attributes:
+      - name: phenopacketsID
+        description: Name of the Phenopacket file
+        idAttribute: true
+        nillable: false
+
+      - name: subjectID
+        description: RD3 subject identifier
+        
+      - name: dateofBirth
+        description: If available, the date the patient was born
+        
+      - name: sex1
+        description: If available, a string containing the sex of the patient
+        
+      - name: phenotype
+        description: If available, a comma separated strings containing HPO codes
+        
+      - name: hasNotPhenotype
+        description: If available, a comma separated strings containing HPO codes
+        
+      - name: disease
+        description: If available, a comma separated strings containing disease codes
+        
+      - name: ageOfOnset
+        description: If available, the age of the patient at onsent
+
+      - name: subjectIdExists
+        description: An indication if the subject exists in RD3
+        dataType: bool
+        defaultValue: false
+
+      - name: unknownHpoCodes
+        description: A comma-separated string of all unknown HPO codes
+
+      - name: unknownDiseaseCodes
+        description: A comma-separated string of all unknown disease codes
+
+      - name: unknownOnsetCodes
+        description: A comma-separated string of all unknown onset codes
+
+  # - name: ped
+  #   label: PED
+  #   description: Extracted data from PED files

@@ -16,7 +16,7 @@ from rd3.utils.utils import (
     phenotools,
     statusMsg
 )
-import python.rd3tools as rd3tools
+# import python.rd3tools as rd3tools
 from datatable import dt,f,count,as_type,fread,rbind,by
 from dotenv import load_dotenv
 from os import environ

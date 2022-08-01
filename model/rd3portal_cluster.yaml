@@ -7,11 +7,12 @@
 # COMMENTS:
 #//////////////////////////////////////////////////////////////////////////////
 
-name: cluster
+name: rd3_portal_cluster
 label: Cluster Data
 description: Extracted metadata PED and Phenopacket files stored on the cluster
+parent: rd3_portal
 date: 2022-08-01
-version: 0.9.0
+version: 0.9.1
 
 # set defaults
 defaults:
@@ -41,29 +42,43 @@ entities:
         
       - name: phenotype
         description: If available, a comma separated strings containing HPO codes
+        dataType: text
         
       - name: hasNotPhenotype
         description: If available, a comma separated strings containing HPO codes
+        dataType: text
         
       - name: disease
         description: If available, a comma separated strings containing disease codes
+        dataType: text
         
       - name: ageOfOnset
         description: If available, the age of the patient at onsent
 
-      - name: subjectIdExists
+      - name: subjectExists
         description: An indication if the subject exists in RD3
         dataType: bool
         defaultValue: false
+        
+      - name: releasesWhereSubjectExists
+        description: If the subject exists, which release
 
       - name: unknownHpoCodes
         description: A comma-separated string of all unknown HPO codes
+        dataType: text
 
       - name: unknownDiseaseCodes
         description: A comma-separated string of all unknown disease codes
+        dataType: text
 
       - name: unknownOnsetCodes
         description: A comma-separated string of all unknown onset codes
+        dataType: text
+        
+      - name: processed
+        description: An indication if the data has been imported into RD3 somewhere
+        dataType: bool
+        defaultValue: false
 
   # - name: ped
   #   label: PED

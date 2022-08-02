@@ -1,44 +1,88 @@
 #//////////////////////////////////////////////////////////////////////////////
-# FILE: rd3_portal_cluster.yaml
-# AUTHOR: davidruvolo51
-# DATE CREATED: 2021-10-11
-# DATE MODIFIED: 2022-05-09
-# PURPOSE: staging/info table for file metadata on the cluster
-# COMMENTS: NA
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-03-07
+# PURPOSE: YAML-EMX for cluster files
+# COMMENTS:
 #//////////////////////////////////////////////////////////////////////////////
 
-include: model/base_rd3_portal.yaml
+name: rd3_portal_cluster
+label: Cluster Data
+description: Extracted metadata PED and Phenopacket files stored on the cluster
+parent: rd3_portal
+date: 2022-08-02
+version: 0.9.2
 
-defaults: 
-    auto: false
-    idAttribute: false
-    dataType: string
+# set defaults
+defaults:
+  dataType: string
+  visible: true
+  lookupAttribute: false
 
+#  define tables
 entities:
-  - name: cluster
-    label: Cluster Files
-    description: Metadata on PED and Phenopacket files located on the cluster
+  - name: phenopacket
+    label: Phenopacket
+    description: Extracted data from Phenopacket files
     attributes:
-      - name: release
-        label: release
-        description: Patch information
-      - name: path
-        label: path
-        description: path to location of the file
-      - name: name 
-        label: name
-        description: file name 
-      - name: type
-        label: type
-        description: file type
-      - name: md5sum
-        label: md5sum
-        description: file checksum
-      - name: created
-        label: created
-        description: Date entry was created 
-        dataType: datetime
-      - name: id
-        label: id
+      - name: phenopacketsID
+        description: Name of the Phenopacket file
         idAttribute: true
-        auto: true
+        nillable: false
+        
+      - name: clusterRelease
+        description: the release, on the cluster, where the data comes from
+
+      - name: subjectID
+        description: RD3 subject identifier
+        
+      - name: dateofBirth
+        description: If available, the date the patient was born
+        
+      - name: sex1
+        description: If available, a string containing the sex of the patient
+        
+      - name: phenotype
+        description: If available, a comma separated strings containing HPO codes
+        dataType: text
+        
+      - name: hasNotPhenotype
+        description: If available, a comma separated strings containing HPO codes
+        dataType: text
+        
+      - name: disease
+        description: If available, a comma separated strings containing disease codes
+        dataType: text
+        
+      - name: ageOfOnset
+        description: If available, the age of the patient at onsent
+
+      - name: subjectExists
+        description: An indication if the subject exists in RD3
+        dataType: bool
+        defaultValue: false
+        
+      - name: releasesWhereSubjectExists
+        description: If the subject exists, which release
+
+      - name: unknownHpoCodes
+        description: A comma-separated string of all unknown HPO codes
+        dataType: text
+
+      - name: unknownDiseaseCodes
+        description: A comma-separated string of all unknown disease codes
+        dataType: text
+
+      - name: unknownOnsetCodes
+        description: A comma-separated string of all unknown onset codes
+        dataType: text
+        
+      - name: processed
+        description: An indication if the data has been imported into RD3 somewhere
+        dataType: bool
+        defaultValue: false
+
+  # - name: ped
+  #   label: PED
+  #   description: Extracted data from PED files

@@ -5,7 +5,7 @@
 | Name | Description | Parent |
 |:---- |:-----------|:------|
 | rd3_portal | RD3 portal, containing data submitted by CNAG (v1.1.0, 2021-10-11) | - |
-| rd3_portal_cluster | Extracted metadata PED and Phenopacket files stored on the cluster (v0.9.1, 2022-08-01) | rd3_portal |
+| rd3_portal_cluster | Extracted metadata PED and Phenopacket files stored on the cluster (v0.9.2, 2022-08-02) | rd3_portal |
 
 ## Entities
 
@@ -22,6 +22,7 @@ Extracted data from Phenopacket files
 | Name | Label | Description | Data Type |
 |:---- |:-----|:-----------|:---------|
 | phenopacketsID&#8251; | - | Name of the Phenopacket file | string |
+| clusterRelease | - | the release, on the cluster, where the data comes from | string |
 | subjectID | - | RD3 subject identifier | string |
 | dateofBirth | - | If available, the date the patient was born | string |
 | sex1 | - | If available, a string containing the sex of the patient | string |

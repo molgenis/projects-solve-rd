@@ -33,7 +33,7 @@ models:
       # 'model/rd3_portal_demographics.yaml',
       # 'model/rd3_portal_novelomics.yaml',
       # 'model/rd3_portal_release.yaml',
-      'model/rd3portal_cluster.yaml'
+      'model/rd3_portal_cluster.yaml'
     ]
     
   - name: rd3

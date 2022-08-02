@@ -1,0 +1,44 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3_portal_cluster.yaml
+# AUTHOR: davidruvolo51
+# DATE CREATED: 2021-10-11
+# DATE MODIFIED: 2022-05-09
+# PURPOSE: staging/info table for file metadata on the cluster
+# COMMENTS: NA
+#//////////////////////////////////////////////////////////////////////////////
+
+include: model/base_rd3_portal.yaml
+
+defaults: 
+    auto: false
+    idAttribute: false
+    dataType: string
+
+entities:
+  - name: cluster
+    label: Cluster Files
+    description: Metadata on PED and Phenopacket files located on the cluster
+    attributes:
+      - name: release
+        label: release
+        description: Patch information
+      - name: path
+        label: path
+        description: path to location of the file
+      - name: name 
+        label: name
+        description: file name 
+      - name: type
+        label: type
+        description: file type
+      - name: md5sum
+        label: md5sum
+        description: file checksum
+      - name: created
+        label: created
+        description: Date entry was created 
+        dataType: datetime
+      - name: id
+        label: id
+        idAttribute: true
+        auto: true

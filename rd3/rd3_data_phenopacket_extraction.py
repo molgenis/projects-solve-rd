@@ -271,15 +271,20 @@ for index,file in enumerate(phenopacketFiles):
 
 # ~ 3 ~
 # Import Data
-
+rd3._print('Preparing data for import....')
 rd3.delete('rd3portal_cluster_phenopacket')
 
 phenopacketsDT = dt.Frame(phenopackets)
 
-# del phenopacketsDT['disease']
-# del phenopacketsDT['ageOfOnset']
-# del phenopacketsDT['unknownHpoCodes']
-# del phenopacketsDT['unknownDiseaseCodes']
-# del phenopacketsDT['unknownOnsetCodes']
+# change data type void to string32
+rd3._print('Checking data for void columns....')
+for column in phenopacketsDT.names:
+  if phenopacketsDT[column].types[0] == dt.Type.void:
+    rd3._print('Changing class for column:', column)
+    phenopacketsDT[column] = phenopacketsDT[column][:, dt.as_type(dt.f[column], dt.str32)]
 
-rd3.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_phenopacket', data = phenopacketsDT)
+rd3._print('Importing....')
+rd3.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data = phenopacketsDT
+)

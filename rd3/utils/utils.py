@@ -342,7 +342,7 @@ class phenotools:
     @return date string in yyyy-mm-dd format
     """
     try:
-        return re.sub(r'(T00:00:00Z', '', value).split('-')[0]
+        return re.sub(r'(T00:00:00Z)$', '', value).split('-')[0]
     except:
         return value
 

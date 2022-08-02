@@ -14,7 +14,7 @@ from rd3.utils.utils import phenotools
 from rd3.utils.clustertools import clustertools
 from dotenv import load_dotenv
 from datatable import dt
-from os import environ
+from os import environ,system
 from tqdm import tqdm
 import re
 
@@ -33,11 +33,11 @@ rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 # To add a new mapping, use the following format:
 # 'INCORRECT_CODE' : 'NEW_CODE'
 diseaseCodeMappings = {
-    'MIM_159000': 'MIM_609200',
-    'MIM_159001': 'MIM_181350',
-    'MIM_607569': 'MIM_603689',
-    'ORDO_856': '',  # no known mapping
-    'ORDO_ 104010': 'ORDO_104010'
+  'MIM_159000': 'MIM_609200',
+  'MIM_159001': 'MIM_181350',
+  'MIM_607569': 'MIM_603689',
+  'ORDO_856': '',  # no known mapping
+  'ORDO_ 104010': 'ORDO_104010'
 }
 
 
@@ -66,17 +66,15 @@ rd3._print('Extracting patch information and creating a list of subject IDs....'
 
 subjects = []
 for row in tqdm(freeze):
-    subject = {'subjectID': row['subjectID'], 'release': []}
-    if isinstance(row['patch'], list):
-        subject['release'] = [item['id']
-                              for item in row['patch'] if 'patch' not in item['id']]
+  subject = {'subjectID': row['subjectID'], 'release': []}
+  if isinstance(row['patch'], list):
+    subject['release'] = [item['id'] for item in row['patch'] if 'patch' not in item['id']]
 
-    if isinstance(row['patch'], dict):
-        subject['release'] = row['patch']['id']
+  if isinstance(row['patch'], dict):
+    subject['release'] = row['patch']['id']
 
-    subject['release'] = ','.join(
-        subject['release']) if subject['release'] else None
-    subjects.append(subject)
+  subject['release'] = ','.join(subject['release']) if subject['release'] else None
+  subjects.append(subject)
 
 
 # get list of IDs only
@@ -128,9 +126,7 @@ rd3._print('Found', len(phenopacketFiles), 'phenopacket files')
 rd3._print('Starting file processing...')
 phenopackets = []
 for index,file in enumerate(phenopacketFiles):
-  print('#/////////////////////////////\n')
-  print('#', index, 'of', len(phenopacketFiles),'\n')
-  print('Processing', file['filename'])
+  print('Processing',file['filename'],'(',index,'of',len(phenopacketFiles),')')
 
   # ~ 0 ~
   # read contents of file and init results object
@@ -138,6 +134,7 @@ for index,file in enumerate(phenopacketFiles):
   json = clustertools.readJson(path=file['filepath'])
   result = {
     'phenopacketsID': file['filename'],
+    'clusterRelease': basePath,
     'subjectID': json['phenopacket']['id'],
     'dateofBirth': None,
     'sex1': None,
@@ -182,19 +179,19 @@ for index,file in enumerate(phenopacketFiles):
     patient_hpo_hasnot = []
     patient_hpo_unknown = []
 
-    # ObservedPhenotypes: validate codes and isolate unknown cases
+    # ObservedPhenotypes validate codes and isolate unknown cases
     rd3._print('Processing observed phenotypes....')
     if phenotypic_features['phenotype']:
       for code in phenotypic_features['phenotype']:
         if code in hpo_codes:
           patient_hpo_has.append(code)
         else:
-          rd3._print('Unknown HPO code:', str(code))
+          rd3._print('Unknown HPO code -', str(code))
           patient_hpo_unknown.append(result['id'])
           phenotypic_features['phenotype'].remove(code)
       del code
 
-    # Unobserved Phenotypes: validate codes and isolate unknown cases
+    # Unobserved Phenotypes validate codes and isolate unknown cases
     rd3._print('Processing unobserved phenotypes....')
     if phenotypic_features['hasNotPhenotype']:
       for code in phenotypic_features['hasNotPhenotype']:
@@ -226,21 +223,21 @@ for index,file in enumerate(phenopacketFiles):
     patient_diseases_has = []
     patient_diseases_unknown = []
 
-    # triage dx IDs: isolate invalid codes for review
+    # triage dx IDs isolate invalid codes for review
     rd3._print('Validating codes....')
     for code in diseases['diagnostic']:
       if code in disease_codes:
         patient_diseases_has.append(code)
       else:
         if code != '':
-          rd3._print('Unknown disease code:', str(code))
+          rd3._print('Unknown disease code - ', str(code))
           patient_diseases_unknown.append(code)
           diseases['dx'].remove(code)
 
     result['disease'] = ','.join(patient_diseases_has) if patient_diseases_has else None
     result['unknownDiseaseCodes'] = ','.join(patient_diseases_unknown) if patient_diseases_unknown else None
 
-    # triage onset IDs (HPO): isolate invalid codes for review
+    # triage onset IDs (HPO) isolate invalid codes for review
     if len(diseases['onset']) > 0:
       rd3._print('Processing onset codes....')
       onset_codes_known = []

@@ -83,6 +83,37 @@ entities:
         dataType: bool
         defaultValue: false
 
-  # - name: ped
-  #   label: PED
-  #   description: Extracted data from PED files
+  - name: ped
+    label: PED
+    description: Extracted data from PED files
+    attributes:
+      - name: pedID
+        description: Name of the Phenopacket file
+        idAttribute: true
+        nillable: false
+        
+      - name: clusterRelease
+        description: the release, on the cluster, where the data comes from
+
+      - name: subjectID
+        description: RD3 subject identifier
+        
+      - name: sex1
+        description: If available, a string containing the sex of the patient
+        
+      - name: clinical_status
+        description: An indication of affected status
+        dataType: bool
+        
+      - name: subjectExists
+        description: An indication if the subject exists in RD3
+        dataType: bool
+        defaultValue: false
+        
+      - name: releasesWhereSubjectExists
+        description: If the subject exists, which release
+      
+      - name: processed
+        description: An indication if the data has been imported into RD3 somewhere
+        dataType: bool
+        defaultValue: false

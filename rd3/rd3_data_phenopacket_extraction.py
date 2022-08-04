@@ -2,24 +2,33 @@
 # ' FILE: rd3_data_phenopacket_extraction.py
 # ' AUTHOR: David Ruvolo
 # ' CREATED: 2022-08-01
-# ' MODIFIED: 2022-08-01
+# ' MODIFIED: 2022-08-04
 # ' PURPOSE: Read and extract data from Phenopacket files
-# ' STATUS: experimental
+# ' STATUS: stable
 # ' PACKAGES: **see below**
 # ' COMMENTS: see model/rd3portal_cluster.yaml
 # '////////////////////////////////////////////////////////////////////////////
 
-from rd3.api.molgenis2 import Molgenis
-from rd3.utils.utils import phenotools
-from rd3.utils.clustertools import clustertools
 from dotenv import load_dotenv
 from datatable import dt
-from os import environ,system
+from os import environ
 from tqdm import tqdm
 import re
+import sys
+
+load_dotenv()
+sys.path.append(environ['SYS_PATH'])
+
+from rd3.api.molgenis2 import Molgenis
+from rd3.utils.clustertools import clustertools
+from rd3.utils.phenopacketTools import (
+  recodeSexCodes,
+  formatDateOfBirth,
+  unpackDiseaseCodes,
+  unpackPhenotypicFeatures
+)
 
 # set latest phenopacket release
-load_dotenv()
 currentRelease = 'freeze2'
 
 rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
@@ -125,19 +134,20 @@ rd3._print('Found', len(phenopacketFiles), 'phenopacket files')
 # init loop params and objects
 rd3._print('Starting file processing...')
 phenopackets = []
-for index,file in enumerate(phenopacketFiles):
-  print('Processing',file['filename'],'(',index,'of',len(phenopacketFiles),')')
 
-  # ~ 0 ~
-  # read contents of file and init results object
+for index,file in enumerate(phenopacketFiles):
+  rd3._print('Processing',file['filename'],'(',index,'of',len(phenopacketFiles),')')
+
   rd3._print('Reading file....')
   json = clustertools.readJson(path=file['filepath'])
+  phenopacket = json['phenopacket']
+
   result = {
     'phenopacketsID': file['filename'],
     'clusterRelease': basePath,
-    'subjectID': json['phenopacket']['id'],
-    'dateofBirth': None,
-    'sex1': None,
+    'subjectID': phenopacket['id'],
+    'dateofBirth': formatDateOfBirth(phenopacket.get('subject').get('dateOfBirth')),
+    'sex1': recodeSexCodes(phenopacket.get('subject').get('sex')),
     'phenotype': None,
     'hasNotPhenotype': None,
     'disease': None,
@@ -151,57 +161,36 @@ for index,file in enumerate(phenopacketFiles):
 
   # ///////////////////////////////////////
 
-  # ~ 1 ~
-  # make sure `subject` exists before processing attributes
-  rd3._print('Recoding DOB and Sex....')
-  if 'subject' in json['phenopacket']:
-    if 'dateOfBirth' in json['phenopacket']['subject']:
-      result['dateofBirth'] = phenotools.formatDate(
-        value=json['phenopacket']['subject']['dateOfBirth']
-      )
-    if 'sex' in json['phenopacket']['subject']:
-      result['sex1'] = phenotools.recodeSexCodes(
-        value=json['phenopacket']['subject']['sex'].lower()
-      )
-
-  # ///////////////////////////////////////
-
   # ~ 2 ~
-  # make sure `phenotypicFeatures` exists
+  # make sure 'phenotypicFeatures' exists and triage HPO codes into
+  # 'has', 'has not', and 'unknown'. All unknown codes will need to be manually
+  # verified before importing into RD3.
   rd3._print('Extracting and recoding phenotypic features data...')
-  if 'phenotypicFeatures' in json['phenopacket']:
-    phenotypic_features = phenotools.unpackPhenotypicFeatures(
-      data=json['phenopacket']['phenotypicFeatures']
-    )
-
-    # triage HPO into `has` and `hasnot`
+  if bool(phenopacket.get('phenotypicFeatures')):
+    patientHpoCodes = unpackPhenotypicFeatures(data=phenopacket['phenotypicFeatures'])
     patient_hpo_has = []
     patient_hpo_hasnot = []
     patient_hpo_unknown = []
 
     # ObservedPhenotypes validate codes and isolate unknown cases
     rd3._print('Processing observed phenotypes....')
-    if phenotypic_features['phenotype']:
-      for code in phenotypic_features['phenotype']:
+    if patientHpoCodes['phenotype']:
+      for code in patientHpoCodes['phenotype']:
         if code in hpo_codes:
           patient_hpo_has.append(code)
         else:
           rd3._print('Unknown HPO code -', str(code))
           patient_hpo_unknown.append(result['id'])
-          phenotypic_features['phenotype'].remove(code)
-      del code
 
     # Unobserved Phenotypes validate codes and isolate unknown cases
     rd3._print('Processing unobserved phenotypes....')
-    if phenotypic_features['hasNotPhenotype']:
-      for code in phenotypic_features['hasNotPhenotype']:
+    if patientHpoCodes['hasNotPhenotype']:
+      for code in patientHpoCodes['hasNotPhenotype']:
         if code in hpo_codes:
           patient_hpo_hasnot.append(code)
         else:
-          rd3._print('Unknown HPO code:', str(code))
+          rd3._print('Unknown HPO code', str(code))
           patient_hpo_unknown.append(result['id'])
-          phenotypic_features['hasNotPhenotype'].remove(code)
-      del code
 
     # collapse codes
     result['phenotype'] = ','.join(patient_hpo_has) if patient_hpo_has else None
@@ -213,13 +202,8 @@ for index,file in enumerate(phenopacketFiles):
   # ~ 3 ~
   # make sure `diseases` exist first
   rd3._print('Extracting and processing disease codes....')
-
-  if 'diseases' in json['phenopacket']:
-    diseases = phenotools.unpackDiseaseCodes(
-      data=json['phenopacket']['diseases'],
-      mappings=diseaseCodeMappings
-    )
-
+  if bool(phenopacket.get('diseases')):
+    diseases = unpackDiseaseCodes(data=phenopacket['diseases'], mappings=diseaseCodeMappings)
     patient_diseases_has = []
     patient_diseases_unknown = []
 
@@ -237,7 +221,7 @@ for index,file in enumerate(phenopacketFiles):
     result['disease'] = ','.join(patient_diseases_has) if patient_diseases_has else None
     result['unknownDiseaseCodes'] = ','.join(patient_diseases_unknown) if patient_diseases_unknown else None
 
-    # triage onset IDs (HPO) isolate invalid codes for review
+    # triage onset IDs isolate invalid codes for review
     if len(diseases['onset']) > 0:
       rd3._print('Processing onset codes....')
       onset_codes_known = []
@@ -261,15 +245,13 @@ for index,file in enumerate(phenopacketFiles):
       row['release'] for row in subjects if row['subjectID'] == result['subjectID']
     ])
   phenopackets.append(result)
-  rd3._print('Done')
-  print('\n#/////////////////////////////')
 
 # //////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~
 # Import Data
 rd3._print('Preparing data for import....')
-rd3.delete('rd3portal_cluster_phenopacket')
+rd3.delete('rd3_portal_cluster_phenopacket')
 
 phenopacketsDT = dt.Frame(phenopackets)
 
@@ -280,7 +262,7 @@ for column in phenopacketsDT.names:
     rd3._print('Changing class for column:', column)
     phenopacketsDT[column] = phenopacketsDT[column][:, dt.as_type(dt.f[column], dt.str32)]
 
-rd3._print('Importing....')
+rd3._print('Importing dataset....')
 rd3.importDatatableAsCsv(
   pkg_entity='rd3_portal_cluster_phenopacket',
   data = phenopacketsDT

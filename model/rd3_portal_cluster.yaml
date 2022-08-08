@@ -11,8 +11,8 @@ name: rd3_portal_cluster
 label: Cluster Data
 description: Extracted metadata PED and Phenopacket files stored on the cluster
 parent: rd3_portal
-date: 2022-08-02
-version: 0.9.2
+date: 2022-08-08
+version: 1.0.0
 
 # set defaults
 defaults:
@@ -87,10 +87,15 @@ entities:
     label: PED
     description: Extracted data from PED files
     attributes:
-      - name: pedID
-        description: Name of the Phenopacket file
+    
+      - name: rowID
+        description: an auto generated ID
+        auto: true
         idAttribute: true
         nillable: false
+    
+      - name: pedID
+        description: Name of the Phenopacket file
         
       - name: clusterRelease
         description: the release, on the cluster, where the data comes from
@@ -98,12 +103,33 @@ entities:
       - name: subjectID
         description: RD3 subject identifier
         
+      - name: fid
+        description: family identifier
+      
+      - name: mid
+        description: identifier of the mother
+        
+      - name: pid
+        description: identifier of the father
+        
       - name: sex1
         description: If available, a string containing the sex of the patient
         
       - name: clinical_status
         description: An indication of affected status
         dataType: bool
+      
+      - name: unknownMID
+        description: The identifier of the mother that was reported. It was either invalid or could not be found in RD3
+      
+      - name: unknownPID
+        description: The identifier of the father that was reported. It was either invalid or could not be found in RD3
+        
+      - name: unknownSexCodes
+        description: Code that was detected in the PED file, but it does not match expected values (1,2, other)
+      
+      - name: unknownClinicalStatus
+        description: A code that was detected in the PED file, but it does not match an expected value (-9, 0, 1,2)
         
       - name: subjectExists
         description: An indication if the subject exists in RD3
@@ -112,6 +138,9 @@ entities:
         
       - name: releasesWhereSubjectExists
         description: If the subject exists, which release
+        
+      - name: upload
+        description: If True, the raw data for this subject can be imported into RD3 
       
       - name: processed
         description: An indication if the data has been imported into RD3 somewhere

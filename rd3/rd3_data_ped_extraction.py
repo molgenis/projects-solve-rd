@@ -2,7 +2,7 @@
 #' FILE: rd3_data_ped_extraction.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-04
-#' MODIFIED: 2022-08-04
+#' MODIFIED: 2022-08-08
 #' PURPOSE: PED file extraction
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -10,7 +10,7 @@
 #'////////////////////////////////////////////////////////////////////////////
 
 from dotenv import load_dotenv
-from datatable import dt
+from datatable import dt, join
 from os import environ
 from tqdm import tqdm
 import re
@@ -55,7 +55,7 @@ rd3._print('Fetching existing subject metadata....')
 # ~ 1a ~
 # Compile subject metadata
 # pull subject metadata for the current freeze
-freeze = rd3.get(entity='rd3_overview',attributes='subjectID,sex1,fid,patch', batch_size=10000)
+freeze = rd3.get(entity='rd3_overview',attributes='subjectID,patch', batch_size=10000)
 
 # isolate subjectIDs and patch
 rd3._print('Extracting patch information and creating a list of subject IDs....')
@@ -64,8 +64,6 @@ subjects = []
 for row in tqdm(freeze):
   subject = {
     'subjectID': row['subjectID'],
-    'sex1': row.get('sex1')[0].get('identifier') if bool(row.get('sex1')) else None,
-    'fid': row.get('fid'),
     'release': row.get('patch')
   }
   if bool(subject.get('release')):
@@ -124,22 +122,50 @@ availablePedFiles = [
 ]
 
 peddata = []
-for index,file in enumerate(availablePedFiles[:10]):
+for index,file in enumerate(availablePedFiles):
   rd3._print('Processing',file['filename'],'(',index,'of',len(availablePedFiles),')')
   contents = clustertools.readTextFile(path = file['filepath'])
   data = parseFileContents(contents=contents, ids=subjectIDs, filename=file['filename'])
   for row in data:
     if row['upload']:
+      row['pedID'] = file['filename']
       peddata.append(row)
       
-      
+# convert to DT object
+pedDT = dt.Frame(peddata)
+
+# set release path
+pedDT['clusterRelease'] = basePath
+
+# determine if subjectID is valid (they all should be)
+pedDT['subjectExists'] = dt.Frame([
+  d in subjectIDs
+  for d in pedDT['subjectID'].to_list()[0]
+])
+
+
+# join release data
+subjectsDT.key = 'subjectID'
+pedDT.key = 'subjectID'
+pedDT = pedDT[:, :, join(subjectsDT)]
+
+# rename columns
+pedDT.names = {'error_mid': 'unknownMID', 'error_pid': 'unknownPID', 'release': 'releasesWhereSubjectExists'}
+
+
+# check for void columns and remove any unecessary columns
+rd3._print('Checking data for void columns....')
+for column in pedDT.names:
+  if pedDT[column].types[0] == dt.Type.void:
+    rd3._print('Changing class for column:', column)
+    pedDT[column] = pedDT[column][:, dt.as_type(dt.f[column], dt.str32)]
+    
+del pedDT[:, ['id']]
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~
 # Import Data into Portal
 
 rd3._print('Importing data....')
-rd3.delete('rd3_portal_cluster_ped')
-
-pedDT = dt.Frame(peddata)
 rd3.importDatatableAsCsv(pkg_entity = 'rd3_portal_cluster_ped', data = pedDT)

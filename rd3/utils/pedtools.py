@@ -9,28 +9,7 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.utils import recodeValue, statusMsg
-
-def _recodeSexCodes(value):
-  """Recode Sex Code
-  Ped files use the code 1, 2, or other to indicate patient's sex.
-  Recode these values into RD3 terminology.
-
-  @param value string containing a sex code to recode
-  @return string containing an RD3 sex code
-  """
-  mappings = {'1': 'M', '2': 'F', 'other': 'U'}
-  return recodeValue(mappings=mappings, value=value, label='PED Sex Code')
-
-def _recodeAffectedStatus(value):
-  """Recode Affected Status
-  Recode PED code for affected status into RD3 terminology
-
-  @param value string containing a value to recode
-  @return string containing an RD3 affected status code
-  """
-  mappings = {'-9': None, '0': None, '1': False, '2': True}
-  return recodeValue(mappings=mappings, value=value, label='Affected Status')
+from rd3.utils.utils import statusMsg
 
 def _parseFileRow(row: dict = None):
   """Parse Pedigree File Row
@@ -39,16 +18,35 @@ def _parseFileRow(row: dict = None):
   @param row dictionary that is a row from a PED file
   @return dictionary
   """
-  return {
+  data = {
     'id': row[1],
     'subjectID': row[1],
     'fid': row[0],
     'mid': row[3],
     'pid': row[2],
-    'sex1': _recodeSexCodes(value=row[4]),
-    'clinical_status': _recodeAffectedStatus(value=row[5]),
+    'sex1': row[4],
+    'clinical_status': row[5],
+    'unknownSexCode': None,
+    'unknownClinicalStatus': None,
     'upload': True
   }
+  
+  sexCodeMappings = {'1': 'M', '2': 'F', 'OTHER': 'U', 'other': 'U'}
+  clinicalStatusMappings = {'-9': None, '0': None, '1': False, '2': True}
+  
+  if data['sex1'] in sexCodeMappings:
+    data['sex1'] = sexCodeMappings[data['sex1']]
+  else:
+    data['unknownSexCode'] = data['sex1']
+    data['sex1'] = None
+  
+  if data['clinical_status'] in clinicalStatusMappings:
+    data['clinical_status'] = clinicalStatusMappings[data['clinical_status']]
+  else:
+    data['unknownClinicalStatus'] = data['clinical_status']
+    data['clinical_status'] = None
+  
+  return data
 
 def _validateFileRow(row: dict = None, ids: list = None):
   """Validate PED Row

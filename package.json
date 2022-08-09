@@ -7,7 +7,15 @@
     "set-acc": "mcmd config set host https://solve-rd-acc.gcc.rug.nl/",
     "set-prod": "mcmd config set host https://solve-rd.gcc.rug.nl/",
     "zip": "zip templates/rd3_novelomics_templates.zip templates/*.csv",
-    "build": "python3 index.py"
+    "build-freeze1": "python3 index.py profiles/freeze.yaml freeze1 'Freeze 1'",
+    "build-freeze2": "python3 index.py profiles/freeze.yaml freeze2 'Freeze 2'",
+    "build-freeze3": "python3 index.py profiles/freeze.yaml freeze3 'Freeze 3'",
+    "build-noveldeepwes": "python3 index.py profiles/freeze.yaml noveldeepwes 'Novel Omics Deep-WES'",
+    "build-novellrwgs": "python3 index.py profiles/freeze.yaml novellrwgs 'Novel Omics LR-WGS'",
+    "build-novelsrwgs": "python3 index.py profiles/freeze.yaml novelsrwgs 'Novel Omics SR-WGS'",
+    "build-novelrnaseq": "python3 index.py profiles/freeze.yaml novelrnaseq 'Novel Omics RNAseq'",
+    "build-novelwgs": "python3 index.py profiles/freeze.yaml novelwgs 'Novel Omics WGS'"
+    
   },
   "repository": {
     "type": "git",

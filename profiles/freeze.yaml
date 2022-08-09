@@ -1,0 +1,38 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-08-09
+# MODIFIED: 2022-08-09
+# PURPOSE: YAML-EMX Profile for Freezes
+# COMMENTS: NA
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_<freeze_identifier>
+modelFilePath: [model/base_rd3.yaml, model/base_rd3_freeze.yaml]
+
+# Set Build options
+# Customize the building of the model for EMX1 and EMX2 environments. Inidicate
+# which environment you would like to run the database in and other options.
+#
+# @param splitLookups If frue, the child package "Lookups" will moved to a new
+#     package. This is only available for EMX2 options
+# @param generateSchema If true, a markdown overview will be generated
+# @param outputDir directory to write emx files
+# @param schemasDir directory to write markdown schemas
+#
+buildOptions: 
+  emx1:
+    active: true
+    generateSchema: true
+    outputDir: dist
+    schemasDir: schemas
+    overrideLabels: false
+    overrideVisibility: false
+
+  emx2:
+    active: false
+    splitLookups: true
+    generateSchema: true
+    outputDir: dist
+    schemasDir: schemas
+    overrideLabels: false

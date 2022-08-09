@@ -163,8 +163,9 @@ entities:
       - name: retracted
         label: Retracted Subject
         description: Is the subject retracted or not
-        dataType: enum
-        enumOptions: N,Y
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        defaultValue: N
         
       - name: patch
         label: Patch
@@ -179,7 +180,7 @@ entities:
   # RD3: Subject Info
   - name: subjectinfo
     label: <freeze_label> Subject Information
-    description: Extra information about subjects within Freeze <freeze_number>
+    description: Extra information about subjects within <freeze_label>
     attributes:
       - name: id
         label: id
@@ -243,7 +244,7 @@ entities:
   # RD3: Samples
   - name: sample
     label: <freeze_label> Samples
-    description: Samples used as input for analyses within Freeze <freeze_number>
+    description: Samples used as input for analyses within <freeze_label>
     attributes:
       - name: id
         label: id
@@ -329,8 +330,8 @@ entities:
         
       - name: retracted
         label: Retracted Sample
-        dataType: enum
-        enumOptions: N,Y
+        dataType: categorical
+        refEntity: rd3_noyesunknown
         defaultValue: N
         
       - name: dateAvailable
@@ -441,8 +442,9 @@ entities:
       - name: retracted
         label: Retracted Experiment
         description: Is the experiment retracted or not
-        dataType: enum
-        enumOptions: N,Y
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        defaultValue: N
         
       - name: patch
         label: Patch
@@ -492,6 +494,12 @@ entities:
         description: link to file(s) produced for this sample
         dataType: mref
         refEntity: rd3_<freeze_identifier>_sample
+        
+      - name: subjectID
+        label: SubjectID
+        description: Unique identifier of the subject
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_subject
         
       - name: patch
         label: Patch

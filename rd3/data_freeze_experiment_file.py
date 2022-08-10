@@ -182,7 +182,7 @@ filesDT['subjectID'] = dt.Frame([
 ])
 
 # filesDT[match(f.subjectID, 'P.*'), ['name','subjectID']]
-# filesDT[match(f.subjectID, 'P.*'), ['name','subjectID']].nrows
+# filesDT.nrows - filesDT[match(f.subjectID, 'P.*'), ['name','subjectID']].nrows
 
 # merge additional subjectIDs via familyID extracted from the PED filename
 # filesDT[f.typeFile=='ped', ['name','fid','subjectID']]

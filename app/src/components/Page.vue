@@ -4,10 +4,14 @@
     <div class="page__footer">
       <div class="footer__navigation">
         <img
+          :src="require('@/assets/solve-rd-logo.png')"
+          alt="Solve-RD - solving the unsolved rare diseases"
+          class="solve-rd-logo"
+        />
+        <img
           :src="require('@/assets/molgenis-logo-blue-small.png')"
           alt="molgenis open source data platform" class="molgenis_logo"
         />
-        <Navlinks />
       </div>
       <p class="molgenis-citation">This database was created using the open source MOLGENIS software {{ molgenisVersion }} on {{ molgenisBuildDate }}</p>
     </div>
@@ -15,14 +19,10 @@
 </template>
 
 <script>
-import Navlinks from '@/components/Navlinks.vue'
 import { fetchData } from '@/utils/search'
 
 export default {
   name: 'ui-page',
-  components: {
-    Navlinks
-  },
   data () {
     return {
       molgenisVersion: null,
@@ -69,7 +69,8 @@ footer.footer {
   background-color: #f6f6f6;
   
   .page__footer {
-    padding: 2em 1em;
+    box-sizing: padding-box;
+    padding: 2em;
     background-color: #282d32;
     color: #f6f6f6;
     
@@ -77,6 +78,7 @@ footer.footer {
       display: flex;
       justify-content: flex-start;
       align-items: center;
+      gap: 1.25em;
     }
     
     .molgenis-citation {
@@ -87,6 +89,10 @@ footer.footer {
     
     .molgenis_logo {
       width: 124px;
+    }
+    
+    .solve-rd-logo {
+      width: 172px;
     }
   }
 }

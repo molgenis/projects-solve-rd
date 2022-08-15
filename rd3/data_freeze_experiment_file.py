@@ -1,14 +1,16 @@
-#'////////////////////////////////////////////////////////////////////////////
-#' FILE: data_freeze_experiment_file.py
-#' AUTHOR: David Ruvolo
-#' CREATED: 2022-08-10
-#' MODIFIED: 2022-08-10
-#' PURPOSE: fill in missing sampleIDs, experimentIDs, and add subjectIDs
-#' STATUS: stable
-#' PACKAGES: **see below**
-#' COMMENTS: NA
-#'////////////////////////////////////////////////////////////////////////////
-
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: data_freeze_experiment_file.py
+# AUTHOR: David Ruvolo
+# CREATED: 2022-08-10
+# MODIFIED: 2022-08-15
+# PURPOSE: fill in missing sampleIDs, experimentIDs, and add subjectIDs
+# STATUS: stable
+# PACKAGES: **see below**
+# COMMENTS: The purpose of this script is to refresh and fill in missing
+# file to sample, subject, or experiment links. As more files are registered in
+# RD3, this information may not be available at the time of import or regularly
+# updated.
+#//////////////////////////////////////////////////////////////////////////////
 
 from rd3.api.molgenis import Molgenis
 from rd3.utils.utils import dtFrameToRecords
@@ -21,13 +23,13 @@ from os import path
 load_dotenv()
 
 # set RD3 release
-currentRelease = 'freeze1'
+currentRelease = 'freeze2'
 
 # connect to RD3
 rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
 rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
-def uniqueValuesToString(data, searchAttr, dataAttr, value):
+def uniqueValuesToString(data, searchAttr, dataAttr, value, usePattern=False):
   """Unique Values to String
   Filter a datatable object, get unique values, and return as a string
 
@@ -39,12 +41,18 @@ def uniqueValuesToString(data, searchAttr, dataAttr, value):
   @return comma separated string
   """
   try:
-    results = data[f[searchAttr]==str(value),:]
+    if usePattern:
+      pattern = f'.*{value}*.'
+      results = data[match(f[searchAttr], pattern), :]
+    else:
+      results = data[f[searchAttr]==str(value),:]
     if results.nrows:
-      return ','.join(dt.unique(results[:, f[dataAttr]]).to_list()[0])      
-  except:
+      return ','.join(dt.unique(results[:, f[dataAttr]]).to_list()[0])
+    else:
+      return None
+  except TypeError as error:
+    print('Error in ', value,'\n',str(error))
     pass
-    return None
 
 #///////////////////////////////////////
 
@@ -56,8 +64,8 @@ def uniqueValuesToString(data, searchAttr, dataAttr, value):
 # Pull File metadata
 files = rd3.get(
   f'rd3_{currentRelease}_file',
-  batch_size=10000,
-  attributes='EGA,name,typeFile,samples,patch,experimentID,filepath_sandbox'
+  # batch_size=10000,
+  attributes='EGA,name,typeFile,samples,patch,experimentID'
 )
 
 # flatten nested attributes
@@ -118,6 +126,8 @@ del freezeSubjects['_href']
 # IDs using experimentID.  
 
 # filesDT[f.samples==None,:]
+# filesDT[(f.samples==None) & (f.typeFile!='ped') & (f.typeFile!='json'),['name','samples','experimentID']]
+# dt.unique(filesDT[(f.samples==None) & (f.typeFile!='ped') & (f.typeFile!='json'),['name','samples','experimentID']]['experimentID'])
 # dt.unique(filesDT[f.samples==None,'typeFile'])
 # filesDT[(f.samples==None) & (f.typeFile=='vcf'), :]
 
@@ -130,7 +140,7 @@ filesDT['samples'] = dt.Frame([
   )
   if (tuple[0] is None) and (tuple[1] is not None)
   else tuple[0]
-  for tuple in filesDT[:,['samples','experimentID']].to_tuples()
+  for tuple in tqdm(filesDT[:,['samples','experimentID']].to_tuples())
 ])
 
 #///////////////////////////////////////
@@ -157,7 +167,7 @@ if dt.unique(filesDT[match(f.typeFile, r'^(ped|json)$') == False, 'typeFile']).n
     )
     if (tuple[0] is None) and (tuple[1] is not None)
     else tuple[0]
-    for tuple in filesDT[:, ['experimentID', 'samples']].to_tuples()
+    for tuple in tqdm(filesDT[:, ['experimentID', 'samples']].to_tuples())
   ])
 
 
@@ -177,7 +187,7 @@ filesDT['subjectID'] = dt.Frame([
     dataAttr = 'subject',
     value = id
   )
-  # if bool(id) else None
+  if id is not None or bool(id) else id
   for id in tqdm(filesDT['samples'].to_list()[0])
 ])
 
@@ -198,7 +208,8 @@ filesDT['subjectID'] = dt.Frame([
     data = freezeSubjects,
     searchAttr='fid',
     dataAttr='id',
-    value = tuple[1]
+    value = tuple[1],
+    usePattern=True
   )
   if (tuple[0] is None) and tuple[1] is not None
   else tuple[0]
@@ -206,14 +217,16 @@ filesDT['subjectID'] = dt.Frame([
 ])
 
 # merge additional subjectsIDs via Phenopackets
-filesDT[f.typeFile=='json', ['name','subjectID']]
-filesDT[f.typeFile=='json', ['name','pedSubjectId']]
-
-filesDT['pedSubjectId'] = dt.Frame([
+filesDT['phenoSubjectId'] = dt.Frame([
   path.basename(d[0]).split('.json')[0].split('.')[0]
   if d[1] == 'json' else None
   for d in filesDT[:,['name', 'typeFile']].to_tuples()
 ])
+
+# filesDT[f.typeFile=='json', ['name','subjectID']]
+# filesDT[f.typeFile=='json', ['name','phenoSubjectId']]
+# filesDT[(f.phenoSubjectId==None) & (f.typeFile=='ped'),['name','fid','phenoSubjectId']]
+# filesDT[(f.subjectID==None) & (f.typeFile=='ped'),['name','fid','subjectID']]
 
 filesDT['subjectID'] = dt.Frame([
   uniqueValuesToString(
@@ -224,10 +237,11 @@ filesDT['subjectID'] = dt.Frame([
   )
   if (tuple[1] == 'json') and (not tuple[0])
   else tuple[0]
-  for tuple in filesDT[:, ['subjectID', 'typeFile', 'pedSubjectId']].to_tuples()
+  for tuple in tqdm(filesDT[:, ['subjectID', 'typeFile', 'phenoSubjectId']].to_tuples())
 ])
 
 filesDT[f.subjectID==None,:]
+filesDT[(f.subjectID==None) & (f.typeFile=='ped'),:]
 filesDT[f.samples==None,:]
 filesDT[f.experimentID==None,:]
 

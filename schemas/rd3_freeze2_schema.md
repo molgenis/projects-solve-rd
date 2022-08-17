@@ -36,7 +36,8 @@ patients and family members within Freeze 2
 | disease&#8251; | disease | if affected, which MAIN disease code(s) apply to subject | mref |
 | phenotype&#8251; | phenotype | Phenotype based on Human Phenotype Ontology (HPO) | mref |
 | hasNotPhenotype&#8251; | hasNotPhenotype | Relevant Phenotype NOT present in subject | mref |
-| phenopacketsID&#8251; | phenopacketsID | phenopacketsID | string |
+| phenopacketsID&#8251; | Phenotype Patch | name of the most recent phenopackets file (formated as <subjectID>.<date>.json) | string |
+| patch&#8251; | Subject Releases | One or more RD3 releases associated with the subject | categorical_mref |
 | variant&#8251; | variant | candidate pathogenic variant(s) for this subject | mref |
 | organisation&#8251; | Organisation | Name of the organisation that submitted Subject | xref |
 | ERN&#8251; | ERN | ERN | xref |
@@ -48,8 +49,7 @@ patients and family members within Freeze 2
 | noIncidentalFindings&#8251; | No Incidental Findings | Do NOT report incidental findings back (boolean) | bool |
 | recontact&#8251; | Recontact Incidental findings | Recontact is allowed in case of incidental findings | categorical |
 | retracted&#8251; | Retracted Subject | Is the subject retracted or not | categorical |
-| patch&#8251; | Patch | Patch to which the subject belongs | categorical_mref |
-| patch_comment&#8251; | Patch Comment | Patch Comment | string |
+| patch_comment&#8251; | Release Comments | Patch Comment | string |
 
 ### Entity: rd3_freeze2_subjectinfo
 
@@ -67,7 +67,8 @@ Extra information about subjects within Freeze 2
 | disease&#8251; | disease | if affected, which MAIN disease code(s) apply to subject | mref |
 | phenotype&#8251; | phenotype | Phenotype based on Human Phenotype Ontology (HPO) | mref |
 | hasNotPhenotype&#8251; | hasNotPhenotype | Relevant Phenotype NOT present in subject | mref |
-| phenopacketsID&#8251; | phenopacketsID | phenopacketsID | string |
+| phenopacketsID&#8251; | Phenotype Patch | name of the most recent phenopackets file (formated as <subjectID>.<date>.json) | string |
+| patch&#8251; | Subject Releases | One or more RD3 releases associated with the subject | categorical_mref |
 | variant&#8251; | variant | candidate pathogenic variant(s) for this subject | mref |
 | organisation&#8251; | Organisation | Name of the organisation that submitted Subject | xref |
 | ERN&#8251; | ERN | ERN | xref |
@@ -79,8 +80,7 @@ Extra information about subjects within Freeze 2
 | noIncidentalFindings&#8251; | No Incidental Findings | Do NOT report incidental findings back (boolean) | bool |
 | recontact&#8251; | Recontact Incidental findings | Recontact is allowed in case of incidental findings | categorical |
 | retracted&#8251; | Retracted Subject | Is the subject retracted or not | categorical |
-| patch&#8251; | Patch | Patch to which the subject belongs | categorical_mref |
-| patch_comment&#8251; | Patch Comment | Patch Comment | string |
+| patch_comment&#8251; | Release Comments | Patch Comment | string |
 | id&#8251; | id | Unique identifier (subjectID + patch number) | string |
 | subjectID&#8251; | SubjectID | Unique identifier of the subject | xref |
 | dateofBirth&#8251; | Date of Birth | Date of birth (YYYY) (COMMON DATA ELEMENTS 2.1) | int |
@@ -89,8 +89,8 @@ Extra information about subjects within Freeze 2
 | ageOfDiagnosis&#8251; | ageOfDiagnosis | Age at diagnosis (COMMON DATA ELEMENTS 5.2) | int |
 | Country_of_origin&#8251; | Country of Origin | country of origin (for pedigree?) | string |
 | consanguinity_suspected&#8251; | Consanguinity suspected | subject consanguinity (yes,no) | bool |
-| patch&#8251; | Patch | Patch to which the subject belongs | categorical_mref |
-| patch_comment&#8251; | Patch Comment | Patch Comment | string |
+| patch&#8251; | Subject Releases | One or more RD3 releases associated with the subject | categorical_mref |
+| patch_comment&#8251; | Release Comment | Patch Comment | string |
 
 ### Entity: rd3_freeze2_sample
 
@@ -117,8 +117,8 @@ Samples used as input for analyses within Freeze 2
 | dateAvailable&#8251; | Date available | Date that a file became visible to sandbox/RD3 | datetime |
 | anatomicalLocation&#8251; | anatomicalLocation | - | xref |
 | batch&#8251; | Batch Number | Sample batch number | string |
-| patch&#8251; | Patch | Patch to which the sample belongs | categorical_mref |
-| patch_comment&#8251; | Patch Comment | Patch Comment | string |
+| patch&#8251; | Sample Releases | One or more RD3 releases associated with the sample | categorical_mref |
+| patch_comment&#8251; | Release Comment | Patch Comment | string |
 
 ### Entity: rd3_freeze2_labinfo
 
@@ -142,8 +142,8 @@ information or process in the lab linked to samples
 | mean_cov&#8251; | MeanCov | Mean read depth | decimal |
 | c20&#8251; | C20 | Percentage of nucleotides within the Region of interest that is covered by at least 20 reads | decimal |
 | retracted&#8251; | Retracted Experiment | Is the experiment retracted or not | categorical |
-| patch&#8251; | Patch | Patch to which the labinfo belongs | categorical_mref |
-| patch_comment&#8251; | Patch Comment | Patch Comment | string |
+| patch&#8251; | Experiment Releases | One or more RD3 releases associated with the sample | categorical_mref |
+| patch_comment&#8251; | Release Comment | Patch Comment | string |
 
 ### Entity: rd3_freeze2_file
 
@@ -157,12 +157,12 @@ Individual files on file systems, files are linked in datasets, versioning with 
 | typeFile&#8251; | typeFile | type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.) | categorical |
 | samples&#8251; | samples | link to file(s) produced for this sample | mref |
 | subjectID&#8251; | SubjectID | Unique identifier of the subject | mref |
-| patch&#8251; | Patch | Patch to which the file belongs | categorical_mref |
+| patch&#8251; | File Releases | One or more RD3 releases associated with the file | categorical_mref |
 | patch_comment&#8251; | Patch Comment | Patch Comment | string |
 | dateCreated&#8251; | Created | Creation date in RD3 database | date |
 | extraInfo&#8251; | Extra Information | - | text |
-| experimentID&#8251; | experimentID | - | string |
-| filepath_sandbox&#8251; | Filepath Sandbox | Filepath Sandbox | string |
+| experimentID&#8251; | experimentID | Identifier of the corresponding record in the labinfo table | string |
+| filepath_sandbox&#8251; | Filepath Sandbox | path of the file stored in the sandbox environment | string |
 
 ### Entity: rd3_freeze2_job
 

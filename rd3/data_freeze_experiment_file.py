@@ -2,7 +2,7 @@
 # FILE: data_freeze_experiment_file.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-08-10
-# MODIFIED: 2022-08-15
+# MODIFIED: 2022-08-31
 # PURPOSE: fill in missing sampleIDs, experimentIDs, and add subjectIDs
 # STATUS: stable
 # PACKAGES: **see below**
@@ -26,8 +26,11 @@ load_dotenv()
 currentRelease = 'freeze2'
 
 # connect to RD3
-rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+# rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+# rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 def uniqueValuesToString(data, searchAttr, dataAttr, value, usePattern=False):
   """Unique Values to String
@@ -64,7 +67,7 @@ def uniqueValuesToString(data, searchAttr, dataAttr, value, usePattern=False):
 # Pull File metadata
 files = rd3.get(
   f'rd3_{currentRelease}_file',
-  # batch_size=10000,
+  batch_size=10000,
   attributes='EGA,name,typeFile,samples,patch,experimentID'
 )
 
@@ -191,6 +194,8 @@ filesDT['subjectID'] = dt.Frame([
   for id in tqdm(filesDT['samples'].to_list()[0])
 ])
 
+# filesDT[f.subjectID==None,:]
+# filesDT[match(f.subjectID,'P.*'), :]
 # filesDT[match(f.subjectID, 'P.*'), ['name','subjectID']]
 # filesDT.nrows - filesDT[match(f.subjectID, 'P.*'), ['name','subjectID']].nrows
 
@@ -240,26 +245,28 @@ filesDT['subjectID'] = dt.Frame([
   for tuple in tqdm(filesDT[:, ['subjectID', 'typeFile', 'phenoSubjectId']].to_tuples())
 ])
 
-filesDT[f.subjectID==None,:]
-filesDT[(f.subjectID==None) & (f.typeFile=='ped'),:]
-filesDT[f.samples==None,:]
-filesDT[f.experimentID==None,:]
-
+# filesDT[f.subjectID==None,:]
+# filesDT[(f.subjectID==None) & (f.typeFile=='ped'),:]
+# filesDT[f.samples==None,:]
+# filesDT[f.experimentID==None,:]
 
 #///////////////////////////////////////
 
 # ~ 5 ~
 # Import data 
 
+# import sample identifiers
 updateSampleIds = dtFrameToRecords(filesDT[f.samples!=None, (f.EGA, f.samples)])
-updateSubjectIds = dtFrameToRecords(filesDT[f.subjectID!=None,(f.EGA,f.subjectID)])
-
+len(updateSampleIds)
 rd3.updateColumn(
   entity=f'rd3_{currentRelease}_file',
   attr='samples',
   data=updateSampleIds
 )
 
+# import subject identifiers
+updateSubjectIds = dtFrameToRecords(filesDT[f.subjectID!=None,(f.EGA,f.subjectID)])
+len(updateSubjectIds)
 rd3.updateColumn(
   entity=f"rd3_{currentRelease}_file",
   attr='subjectID',

@@ -2,7 +2,7 @@
 # NAME: base_rd3_freeze.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2021-09-21
-# MODIFIED: 2022-03-07
+# MODIFIED: 2022-09-01
 # PURPOSE: YAML-EMX for cluster files
 # COMMENTS:
 #//////////////////////////////////////////////////////////////////////////////
@@ -11,8 +11,8 @@ name: rd3_portal_cluster
 label: Cluster Data
 description: Extracted metadata PED and Phenopacket files stored on the cluster
 parent: rd3_portal
-date: 2022-08-08
-version: 1.0.0
+date: 2022-09-01
+version: 1.1.0
 
 # set defaults
 defaults:
@@ -146,3 +146,29 @@ entities:
         description: An indication if the data has been imported into RD3 somewhere
         dataType: bool
         defaultValue: false
+
+  - name: template
+    description: attribute template for listing all files of a release or type
+    abstract: true
+    attributes:
+      - name: filepath
+        idAttribute: true
+      - name: filename
+      - name: filetype
+      - name: subjectID
+      - name: familyID
+      - name: experimentID
+      - name: sampleID
+      - name: release
+      
+  - name: freeze1
+    label: Freeze 1 Files
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze2
+    label: Freeze 2 Files
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze3
+    label: Freeze 2 Files
+    extends: rd3_portal_cluster_template

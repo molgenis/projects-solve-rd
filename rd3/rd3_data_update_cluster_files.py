@@ -1,12 +1,29 @@
 #///////////////////////////////////////////////////////////////////////////////
-# FILE: data_list_files_by_release.py
+# FILE: rd3_data_update_cluster_files.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-01
-# MODIFIED: 2022-09-01
+# MODIFIED: 2022-09-02
 # PURPOSE: list files on the cluster at a given path and import into rd3_portal
 # STATUS: in.progress
 # PACKAGES: **see below**
-# COMMENTS: NA
+# COMMENTS: The purpose of this script is to create a list of all files that
+# are stored on the cluster for a given release. New releases are stored into
+# a unique folder in the `releases/` directory and files are stored in a child
+# directory based on a file type (e.g., ped, phenopacket, etc.). The steps below
+# will read the file structure, build a dataset, and import it into a table in
+# RD3. The main objective of this script is to link files in EGA datasets to
+# their location on the cluster.
+#
+# Before you begin, make sure there is a table for the release. In the `model/`,
+# folder, create a new entity in the file `rd3_portal_cluster.yaml`, build, and
+# import into ACC and PROD. Make sure the `name` of the entity matches the
+# name of the release folder on the cluster.
+#
+# To get started, set the variable `currentRelease` to the desired release
+# folder on the cluster and run each step. The gvcf steps may take a while.
+# A backup copy is saved in case there are any import issues.
+#
+# This script should be run when there are new releases.
 #///////////////////////////////////////////////////////////////////////////////
 
 from rd3.api.molgenis2 import Molgenis
@@ -28,7 +45,6 @@ paths = {
   'bam': clusterReleasePath + '/bam',
 }
 
-
 # connect to RD3
 statusMsg('Connecting to RD3 instances...')
 rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
@@ -36,7 +52,6 @@ rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
 
 #///////////////////////////////////////////////////////////////////////////////
 

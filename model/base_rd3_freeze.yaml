@@ -525,9 +525,8 @@ entities:
         description: Identifier of the corresponding record in the labinfo table
         
       - name: filepath_sandbox
-        label: Filepath Sandbox
-        dataType: text
-        description: path of the file stored in the sandbox environment
+        label: Fender Filepath
+        description: location of the file on Fender. For Gearshift, recode 'solve-rd' to 'umcg-solve-rd'.
         
   # RD3: jobs
   - name: job

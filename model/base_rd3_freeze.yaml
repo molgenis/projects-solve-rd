@@ -526,6 +526,7 @@ entities:
         
       - name: filepath_sandbox
         label: Filepath Sandbox
+        dataType: text
         description: path of the file stored in the sandbox environment
         
   # RD3: jobs

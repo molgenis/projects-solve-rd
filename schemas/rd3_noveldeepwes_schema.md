@@ -162,7 +162,7 @@ Individual files on file systems, files are linked in datasets, versioning with 
 | dateCreated&#8251; | Created | Creation date in RD3 database | date |
 | extraInfo&#8251; | Extra Information | - | text |
 | experimentID&#8251; | experimentID | Identifier of the corresponding record in the labinfo table | string |
-| filepath_sandbox&#8251; | Filepath Sandbox | path of the file stored in the sandbox environment | string |
+| filepath_sandbox&#8251; | Filepath Sandbox | path of the file stored in the sandbox environment | text |
 
 ### Entity: rd3_noveldeepwes_job
 

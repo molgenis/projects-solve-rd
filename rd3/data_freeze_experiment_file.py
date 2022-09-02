@@ -23,7 +23,7 @@ from os import path
 load_dotenv()
 
 # set RD3 release
-currentRelease = 'freeze2'
+currentRelease = 'freeze1'
 
 # connect to RD3
 # rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
@@ -68,14 +68,15 @@ def uniqueValuesToString(data, searchAttr, dataAttr, value, usePattern=False):
 files = rd3.get(
   f'rd3_{currentRelease}_file',
   batch_size=10000,
-  attributes='EGA,name,typeFile,samples,patch,experimentID'
+  # attributes='EGA,name,typeFile,samples,patch,experimentID'
+  attributes='EGA,name,typeFile,samples,experimentID'
 )
 
 # flatten nested attributes
 for row in files:
   row['typeFile'] = row.get('typeFile').get('identifier') if bool(row.get('typeFile')) else None
   row['samples'] = row.get('samples')[0].get('id') if bool(row.get('samples')) else None
-  row['patch'] = ','.join([d['id'] for d in row.get('patch')]) if bool(row.get('patch')) else None
+  # row['patch'] = ','.join([d['id'] for d in row.get('patch')]) if bool(row.get('patch')) else None
 
 filesDT = dt.Frame(files)
 del filesDT['_href']
@@ -225,7 +226,7 @@ filesDT['subjectID'] = dt.Frame([
 filesDT['phenoSubjectId'] = dt.Frame([
   path.basename(d[0]).split('.json')[0].split('.')[0]
   if d[1] == 'json' else None
-  for d in filesDT[:,['name', 'typeFile']].to_tuples()
+  for d in tqdm(filesDT[:,['name', 'typeFile']].to_tuples())
 ])
 
 # filesDT[f.typeFile=='json', ['name','subjectID']]

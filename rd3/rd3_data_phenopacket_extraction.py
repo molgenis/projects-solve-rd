@@ -1,13 +1,29 @@
-# '////////////////////////////////////////////////////////////////////////////
-# ' FILE: rd3_data_phenopacket_extraction.py
-# ' AUTHOR: David Ruvolo
-# ' CREATED: 2022-08-01
-# ' MODIFIED: 2022-08-04
-# ' PURPOSE: Read and extract data from Phenopacket files
-# ' STATUS: stable
-# ' PACKAGES: **see below**
-# ' COMMENTS: see model/rd3portal_cluster.yaml
-# '////////////////////////////////////////////////////////////////////////////
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3_data_phenopacket_extraction.py
+# AUTHOR: David Ruvolo
+# CREATED: 2022-08-01
+# MODIFIED: 2022-09-06
+# PURPOSE: Read and extract data from Phenopacket files
+# STATUS: stable
+# PACKAGES: **see below**
+# COMMENTS: The purpose of this script is to locate all available phenopacket
+# files on the cluster, extract and process the contents of the files, and
+# import the data into a portal table: rd3_portal_cluster_phenopacket. Once
+# this script is run, run the processing script `rd3_data_phenopacket_processing`.
+# This script is also designed to run and import directly into RD3 ACC and PROD.
+# All validation should take place in the processing script.
+#
+# Once this script has completed, you will need to do a few things.
+#   1. Validate all codes in `unknownHpoCodes`: make sure all codes exist in RD3
+#      or map to an updated value. There should only be a few cases so they
+#      can be manually reviewed.
+#
+#   2. Validated all codes in `unknownDiseaseCodes`: check all codes to make sure
+#      they are valid or if they were mapped to a new code. Use https://www.omim.org/
+#       to search for codes.
+#
+# To view the EMX, see the file model/rd3portal_cluster.yaml
+#//////////////////////////////////////////////////////////////////////////////
 
 from dotenv import load_dotenv
 from datatable import dt
@@ -28,15 +44,22 @@ from rd3.utils.phenopacketTools import (
   unpackPhenotypicFeatures
 )
 
-# set latest phenopacket release
-currentRelease = 'freeze2'
 
+# set latest phenopacket release
+currentRelease = 'freeze3'
+
+# load excluded files dataset
+with open('data/files_phenopackets_corrupt.txt', 'r') as file:
+  excludedFiles = [line.replace('\n', '') for line in file.readlines()]
+  file.close()  
+del file
+
+# connect to RD3
 rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
 rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
-# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
+rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # Disease Code Mappings
 # To add a new mapping, use the following format:
@@ -48,7 +71,6 @@ diseaseCodeMappings = {
   'ORDO_856': '',  # no known mapping
   'ORDO_ 104010': 'ORDO_104010'
 }
-
 
 # /////////////////////////////////////////////////////////////////////////////
 
@@ -62,33 +84,30 @@ diseaseCodeMappings = {
 # imported into the `subject` and `subjectinfo` tables. The attributes that
 # are managed by this script are listed in the GET requests below.
 
-rd3._print('Compiling a list of existing subject identifiers....')
-
+# rd3._print('Compiling a list of existing subject identifiers....')
 
 # ~ 1a ~
 # Compile subject metadata
 # pull subject metadata for the current freeze
-freeze = rd3.get(entity='rd3_overview',attributes='subjectID,patch', batch_size=10000)
+# freeze = rd3.get(entity='rd3_overview',attributes='subjectID,patch', batch_size=10000)
 
 # isolate subjectIDs and patch
-rd3._print('Extracting patch information and creating a list of subject IDs....')
+# rd3._print('Extracting patch information and creating a list of subject IDs....')
 
-subjects = []
-for row in tqdm(freeze):
-  subject = {'subjectID': row['subjectID'], 'release': []}
-  if isinstance(row['patch'], list):
-    subject['release'] = [item['id'] for item in row['patch'] if 'patch' not in item['id']]
+# subjects = []
+# for row in tqdm(freeze):
+#   subject = {'subjectID': row['subjectID'], 'release': []}
+#   if isinstance(row['patch'], list):
+#     subject['release'] = [item['id'] for item in row['patch'] if 'patch' not in item['id']]
 
-  if isinstance(row['patch'], dict):
-    subject['release'] = row['patch']['id']
+#   if isinstance(row['patch'], dict):
+#     subject['release'] = row['patch']['id']
 
-  subject['release'] = ','.join(subject['release']) if subject['release'] else None
-  subjects.append(subject)
+#   subject['release'] = ','.join(subject['release']) if subject['release'] else None
+#   subjects.append(subject)
 
-
-# get list of IDs only
-subjectIDs = [row['subjectID'] for row in subjects]
-
+# # get list of IDs only
+# subjectIDs = [row['subjectID'] for row in subjects]
 
 # ~ 1b ~
 # Create Reference datasets
@@ -99,7 +118,6 @@ hpo_codes = [row['id'] for row in hpo_codes_raw]
 disease_codes = [row['id'] for row in disease_codes_raw]
 
 del hpo_codes_raw, disease_codes_raw
-
 
 # //////////////////////////////////////////////////////////////////////////////
 
@@ -118,30 +136,23 @@ del hpo_codes_raw, disease_codes_raw
 # manual review. These codes will either need to be added to the appropriate
 # lookup table or need to be mapped to a new value. These cases should be
 # reconciled before importing into RD3.
-#
-# Using the object `shouldProcess`, you can process certain data elements
-# in the phenopacket files. This may be useful for if you need to refresh
-# only disease codes or disease codes.
-
 
 # create list of all available JSON files
-basePath = f"{environ['CLUSTER_BASE']}/{currentRelease}/phenopacket"
+basePath = f"{environ['CLUSTER_BASE']}/{currentRelease}/phenopackets"
 allFiles = clustertools.listFiles(path=basePath)
 
-phenopacketFiles = [file for file in allFiles if re.search(r'(.json)$', file['filename'])]
-rd3._print('Found', len(phenopacketFiles), 'phenopacket files')
+phenopacketFiles = [
+  file for file in allFiles
+  if (re.search(r'(.json)$', file['filename'])) and (file['filename'] not in excludedFiles)
+]
 
-# init loop params and objects
+rd3._print('Found', len(phenopacketFiles), 'phenopacket files')
 rd3._print('Starting file processing...')
 phenopackets = []
 
-for index,file in enumerate(phenopacketFiles):
-  rd3._print('Processing',file['filename'],'(',index,'of',len(phenopacketFiles),')')
-
-  rd3._print('Reading file....')
+for file in tqdm(phenopacketFiles):
   json = clustertools.readJson(path=file['filepath'])
   phenopacket = json['phenopacket']
-
   result = {
     'phenopacketsID': file['filename'],
     'clusterRelease': basePath,
@@ -164,86 +175,55 @@ for index,file in enumerate(phenopacketFiles):
   # ~ 2 ~
   # make sure 'phenotypicFeatures' exists and triage HPO codes into
   # 'has', 'has not', and 'unknown'. All unknown codes will need to be manually
-  # verified before importing into RD3.
-  rd3._print('Extracting and recoding phenotypic features data...')
+  # verified before importing into RD3. Unknown codes will remain in the HPO columns.
   if bool(phenopacket.get('phenotypicFeatures')):
     patientHpoCodes = unpackPhenotypicFeatures(data=phenopacket['phenotypicFeatures'])
-    patient_hpo_has = []
-    patient_hpo_hasnot = []
-    patient_hpo_unknown = []
+    patientHpoUnknown = []
 
-    # ObservedPhenotypes validate codes and isolate unknown cases
-    rd3._print('Processing observed phenotypes....')
+    # ObservedPhenotypes isolate unknown cases
     if patientHpoCodes['phenotype']:
       for code in patientHpoCodes['phenotype']:
-        if code in hpo_codes:
-          patient_hpo_has.append(code)
-        else:
-          rd3._print('Unknown HPO code -', str(code))
-          patient_hpo_unknown.append(result['id'])
+        if code not in hpo_codes:
+          patientHpoUnknown.append(code)
 
-    # Unobserved Phenotypes validate codes and isolate unknown cases
-    rd3._print('Processing unobserved phenotypes....')
+    # Unobserved Phenotypes isolate unknown cases
     if patientHpoCodes['hasNotPhenotype']:
       for code in patientHpoCodes['hasNotPhenotype']:
-        if code in hpo_codes:
-          patient_hpo_hasnot.append(code)
-        else:
-          rd3._print('Unknown HPO code', str(code))
-          patient_hpo_unknown.append(result['id'])
+        if code not in hpo_codes:
+          patientHpoUnknown.append(code)
 
     # collapse codes
-    result['phenotype'] = ','.join(patient_hpo_has) if patient_hpo_has else None
-    result['hasNotPhenotype'] = ','.join(patient_hpo_hasnot) if patient_hpo_hasnot else None
-    result['unknownHpoCodes'] = ','.join(patient_hpo_unknown) if patient_hpo_unknown else None
+    result['phenotype'] = ','.join(patientHpoCodes['phenotype']) if patientHpoCodes['phenotype'] else None
+    result['hasNotPhenotype'] = ','.join(patientHpoCodes['hasNotPhenotype']) if patientHpoCodes['hasNotPhenotype'] else None
+    result['unknownHpoCodes'] = ','.join(patientHpoUnknown) if patientHpoUnknown else None
 
   # ///////////////////////////////////////
 
   # ~ 3 ~
   # make sure `diseases` exist first
-  rd3._print('Extracting and processing disease codes....')
   if bool(phenopacket.get('diseases')):
     diseases = unpackDiseaseCodes(data=phenopacket['diseases'], mappings=diseaseCodeMappings)
-    patient_diseases_has = []
-    patient_diseases_unknown = []
+    patientDiseasesUnknown = []
 
     # triage dx IDs isolate invalid codes for review
-    rd3._print('Validating codes....')
     for code in diseases['diagnostic']:
-      if code in disease_codes:
-        patient_diseases_has.append(code)
-      else:
-        if code != '':
-          rd3._print('Unknown disease code - ', str(code))
-          patient_diseases_unknown.append(code)
-          diseases['dx'].remove(code)
+      if (code not in disease_codes) and (code != ''):
+          patientDiseasesUnknown.append(code)
 
-    result['disease'] = ','.join(patient_diseases_has) if patient_diseases_has else None
-    result['unknownDiseaseCodes'] = ','.join(patient_diseases_unknown) if patient_diseases_unknown else None
+    result['disease'] = ','.join(diseases['diagnostic']) if diseases['diagnostic'] else None
+    result['unknownDiseaseCodes'] = ','.join(patientDiseasesUnknown) if patientDiseasesUnknown else None
 
     # triage onset IDs isolate invalid codes for review
     if len(diseases['onset']) > 0:
-      rd3._print('Processing onset codes....')
-      onset_codes_known = []
       onset_codes_unknown = []
-
       for code in diseases['onset']:
-        if code in hpo_codes:
-          onset_codes_known.append(code)
-        else:
-          rd3._print('Unknown onset code:', str(code))
+        if code not in hpo_codes:
           onset_codes_unknown.append(code)
 
-      result['ageOfOnset'] = ','.join(onset_codes_known) if onset_codes_known else None
+      result['ageOfOnset'] = ','.join(diseases['onset']) if diseases['onset'] else None
       result['unknownOnsetCodes'] = ','.join(onset_codes_unknown) if onset_codes_unknown else None
-
-  # check to see if subject exists
-  rd3._print('Setting status variables....')
-  result['subjectExists'] = result['subjectID'] in subjectIDs
-  if result['subjectExists']:
-    result['releasesWhereSubjectExists'] = ','.join([
-      row['release'] for row in subjects if row['subjectID'] == result['subjectID']
-    ])
+  
+  # bind patient record to main object
   phenopackets.append(result)
 
 # //////////////////////////////////////////////////////////////////////////////
@@ -252,7 +232,6 @@ for index,file in enumerate(phenopacketFiles):
 # Import Data
 rd3._print('Preparing data for import....')
 rd3.delete('rd3_portal_cluster_phenopacket')
-
 phenopacketsDT = dt.Frame(phenopackets)
 
 # change data type void to string32
@@ -264,6 +243,11 @@ for column in phenopacketsDT.names:
 
 rd3._print('Importing dataset....')
 rd3.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data = phenopacketsDT
+)
+
+rd3_prod.importDatatableAsCsv(
   pkg_entity='rd3_portal_cluster_phenopacket',
   data = phenopacketsDT
 )

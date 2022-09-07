@@ -33,12 +33,10 @@ class github:
     self.gh_owner=owner
     self.gh_repo=repo
     self.gh_host='https://api.github.com'
-    self.gh_endpoint_base=f'{self.gh_host}/repost/{owner}/{repo}'
+    self.gh_endpoint_base=f'{self.gh_host}/repos/{owner}/{repo}'
     self.gh_endpoint_release=f'{self.gh_endpoint_base}/releases'
     self.gh_endpoint_contents=f'{self.gh_endpoint_base}/contents'
-    self.gh_default_header={
-        'Accept': 'application/vnd.github.v3+json'
-    }
+    self.gh_default_header={'Accept': 'application/vnd.github.v3+json'}
     self.releases=[]
 
 
@@ -79,8 +77,7 @@ class github:
     
     @param per_page number of results per page (default 30)
     @param page the page number to fetch (default: 1)
-    @reference
-        \url{https://docs.github.com/en/rest/reference/repos#releases}
+    @reference https://docs.github.com/en/rest/reference/repos#releases
     @return json
     """
     headers=self.gh_default_header

@@ -1,5 +1,5 @@
 #//////////////////////////////////////////////////////////////////////////////
-# FILE: data_freeze_experiment_file.py
+# FILE: management_refresh_file_ids.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-08-10
 # MODIFIED: 2022-08-31

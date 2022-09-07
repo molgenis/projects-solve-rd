@@ -2,7 +2,7 @@
 #' FILE: phenopackettools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-04
-#' MODIFIED: 2022-08-04
+#' MODIFIED: 2022-09-06
 #' PURPOSE: misc functions for extracting and formatting data
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -44,7 +44,7 @@ def unpackPhenotypicFeatures(data):
   result = {'phenotype': [], 'hasNotPhenotype': []}
   for row in data:
     if 'type' in row:
-      hpoId = re.sub(r'^(HP:)', 'HP_', row['type']['id'])
+      hpoId = row['type']['id'].replace('HP:','HP_')
       if not (hpoId in result['phenotype']) and not (hpoId in result['hasNotPhenotype']):
         if row.get('negated'):
           if row['negated']:

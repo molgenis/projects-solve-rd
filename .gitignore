@@ -13,3 +13,5 @@ __pycache__/
 # RD3
 data
 apps/app-get-started/dist
+
+downloads

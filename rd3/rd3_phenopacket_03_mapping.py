@@ -2,332 +2,94 @@
 #' FILE: rd3_data_phenopacket_processing.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-02
-#' MODIFIED: 2022-08-02
+#' MODIFIED: 2022-09-08
 #' PURPOSE: process new phenopacket data
 #' STATUS: in.progress
 #' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.utils import statusMsg,dtFrameToRecords
-from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import statusMsg, dtFrameToRecords
+from rd3.api.molgenis import Molgenis
 from dotenv import load_dotenv
-from datatable import dt, f, fread
+from datatable import dt, f
 from os import environ
-from tqdm import tqdm
 import re
 load_dotenv()
 
+currentRelease = 'freeze3_original'
 
-def cleanNestedCodes(x,separator=','):
-  """Clean comma separated string of HPO codes
+# Connect to RD3: acc and prod
+# By this point, the phenopacket staging table on the ACC and PROD databases
+# are updated. We can, theoretically, update both databases in one go. 
 
-  @param x a string containing one or more HPO code separated by a column
-  @param separator A character separator if not a comma
-  
-  @return a clean, formatted string containing one or more HPO codes
-  """
-  values = x.split(separator)
-  newvalues = []
-  for value in values:
-    newval = value.replace('\n','').replace('HP:','HP_').replace('P:', 'HP_').replace('HP0','HP_0').strip()
-    if re.search(r'^(HP_)', newval):
-      newvalues.append(newval)
-    else:
-      print('Unknown format', newval)
-  return ','.join(newvalues)
-  
-def validateNestedCodes(x, referenceValues, separator = ','):
-  """Validate comma separated codes
-  
-  @param x a comma separated string containing one or more values
-  @param referenceValues an array of values to check
-  @param separator a character separator if not a comma
-  
-  @return a list of unknown values
-  """
-  values = x.split(separator)
-  unknownvalues = []
-  for value in values:
-    if value not in referenceValues:
-      unknownvalues.append(value)
-  return ','.join(unknownvalues) if unknownvalues else None
+rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
+rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+
+rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+
+
+# get phenopacket data
+newPhenopacketDT = dt.Frame(
+  rd3_acc.get(entity = 'rd3_portal_cluster_phenopacket',batch_size = 10000)
+)
+
+del newPhenopacketDT['_href']
+
+# rename releases column to RD3 terminology
+newPhenopacketDT.names = {'releasesWhereSubjectExists': 'patch'}
+
+# set id: append subjectIDs with '_original' as it's the primary key
+newPhenopacketDT['id'] = dt.Frame([
+  f'{subjectID}_original'
+  for subjectID in newPhenopacketDT['subjectID'].to_list()[0]
+])
+
+# make sure current freeze is in the patch
+newPhenopacketDT['patch'] = dt.Frame([
+  f"{patch},{currentRelease}" if currentRelease not in patch else patch
+  for patch in newPhenopacketDT['patch'].to_list()[0]
+])
 
 #///////////////////////////////////////////////////////////////////////////////
 
-# ~ 0 ~
-# Set up
-
-# ~ 0a ~
-# Connect to RD3: acc or prod
-rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-
-# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
-# ~ 0b ~
-# Set release
-# This is the Phenopacket release as indicated by the original file path
-currentRelease = 'freeze3_original'
-
-# ~ 0c ~
-# get subject patch information to join later on
-subjects = rd3.get('rd3_overview', attributes='subjectID,patch', batch_size=10000)
-
-# flatten nested attribute
-for row in subjects:
-    row['patch'] = ','.join([patch['id'] for patch in row['patch']]) if row['patch'] else None
-
-subjects = dt.Frame(subjects)
-subjectIDs = dt.unique(subjects['subjectID']).to_list()[0]
-# len(subjectIDs) == subjects.nrows
-
-
-# ~ 0d ~
-# Get HPO terms
-knownHpoCodes = dt.Frame(
-  rd3.get(
-    entity = 'rd3_phenotype',
-    attributes='id',
-    batch_size=10000
-  )
-)['id'].to_list()[0]
-
-#//////////////////////////////////////////////////////////////////////////////
-
 # ~ 1 ~
-# Validate extracted phenopacket data and update records
-# Pull data from the data from the rd3_portal. Validate subject identifier and
-# merge release data.
-
-statusMsg('Pulling latest phenopacket data....')
-phenopacketDT = dt.Frame(
-  rd3.get(entity='rd3_portal_cluster_phenopacket', batch_size = 10000)
-)
-
-del phenopacketDT['_href']
+# Prepare Objects for import
+# The goal here is to update not only the phenopacket data for the current
+# release, but also the records in other releases. For example, if we have a
+# freeze N phenopacket file that is linked to a participant that also exists
+# in freeze X and Y, then we need to update the records in freeze X and Y.
+# To do this, the validation script already merged release data. Using this data,
+# we can find the unique releases and build the datasets accordingly.
 
 
 # ~ 1a ~
-# Check to see if all subject identifiers exist in RD3
-phenopacketDT['subjectExists'] = dt.Frame([
-  id in subjectIDs for id in tqdm(phenopacketDT['subjectID'].to_list()[0])
-])
+# Find Unique Releases
 
-# make sure all do!
-phenopacketDT[:, dt.count(), dt.by(f.subjectExists)]
+# get unique release strings (comma-separated strings as it's an mref)
+uniqueReleaseStrings = dt.unique(newPhenopacketDT['patch']).to_list()[0]
 
 
-# ~ 1b ~
-# Merge subject releases or the patches associated with each subject
-phenopacketDT['releasesWhereSubjectExists'] = dt.Frame([
-  subjects[f.subjectID==id, 'patch'].to_list()[0][0]
-  for id in tqdm(phenopacketDT['subjectID'].to_list()[0])
-])
-
-# dt.unique(phenopacketDT['releasesWhereSubjectExists'])
-# phenopacketDT[f.releasesWhereSubjectExists==None, :]
-
-# import
-rd3.importDatatableAsCsv(
-  pkg_entity='rd3_portal_cluster_phenopacket',
-  data = phenopacketDT
-)
-
-
-#//////////////////////////////////////////////////////////////////////////////
-
-# ~ 2 ~
-# Validate Data
-
-# ~ 2a ~
-# Validating date of birth
-# All values in the "dateofBirth" column should be YYYY. Occasionally, the values
-# are in the wrong date format or the information was entered incorrectly.
-uniqueDOB = dt.unique(phenopacketDT['dateofBirth'])
-uniqueDOB['invalidFormat'] = dt.Frame([
-  len(value) != 4
-  if (value is not None) and (value != 'NA') else None
-  for value in uniqueDOB['dateofBirth'].to_list()[0]
-])
-
-if uniqueDOB[(f.invalidFormat==True) & (f.dateofBirth!='NA'), :].nrows > 0:
-  print('Warning: values in "dateofBirth" are potentially invalid. Check these values...')
-  
-# take a look at each invalid date and find in the dataset. Get the file path
-# and open the file to confirm the DOB. Sometimes the date is formatted
-# differently or it was entered incorrectly. Note the changes in a mapping
-# file and load it here. Once you have mapped all the DOB changes, rerun the
-# `uniqueDOB` steps to make sure all values have been updated. Reimport the
-# data when you have confirmed all values.
-
-uniqueDOB[(f.invalidFormat==True), :]
-phenopacketDT[f.dateofBirth=='', :]
-dobMappings = fread('data/freeze3_date_of_birth.csv')
-
-# update DOB for invalid cases
-phenopacketDT['dateofBirth'] = dt.Frame([
-  dobMappings[f.subjectID==tuple[0], 'newDateOfBirth'].to_list()[0][0]
-  if tuple[0] in dobMappings['subjectID'].to_list()[0] else tuple[1]
-  for tuple in phenopacketDT[:, (f.subjectID, f.dateofBirth)].to_tuples()
-])
-
-# If everything looks good, then import into RD3
-rd3.importDatatableAsCsv(
-  pkg_entity='rd3_portal_cluster_phenopacket',
-  data = phenopacketDT
-)
-
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 2b ~
-# Validate disease codes
-# For unknown MIM (OMIM) codes, use the following to test codes. Enter the code
-# after the parameter `conceptId`:
-# https://bioportal.bioontology.org/ontologies/OMIM?p=classes&conceptid=
-#
-# To verfiy ORDO (or Orphanet) codes, use the following search engine: 
-# https://www.ebi.ac.uk/ols/ontologies/ordo. Enter codes as `Orphanet:<code>`
-# into the search box
-# 
-# Create a new csv file and enter all new codes, and then import into RD3.
-
-unknownDiseaseCodes = []
-codes = dt.unique(phenopacketDT['unknownDiseaseCodes'])[f.unknownDiseaseCodes!=None, :].to_list()[0]
-for code in codes:
-  if ';' in code:
-    splitCodes = code.split(';')
-    for code2 in splitCodes:
-      unknownDiseaseCodes.append(code2.strip())
-  else:
-    unknownDiseaseCodes.append(code.strip())
-
-unknownDiseaseCodes = dt.Frame(code = unknownDiseaseCodes)
-unknownDiseaseCodes
-
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 2c ~
-# Validate HPO codes
-# Take a look at all values in the column 'unknownHpoCodes'. There should be
-# a managable amount of codes to verify. However, that may not be the case.
-# Issues with validiation may be a result of formatting issues, data entry
-# errors, or something else. It is better, in my opinion, to clean and validate
-# all codes once more, and then manually verify remaining cases. 
-
-# take a look at the the unique caes.
-dt.unique(phenopacketDT['unknownHpoCodes'])[f.unknownHpoCodes!=None,:]
-
-# ~ 2c.i ~
-# it is a better idea to clean all the columns, and then reverify each code 
-# clean phenotype column
-phenopacketDT['phenotype'] = dt.Frame([
-  cleanNestedCodes(d) if d else d
-  for d in phenopacketDT['phenotype'].to_list()[0]
-])
-
-phenopacketDT['hasNotPhenotype'] = dt.Frame([
-  cleanNestedCodes(d) if d else d
-  for d in phenopacketDT['hasNotPhenotype'].to_list()[0]
-])
-
-# revalidate HPO columns
-phenopacketDT['unknownHpoCodes'] = dt.Frame([
-  validateNestedCodes(d, knownHpoCodes) if d else d
-  for d in phenopacketDT['phenotype'].to_list()[0]
-])
-
-phenopacketDT['unknownHpoCodes2'] = dt.Frame([
-  validateNestedCodes(d, knownHpoCodes) if d else d
-  for d in phenopacketDT['hasNotPhenotype'].to_list()[0]
-])
-
-# check values
-# if unknownHpoCodes2 isn't void, collapse both columns
-dt.unique(phenopacketDT['unknownHpoCodes'])[f.unknownHpoCodes!=None,:]
-dt.unique(phenopacketDT['unknownHpoCodes2'])[f.unknownHpoCodes2!=None,:]
-
-# import cleaned HPO terms
-rd3.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_phenopacket', data=phenopacketDT)
-
-
-# ~ 2c.ii ~
-# combine both revalidated columns. It is likely that one column may be 'void'
-hpoCodesToReviewArray = dt.rbind(
-  dt.unique(phenopacketDT['unknownHpoCodes'])[:, {'code':f.unknownHpoCodes}],
-  # dt.unique(phenopacketDT['unknownHpoCodes2'])[:, {'code':f.unknownHpoCodes2}], # may be void
-)[(f.code != None) & (f.code != ''), :].to_list()[0]
-
-# split strings by comma and find unique codes that are unknown
-hpoCodesToReview = dt.Frame()
-for value in hpoCodesToReviewArray:
-  for value in value.split(','):
-    hpoCodesToReview = dt.rbind(hpoCodesToReview, dt.Frame(code = [value]))
-hpoCodesToReview = dt.unique(hpoCodesToReview['code'])
-
-
-# flag cases that do not start with 'HP_'
-hpoCodesToReview['status'] = dt.Frame([
-  'invalid.value' if not re.search(r'^(HP_)', code) else None
-  for code in hpoCodesToReview['code'].to_list()[0]
-])
-
-
-# check once again to see if codes exist in `rd3_phenotype`. It is likely that the previous steps
-# have fixed a lot of formatting issues that led to matching errors
-hpoCodesToReview['status'] = dt.Frame([
-  'code.exists' if row[0] in knownHpoCodes else row[1]
-  for row in hpoCodesToReview[:, (f.code, f.status)].to_tuples()
-])
-
-# check values
-dt.unique(hpoCodesToReview['status'])
-hpoCodesToReview[:, dt.count(), dt.by(f.status)]
-
-# write to file for manual review
-hpoCodesToReview.to_csv('data/freeze3_hpo_codes.csv')
-
-#///////////////////////////////////////////////////////////////////////////////
-
-
-
-# ~ 1c ~
-# Merge Patch information
-subjects['shouldMerge'] = dt.Frame([
-  d in phenopacketDT['subjectID'].to_list()[0]
-  for d in subjects['subjectID'].to_list()[0]
-])
-
-subjectPatchInfo = subjects[f.shouldMerge==True,:]
-if subjectPatchInfo.nrows != phenopacketDT.nrows:
-  raise ValueError('Warning dimensions of join dataset does not match target dataset')
-  
-subjectPatchInfo.key = 'subjectID'
-phenopacketDT.key = 'subjectID'
-phenopacketDT = phenopacketDT[:, :, dt.join(subjectPatchInfo['patch'])]
-
-
-# ~ 1c ~
-# Find releases
-statusMsg('Finding unique RD3 releases and preparing import object....')
-
-uniqueReleases = dt.unique(phenopacketDT['releasesWhereSubjectExists']).to_list()[0]
-
+# split release strings to get unique releases (exclude patches)
 existingReleases = []
-for release in uniqueReleases:
-  values = release.split(',')
-  if len(values) > 1:
-    for value in values:
-      if (value not in existingReleases) and (value != 'novelomics_original'):
-        existingReleases.append(value)
-  else:
-    if value != 'novelomics_original':
+for releaseString in uniqueReleaseStrings:
+  values = releaseString.split(',')
+  for value in values:
+    if (value not in existingReleases) and (value != 'novelomics_original') and ('patch' not in value):
       existingReleases.append(value)
 
 
+# ~ 1a ~
+# Init import object
+# For each unique release, initialize an object that will be used to update
+# columns in the relevant freezes. For each release, we will update only
+# update the phenopacket columns in the `rd3_<release>_subject` and
+# `rd3_<release>_subjectinfo` tables. I'm structuring it this way as I can
+# loop over each object and use the property names to build the endpoints.
 datasetsToImport = {}
 for release in existingReleases:
+  statusMsg('Creating import dataset for',release)
   datasetsToImport[release] = {
     'subject': {
       'sex1': None,
@@ -344,47 +106,96 @@ for release in existingReleases:
     }
   }
 
-# for each detected release prepare datasets
-for dataset in datasetsToImport:
+statusMsg('Will update',len(datasetsToImport.keys()),'releases')
+
+
+# ~ 1b ~
+# Prepare datasets
+# Here we will select the columns from the main datasets by release and add
+# them to the datasetsToImportObject. Make sure all NA/None values are removed
+# as we do not want to inadvertenly overwrite records with 'None'.
+for dataset in list(datasetsToImport.keys()):
   statusMsg('Preparing data for',dataset,'....')
-  phenopacketDT['tmpfilter'] = dt.Frame([
-    bool(re.search(dataset, d))
-    for d in phenopacketDT['releasesWhereSubjectExists'].to_list()[0]
-  ])
-
-  tmpDT = phenopacketDT[f.tmpfilter,:]
-  tmpDT['subjectID'] = dt.Frame([f'{d}_original' for d in tmpDT['subjectID'].to_list()[0]])
-  tmpDT['patch'] = dt.Frame([
-    f"{d},{currentRelease}" if currentRelease not in d else d
-    for d in tmpDT['patch'].to_list()[0]
-  ])
   
-  datasetsToImport[dataset]['subject']['patch'] = tmpDT[:, (f.subjectID, f.patch)] 
-  datasetsToImport[dataset]['subject']['sex1'] = tmpDT[:, (f.subjectID, f.sex1)]
-  datasetsToImport[dataset]['subject']['phenotype'] = tmpDT[:, (f.subjectID, f.phenotype)]
-  datasetsToImport[dataset]['subject']['hasNotPhenotype'] = tmpDT[:, (f.subjectID, f.hasNotPhenotype)]
-  if 'disease' in tmpDT.names:
-    datasetsToImport[dataset]['subject']['disease'] = tmpDT[:, (f.subjectID, f.disease)]
+  # filter dataset for current releases
+  releaseDT = newPhenopacketDT[dt.re.match(f.patch, f".*{dataset}.*"), :]
   
-  datasetsToImport[dataset]['subjectinfo']['dateofBirth'] = tmpDT[:, (f.subjectID, f.dateofBirth)]
-  datasetsToImport[dataset]['subjectinfo']['patch'] = tmpDT[:, (f.subjectID, f.patch)]
-  if 'ageOfOnset' in tmpDT.names:
-    datasetsToImport[dataset]['subjectinfo']['ageOfOnset'] = tmpDT[:, (f.subjectID, f.ageOfOnset)]
+  # prepare patch datasets
+  statusMsg('Preparing patch data....')
+  releasePatchDT = releaseDT[f.patch != None, (f.id, f.patch)]
+  datasetsToImport[dataset]['subject']['patch'] = releasePatchDT
+  datasetsToImport[dataset]['subjectinfo']['patch'] = releasePatchDT
   
-
-# import data
+  # prepare `sex1` dataset
+  statusMsg('Preparing sex data....')
+  datasetsToImport[dataset]['subject']['sex1'] = releaseDT[
+    f.sex1 != None, (f.id, f.sex1)
+  ]
+    
+  # prepare date of birth
+  if 'dateofBirth' in releaseDT.names:
+    statusMsg('Preparing date of birth....')
+    datasetsToImport[dataset]['subjectinfo']['dateofBirth'] = releaseDT[
+      (f.dateofBirth != None) & (f.dateofBirth != 'NA'),
+      (f.id, f.dateofBirth)
+    ]
+  
+  # prepare phenotype data
+  if 'phenotype' in releaseDT.names:
+    statusMsg('Preparing observed phenotype data....')
+    datasetsToImport[dataset]['subject']['phenotype'] = releaseDT[
+      f.phenotype != None, (f.id, f.phenotype)
+    ]
+  
+  if 'hasNotPhenotype' in releaseDT.names:
+    statusMsg("Preparing unobserved phenotype data....")
+    datasetsToImport[dataset]['subject']['hasNotPhenotype'] = releaseDT[
+      f.hasNotPhenotype != None, (f.id, f.hasNotPhenotype)
+    ]
+  
+  # prepare disease data
+  if 'disease' in releaseDT.names:
+    statusMsg('Preparing disease data....')
+    datasetsToImport[dataset]['subject']['disease'] = releaseDT[
+      f.disease != None, (f.id, f.disease)
+    ]
+  
+  # process age of onset  
+  if 'ageOfOnset' in releaseDT.names:
+    statusMsg('Prearing Age of onset data.....')
+    datasetsToImport[dataset]['subjectinfo']['ageOfOnset'] = releaseDT[
+      f.ageOfOnset != None, (f.id, f.ageOfOnset)
+    ]
+  
+  # process phenopacketID data
+  if 'phenopacketsID' in releaseDT.names:
+    statusMsg('Preparing phenopacketID data....')
+    datasetsToImport[dataset]['subject']['phenopacketsID'] = releaseDT[
+      f.phenopacketsID != None, (f.id, f.phenopacketsID)
+    ]
+  
+  
+# ~ 1c ~
+# import data into both ACC and PROD 
 for dataset in datasetsToImport:
   statusMsg('Importing dataset',dataset,'....')
   for table in datasetsToImport[dataset]:
     statusMsg('Updating table',table,'....')
-    columns = datasetsToImport[dataset][table]
-    for column in columns:
+    attributes = datasetsToImport[dataset][table]
+    for attr in attributes:
       pkg_entity = f"rd3_{dataset.replace('_original','')}_{table}"
-      statusMsg('Updating column',column,'in table',pkg_entity)
-      columnData = dtFrameToRecords(data=columns[column])
-      rd3.updateColumn(
-        entity=pkg_entity,
-        attr = column,
-        data = columnData
-      )
-      
+      attrData = datasetsToImport[dataset][table][attr]
+      if bool(attrData):
+        if attrData.nrows > 0:
+          statusMsg('Updating column',attr,'in table',pkg_entity)
+          attrDataToImport = dtFrameToRecords(attrData)
+        
+          # statusMsg('Importing into ACC....')
+          # rd3_acc.updateColumn(entity=pkg_entity, attr=attr, data=attrDataToImport)
+          
+          statusMsg('Importing to PROD....')
+          rd3_prod.updateColumn(entity=pkg_entity, attr=attr, data=attrDataToImport)
+        del attrData
+
+rd3_acc.logout()
+rd3_prod.logout()

@@ -46,14 +46,14 @@ entities:
         
       - name: mid
         label: MaternalID
-        dataType: xref
+        dataType: mref
         refEntity: rd3_overview
         description: A designation that has some relationship to motherhood.
         tags: http://purl.obolibrary.org/obo/NCIT_C89336
       
       - name: pid
         label: PaternalID
-        dataType: xref
+        dataType: mref
         refEntity: rd3_overview
         description: Having to do with the father, coming from the father, or related through the father.
         tags: http://purl.obolibrary.org/obo/NCIT_C89336
@@ -274,6 +274,6 @@ entities:
       
       # Other row metadata
 
-      - name: associatedRD3Releases
+      - name: emxReleases
         dataType: string
         description: identifier for nested EMX package

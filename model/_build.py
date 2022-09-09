@@ -11,10 +11,16 @@
 
 from yamlemxconvert import Convert
 
-emx = Convert(files=[
-  'model/base_rd3_portal.yaml',
-  'model/rd3_portal_cluster.yaml'
-])
+# emx = Convert(files=[
+#   'model/base_rd3_portal.yaml',
+#   'model/rd3_portal_cluster.yaml'
+# ])
 
+# emx.convert()
+# emx.write('rd3_portal_cluster', outDir='dist', includeData=False)
+
+
+
+emx = Convert(files = ['model/rd3_overview.yaml'])
 emx.convert()
-emx.write('rd3_portal_cluster', outDir='dist', includeData=False)
+emx.write('rd3_overview', outDir='dist')

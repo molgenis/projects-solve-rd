@@ -1,0 +1,17 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_cluster.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-15
+# MODIFIED: 2022-09-15
+# PURPOSE: Base EMX structure for RD3 Cluster Packeg
+# STATUS: stable
+# COMMENTS: Build model with the following script: _build.py. The purpose of
+# this script is to list contents of files stored on the cluster, and to store
+# other cluster related information.
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_cluster
+label: RD3 Cluster
+description: Information and data on the contents of the cluster (Fender)
+date: 2022-09-15
+version: 1.0.0

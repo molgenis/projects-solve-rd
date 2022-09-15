@@ -1,0 +1,56 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: rd3_cluster_results.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-15
+# MODIFIED: 2022-09-15
+# PURPOSE: EMX nested package containing information on available files by WG
+# STATUS: stable
+# COMMENTS: Use the file '_build.py' to build the model
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_cluster_results
+label: Analysis Files by Working Group
+description: Metadata on files produced by working group
+date: 2022-09-15
+version: 1.0.0
+parent: rd3_cluster
+
+# set defaults
+defaults:
+  idAttribute: false
+  labelAttribute: false
+
+entities:
+  - name: template
+    description: attribute template for listing files by working group
+    abstract: true
+    attributes:
+      - name: inode
+        description: unique identifier of a file in a specific location
+        dataType: string
+        idAttribute: true
+        unique: true
+      
+      - name: group
+        description: Solve-RD working group
+        dataType: string
+        
+      - name: ern
+        description: ERN 
+        
+      - name: name
+        description: Name of the file
+        
+      - name: path
+        description: Location of the file
+        
+      - name: extension
+        description: file extension
+        
+      - name: size
+        description: size of the file (in bytes)
+        
+  - name: snvindel
+    label: SNV-Indel
+    description: Files produced by the SNV-Indel working group
+    extends: rd3_cluster_results_template

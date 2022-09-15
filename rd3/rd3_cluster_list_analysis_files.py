@@ -19,7 +19,7 @@ import sys
 import csv
 
 sys.setrecursionlimit(100000)
-basePath = '/groups/solve-rd-/tmp10/'
+basePath = '/groups/solve-rd-/prm10/'
 entryFolder = '' # fill this in
 
 def ls(dir):

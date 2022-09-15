@@ -14,6 +14,8 @@ from os.path import basename
 import subprocess
 import re
 import json
+import io
+import csv
 
 class clustertools:
     
@@ -77,6 +79,22 @@ class clustertools:
           data.append(line.strip())
       proc.kill()
       return data
+      
+  @staticmethod
+  def readCsv(path: str = None):
+    """Read CSV file
+    Read the contents of a csv files
+    @param path location of the file
+    @return list of dictionaries where each dict is a row in the csv file
+    """
+    proc = subprocess.Popen(['ssh', 'corridor+fender', 'cat', path], stdout = subprocess.PIPE)
+    procWrapper = io.TextIOWrapper(proc.stdout)
+    csvReader = csv.DictReader(procWrapper)
+    data = []
+    for line in csvReader:
+      data.append(dict(line))
+    proc.kill()
+    return data
 
   @staticmethod
   def readJson(path: str = None):

@@ -2,7 +2,7 @@
 # NAME: rd3_cluster_results.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-15
-# MODIFIED: 2022-09-15
+# MODIFIED: 2022-09-19
 # PURPOSE: EMX nested package containing information on available files by WG
 # STATUS: stable
 # COMMENTS: Use the file '_build.py' to build the model
@@ -11,8 +11,8 @@
 name: rd3_cluster_results
 label: Analysis Files by Working Group
 description: Metadata on files produced by working group
-date: 2022-09-15
-version: 1.0.0
+date: 2022-09-19
+version: 1.1.0
 parent: rd3_cluster
 
 # set defaults
@@ -45,6 +45,7 @@ entities:
         
       - name: path
         description: Location of the file
+        dataType: text
         
       - name: extension
         description: file extension

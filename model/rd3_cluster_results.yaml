@@ -37,6 +37,8 @@ entities:
         
       - name: ern
         description: ERN 
+        dataType: xref
+        refEntity: rd3_cluster_erns
         
       - name: name
         description: Name of the file
@@ -46,11 +48,44 @@ entities:
         
       - name: extension
         description: file extension
+        dataType: xref
+        refEntity: rd3_cluster_filetypes
         
       - name: size
-        description: size of the file (in bytes)
+        label: size (kb)
+        description: size of the file (in kilobytes)
+        
+  - name: cnv
+    label: CNV
+    description: CNV working group files
+    extends: rd3_cluster_results_template
+    
+  - name: denovo
+    label: Denovo
+    description: Denovo working group file
+    extends: rd3_cluster_results_template
+    
+  - name: proteomics
+    label: Proteomics
+    description: Proteomics working group files
+    extends: rd3_cluster_results_template
+    
+  - name: roh
+    label: ROH Relatedness
+    description: ROG Relatedness working group files
+    extends: rd3_cluster_results_template
         
   - name: snvindel
     label: SNV-Indel
-    description: Files produced by the SNV-Indel working group
+    description: SNV-Indel working group files
+    extends: rd3_cluster_results_template
+    
+  - name: str
+    label: STR
+    description: STR working group files
+    extends: rd3_cluster_results_template
+    
+  - name: transcriptomics
+    label: Transcriptomics
+    description: Transcriptomics working group files
     extends: rd3_cluster_results_template

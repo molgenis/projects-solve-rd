@@ -2,10 +2,10 @@
 #' FILE: clustertools.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-04-25
-#' MODIFIED: 2022-09-01
+#' MODIFIED: 2022-09-19
 #' PURPOSE: methods for interacting with files on the cluster
 #' STATUS: stable
-#' PACKAGES: **see below**
+#' PACKAGES: os, re, json, io, csv, rd3.utils
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
@@ -18,9 +18,11 @@ import io
 import csv
 
 class clustertools:
-    
-  @staticmethod
-  def listFiles(path, filter: str=None, quietly: bool=False):
+  def __init__(self, connectionMethod):
+    """Cluster Tools"""
+    self.method = connectionMethod
+
+  def listFiles(self, path, filter: str=None, quietly: bool=False):
     """List Files
     List all files at a given path
     
@@ -31,7 +33,7 @@ class clustertools:
     @return a list of dictionaries
     """
     available_files = subprocess.Popen(
-      ['ssh', 'corridor+fender', 'ls', path],
+      ['ssh', self.method, 'ls', path],
       stdout = subprocess.PIPE,
       stdin = subprocess.PIPE,
       stderr= subprocess.PIPE,
@@ -40,10 +42,7 @@ class clustertools:
     path = addForwardSlash(path)
     data = []
     for f in available_files.stdout:
-      data.append({
-          'filename': f.strip(),
-          'filepath': path + f.strip()
-      })
+      data.append({ 'filename': f.strip(), 'filepath': path + f.strip() })
     available_files.kill()
     if filter:
       filtered = []
@@ -59,7 +58,7 @@ class clustertools:
         statusMsg('Found {} files'.format(len(data)))
       return data
 
-  def readTextFile(path: str = None):
+  def readTextFile(self, path: str = None):
       """Read text file
       Read the contents of a text file (i.e., PED)
       
@@ -67,7 +66,7 @@ class clustertools:
       @return list of dictionaries, contents of file 
       """
       proc = subprocess.Popen(
-          ['ssh', 'corridor+fender', 'cat', path],
+          ['ssh', self.method, 'cat', path],
           stdout = subprocess.PIPE,
           stdin = subprocess.PIPE,
           stderr = subprocess.PIPE,
@@ -80,14 +79,16 @@ class clustertools:
       proc.kill()
       return data
       
-  @staticmethod
-  def readCsv(path: str = None):
+  def readCsv(self, path: str = None):
     """Read CSV file
     Read the contents of a csv files
     @param path location of the file
     @return list of dictionaries where each dict is a row in the csv file
     """
-    proc = subprocess.Popen(['ssh', 'corridor+fender', 'cat', path], stdout = subprocess.PIPE)
+    proc = subprocess.Popen(
+      ['ssh', self.method, 'cat', path],
+      stdout = subprocess.PIPE
+    )
     procWrapper = io.TextIOWrapper(proc.stdout)
     csvReader = csv.DictReader(procWrapper)
     data = []
@@ -96,8 +97,7 @@ class clustertools:
     proc.kill()
     return data
 
-  @staticmethod
-  def readJson(path: str = None):
+  def readJson(self, path: str = None):
     """Read Json file
     Read a json file located on the cluster
     
@@ -105,7 +105,7 @@ class clustertools:
     @return list containing contents of a json file
     """
     proc = subprocess.Popen(
-      ['ssh', 'corridor+fender', 'cat', path],
+      ['ssh', self.method, 'cat', path],
       stdout = subprocess.PIPE,
       stdin = subprocess.PIPE,
       stderr = subprocess.PIPE,
@@ -121,8 +121,7 @@ class clustertools:
       proc.kill()
       return ''
           
-  @staticmethod
-  def md5sum(path: str = None):
+  def md5sum(self,path: str = None):
     """Run checksum on a file
     Run md5 on a file and return the value
     
@@ -130,7 +129,7 @@ class clustertools:
     @return string containing checksum value of a file
     """
     proc = subprocess.Popen(
-      ['ssh', 'corridor+fender', 'md5sum', path],
+      ['ssh', self.method, 'md5sum', path],
       stdout = subprocess.PIPE,
       stdin = subprocess.PIPE,
       stderr = subprocess.PIPE,

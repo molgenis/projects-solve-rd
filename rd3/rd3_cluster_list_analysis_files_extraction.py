@@ -1,8 +1,8 @@
 #///////////////////////////////////////////////////////////////////////////////
-# FILE: rd3_cluster_list_analysis_files.py
+# FILE: rd3_cluster_list_analysis_files_extraction.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-15
-# MODIFIED: 2022-09-15
+# MODIFIED: 2022-09-19
 # PURPOSE: List available results files by working group
 # STATUS: stable
 # PACKAGES: NA

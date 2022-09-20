@@ -11,8 +11,8 @@
 name: rd3_cluster_results
 label: Analysis Files by Working Group
 description: Metadata on files produced by working group
-date: 2022-09-19
-version: 1.1.0
+date: 2022-09-20
+version: 1.2.0
 parent: rd3_cluster
 
 # set defaults
@@ -37,7 +37,7 @@ entities:
         
       - name: ern
         description: ERN 
-        dataType: xref
+        dataType: categorical
         refEntity: rd3_cluster_erns
         
       - name: name
@@ -49,7 +49,7 @@ entities:
         
       - name: extension
         description: file extension
-        dataType: xref
+        dataType: categorical
         refEntity: rd3_cluster_filetypes
         
       - name: size
@@ -63,7 +63,12 @@ entities:
     
   - name: denovo
     label: Denovo
-    description: Denovo working group file
+    description: Denovo working group files
+    extends: rd3_cluster_results_template
+    
+  - name: meta
+    label: Meta Analysis
+    description: Meta Analysis working group files
     extends: rd3_cluster_results_template
     
   - name: proteomics
@@ -74,6 +79,11 @@ entities:
   - name: roh
     label: ROH Relatedness
     description: ROG Relatedness working group files
+    extends: rd3_cluster_results_template
+    
+  - name: sandbox
+    label: Sandbox
+    description: Sandbox only files
     extends: rd3_cluster_results_template
         
   - name: snvindel

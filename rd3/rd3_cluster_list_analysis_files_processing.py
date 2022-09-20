@@ -11,7 +11,7 @@
 
 from rd3.api.molgenis2 import Molgenis
 from rd3.utils.clustertools import clustertools
-from datatable import dt, f, fread
+from datatable import dt, f, fread, as_type
 from dotenv import load_dotenv
 from os import environ
 import re
@@ -19,15 +19,6 @@ import re
 load_dotenv()
 rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
 rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-
-# get known file types
-knownFileTypes = dt.Frame(rd3.get('rd3_cluster_filetypes'))['value'].to_list()[0]
-
-# read data
-cluster = clustertools('airlock+gearshift')
-path = '/home/umcg-druvolo/data/rd3_cnv_contents.csv'
-data = dt.Frame(cluster.readCsv(path))
-
 
 def extractPattern(value):
   """Match Pattern Dictionary
@@ -68,17 +59,25 @@ def recodeFileExtension(value):
   if re.search(r'(.txt.tmp)', value):
     return 'txt'
 
-
-#///////////////////////////////////////
+#///////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~
-# Validate data and transform variables
+# Get data and transform variables
+
+# get known file types
+knownFileTypes = dt.Frame(rd3.get('rd3_cluster_filetypes'))['value'].to_list()[0]
+
+# read data
+cluster = clustertools('airlock+gearshift')
+path = '/home/umcg-druvolo/data/rd3_meta-analysis_contents.csv'
+data = dt.Frame(cluster.readCsv(path))
 
 # filter data:
 #  - remove all sftp files
 #  - remove all files where the size is 0
 fileData = data[dt.re.match(f.path, '.*/sftp/.*')==False, :]
 fileData = fileData[f.size != '0', :]
+# fileData = fileData[f.size != 0, :]
 
 
 # ~ 0a ~
@@ -104,6 +103,7 @@ fileData['inode'] = dt.Frame([
 # check unique IDs against total rows once more
 dt.unique(fileData['inode']).nrows == fileData.nrows
 
+#///////////////////////////////////////
 
 # ~ 0b ~
 # Extract ERN from file path
@@ -130,11 +130,6 @@ fileData['extension'] = dt.Frame([
 
 # check to see which files are known. Investigate/add new types
 uniqueFileTypes = dt.unique(fileData[:, f.extension])
-uniqueFileTypes['extension'] = dt.Frame([
-  type if type is not None else type
-  for type in uniqueFileTypes['extension'].to_list()[0]
-])
-
 uniqueFileTypes['isKnown'] = dt.Frame([
   type in knownFileTypes
   for type in uniqueFileTypes['extension'].to_list()[0]
@@ -148,7 +143,9 @@ uniqueFileTypes[f.isKnown == False, :]
 # rd3.importDatatableAsCsv('rd3_cluster_filetypes', filetypes)
 # knownFileTypes.extend(filetypes['value'].to_list()[0])
 
-# recode known variations
+# recode known variations: after recoding run the uniqueFileTypes section
+# to make sure all extensions were handled correctly. If not, repeat until
+# all distinct values are accounted for.
 fileData['extension'] = dt.Frame([
   recodeFileExtension(tuple[1])
   if tuple[0] not in knownFileTypes else tuple[0]
@@ -162,10 +159,73 @@ fileData['extension'] = dt.Frame([
 # ~ 1 ~
 # Import
 
-# rd3.delete('rd3_cluster_results_')
+pkgEntity = 'rd3_cluster_results_meta'
+# rd3.delete(pkgEntity)
 
-# alternatively save to csv and import
-# fileData.to_csv('data/rd3_cluster_results_str.csv')
-# fileData = fread('data/rd3_cluster_results_cnv.csv')
+del fileData['cumulativeCount']
 
-rd3.importDatatableAsCsv('rd3_cluster_results_str', fileData)
+# import directly if files is small enough (~500k or so)
+rd3.importDatatableAsCsv(pkgEntity, fileData)
+
+# or import in batches if file exceeds maximum import size
+# incrementBy = 350000
+incrementBy = 500000
+for batch in range(0, fileData.nrows, incrementBy):
+  maxrows = batch + incrementBy
+  print('Importing rows',batch,'to',maxrows)
+  if maxrows > fileData.nrows:
+    maxrows = fileData.nrows
+  batchData = fileData[range(batch,maxrows), :]
+  # rd3.importDatatableAsCsv(pkgEntity, batchData)
+  # batchData.to_csv(
+  #   f"data/batches/rd3_cluster_results_str_batch_{batch/incrementBy}",
+  #   quoting=csv.QUOTE_ALL
+  # )
+  
+import numpy as np
+import csv
+fileData[f.inode=='144115206077850660.3', :]
+fileData[f.name=='E022139_TBP.pdf', :].to_pandas().replace({np.nan:None}).to_dict('records')
+
+#///////////////////////////////////////////////////////////////////////////////
+
+# ~ 999 ~
+# Alternative Imports for large files
+
+# alternatively save to csv
+# fileData.to_csv('data/rd3_cluster_results_cnv.csv')
+# fileData = fread('data/rd3_cluster_results_str.csv')
+
+# remove scientific notation
+# fileData[:, as_type(f.inode, dt.Type.str32)]
+# fileData['inode'] = dt.Frame([ f"{id:.0f}" for id in fileData['inode'].to_list()[0] ])
+
+# reapply inode counts
+# fileDataPD = fileData.to_pandas()
+# fileDataPD['cumulativeCount'] = fileDataPD.groupby(['inode']).cumcount()
+# fileData = dt.Frame(fileDataPD)
+# fileData['inode'] = dt.Frame([
+  # f'{tuple[0]}.{tuple[1]}' if tuple[1] != 0 else tuple[0]
+  # for tuple in fileData[:, (f.inode, f.cumulativeCount)].to_tuples()
+# ])
+
+# check unique IDs against total rows once more
+# dt.unique(fileData['inode']).nrows == fileData.nrows
+
+# import data in loop
+# incrementBy = 250000
+# for batch in range(0, fileData.nrows, incrementBy):
+#   maxrows = batch+incrementBy
+#   print('Importing rows', batch, 'to', maxrows)
+#   if (batch+incrementBy) > fileData.nrows:
+#     maxrows = fileData.nrows
+#   batchData = fileData[range(batch,maxrows), :]
+#   rd3.importDatatableAsCsv('rd3_cluster_results_cnv', batchData)
+
+
+# testPD = fileData.to_pandas()
+# testPD.index[testPD['inode']=='144115206094591936.212'].tolist()
+# rd3.importDatatableAsCsv(
+#   'rd3_cluster_results_cnv', 
+#   fileData[2667010,:]
+# )

@@ -29,3 +29,11 @@ emx.write('rd3_overview', outDir='dist')
 cluster = Convert(files=['model/base_rd3_cluster.yaml', 'model/rd3_cluster_results.yaml'])
 cluster.convert()
 cluster.write('rd3_cluster', outDir="dist")
+
+
+portalcluster = Convert(files=[
+  'model/base_rd3_portal.yaml',
+  'model/rd3_portal_cluster.yaml'
+])
+portalcluster.convert()
+portalcluster.write('rd3_portal_cluster', outDir='dist')

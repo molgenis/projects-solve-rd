@@ -88,9 +88,8 @@ entities:
     description: Extracted data from PED files
     attributes:
     
-      - name: rowID
+      - name: id
         description: an auto generated ID
-        auto: true
         idAttribute: true
         nillable: false
     

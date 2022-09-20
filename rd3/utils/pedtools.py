@@ -48,7 +48,7 @@ def _parseFileRow(row: dict = None):
   
   return data
 
-def _validateFileRow(row: dict = None, ids: list = None):
+def _validateFileRow(row: dict = None, ids: list = None, quiet=True):
   """Validate PED Row
   Validate a single line of data extracted from a PED file
 
@@ -61,22 +61,25 @@ def _validateFileRow(row: dict = None, ids: list = None):
   """
   line = row
   if ('FAM' in line['id']) or (line['id'] not in ids):
-    statusMsg('ID', line['id'],'from family',line['fid'],'does not exist')
+    if not quiet:
+      statusMsg('ID', line['id'],'from family',line['fid'],'does not exist')
     line['error_id'] = line['id']
     line['upload'] = False
 
   if ('FAM' in line['mid']) or (line['mid'] == '0') or (line['mid'] not in ids):
-    statusMsg('removed mid',line['mid'],'as it starts with `FAM`, is `0`, or it does not exist')
+    if not quiet:
+      statusMsg('removed mid',line['mid'],'as it starts with `FAM`, is `0`, or it does not exist')
     line['error_mid'] = line['mid']
     line['mid'] = None
 
   if ('FAM' in line['pid']) or (line['pid'] == '0') or (line['pid'] not in ids):
-    statusMsg('removed pid',line['pid'],'as it starts with `FAM`, is `0`, or it does not exist')
+    if not quiet:
+      statusMsg('removed pid',line['pid'],'as it starts with `FAM`, is `0`, or it does not exist')
     line['error_pid'] = line['pid']
     line['pid'] = None
   return line
 
-def parseFileContents(contents, ids, filename):
+def parseFileContents(contents, ids, filename, quiet=True):
   """Extract contents from a PED file
 
   Extract the contents of a pedigree file
@@ -84,6 +87,7 @@ def parseFileContents(contents, ids, filename):
   @param contents output from `cluster_read_file`
   @param ids a list of reference IDs to check against
   @param filename string containing the name of the file (for validation)
+  @param quiet if True, no messages will be printed
 
   @return list of dictionaries
   """
@@ -92,8 +96,9 @@ def parseFileContents(contents, ids, filename):
     row = line.split()
     if len(row) == 6:
       row_data = _parseFileRow(row=row)
-      processed_row_data = _validateFileRow(row=row_data, ids=ids)
+      processed_row_data = _validateFileRow(row=row_data, ids=ids, quiet=quiet)
       data.append(processed_row_data)
     else:
-      statusMsg('Line in ', filename, 'has',len(row),'columns instead of 6')
+      if not quiet:
+        statusMsg('Line in ', filename, 'has',len(row),'columns instead of 6')
   return data

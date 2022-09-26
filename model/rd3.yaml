@@ -1,0 +1,227 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-26
+# MODIFIED: 2022-09-26
+# PURPOSE: RD3 EMX Structure
+# STATUS: in.progress
+# COMMENTS: This file contains the EMX markup for the RD3 database. All
+# reference entities are defined in a separate file (rd3_lookups.yaml). The
+# structure of RD3 is as follows:
+#   - Subjects
+#   - Subject Info (extension of subjects)
+#   - Samples
+#   - Experiments (i.e., labinfo)
+#   - Files
+#   - Jobs (optional emx table)
+#//////////////////////////////////////////////////////////////////////////////
+
+# define package
+name: rd3
+label: RD3
+description: Solve-RD RD3
+version: 2.0-beta-0.9.0
+date: 2022-10-01
+
+# set package defaults
+defaults:
+  aggregateable: false
+  auto: false
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  lookupAttribute: false
+  nillable: true
+  visible: true
+  unique: false
+
+
+# define tables at the root level
+entities:
+
+  - name: subjects
+    label: Subjects
+    description: Information about patients and family members withing RD3
+    attributes:
+    
+  - name: subjectinfo
+    label: Subject Information
+    description: Extract information about subjects
+    attributes:
+    
+  - name: samples
+    label: Samples
+    description: Samples used as input for analyses in RD3
+    attributes:
+  
+  - name: labinfo
+    label: Laboratory Information
+    description: Information or proceesses in the lab that are linked to samples
+    attributes:
+    
+  - name: file
+    label: Files
+    description: Individuals files stored in the sandbox environments. Files are linked to subjects, samples, and experiments, as well as with EGA accession number.
+    tags: NCIT_C42883 http://purl.obolibrary.org/obo/NCIT_C42883
+    attributes:
+    
+      - name: fileID
+        description: The literal identifier for an electronic file (EGA Accession number).
+        nillable: false
+        unique: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        tags: NCIT_C171191 http://purl.obolibrary.org/obo/NCIT_C171191
+      
+      - name: name
+        dataType: text
+        description: The literal identifier for an electronic file.
+        tags: NCIT_C171191 http://purl.obolibrary.org/obo/NCIT_C171191
+      
+      - name: md5
+        label: Checksum
+        description: A 32-character hexadecimal number that is computed on a file.
+        tags: NCIT_C171276 http://purl.obolibrary.org/obo/NCIT_C171276
+        
+      # change from typeFile
+      - name: fileFormat
+        label: fileFormat
+        description: type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.)
+        dataType: categorical
+        refEntity: rd3_typeFile
+        nillable: false
+        aggregateable: true
+        tags: NCIT_C171252 http://purl.obolibrary.org/obo/NCIT_C171252
+        
+      # new!
+      - name: belongsToSubject
+        label: SubjectID
+        description: One or more subject identifier associated with a file
+        dataType: mref
+        refEntity: rd3_subjects
+        
+      # new!
+      - name: belongsToSample
+        label: SampleID
+        description: One more more sample identifier associated with a file
+        dataType: mref
+        refEntity: rd3_samples
+        tags: NCIT_C93400 http://purl.obolibrary.org/obo/NCIT_C93400
+
+      # new!
+      - name: belongsToExperiment
+        label: ExperimentID
+        description: Identifier of the corresponding record in the labinfo table
+        tags: NCIT_C171337 http://purl.obolibrary.org/obo/NCIT_C171337
+        
+      # changed from `patch`
+      - name: belongsToRelease
+        label: RD3 Release
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+      
+      # changed from `filepath_sandbox`
+      - name: fenderFilePath
+        label: Fender file path
+        description: The location of the file on Fender
+        tags: NCIT_C47922 http://purl.obolibrary.org/obo/NCIT_C47922
+        
+      # new!
+      - name: gearshiftFilePath
+        label: Gearshift file path
+        description: The location of the file on Gearshift
+        tags: NCIT_C47922 http://purl.obolibrary.org/obo/NCIT_C47922
+        
+      # removed! (patch comments are stored in the "release" table)
+      # - name: patch_comment
+      #   label: Patch Comment
+      #   description: Patch Comment
+    
+      # new!
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      # changed from `dateCreated`
+      - name: dateRecordCreated
+        nillable: false
+        dataType: datetime
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      # new!
+      - name: recordCreatedBy
+        nillable: false
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      # new!
+      - name: dateRecordUpdated
+        dataType: datetime
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      # new!
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+      
+      # comments renamed from extraInfo
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+    
+  - name: jobs
+    label: Jobs
+    description: Jobs used to process sample data
+    attributes:
+      - name: jobID
+        description: unique identifier of the job
+        nillable: false
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        unique: true
+        
+      - name: jobStatus
+        description: status of the job (running, completed, error)
+        dataType: ..............
+        refEntity: ..............
+        
+      - name: run
+        description: Job is part of a run
+        dataType: xref
+        refEntity: ..............
+        nillable: false
+        
+      - name: inputFile
+        description: Link to the file used in the job
+        dataType: mref
+        refEntity: ..............
+        
+      - name: outputFile
+        description: Link to the output file that was created at the end of the Job
+        dataType: mref
+        refEntity: ..............
+        
+      - name: dateTimeStarted
+        description: Date and time the job started
+        dataType: datetime
+        tags: SIO_000669 http://semanticscience.org/resource/SIO_000669
+        
+      - name: dateTimeEnded
+        description: Date and time the job ended
+        dataType: datetime
+        tags: SIO_000670 http://semanticscience.org/resource/SIO_000670
+        

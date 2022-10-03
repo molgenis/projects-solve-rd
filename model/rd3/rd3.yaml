@@ -110,27 +110,27 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_lookups_datareleases
+        refEntity: rd3_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
         
       - name: variant
         label: variant
         description: candidate pathogenic variant(s) for this subject
         dataType: mref
-        refEntity: rd3_lookups_variantinfo
+        refEntity: rd3_variants_variantinfo
       
       - name: organisation
         label: Organisation
         description: Name of the organisation that submitted Subject
         dataType: xref
-        refEntity: rd3_lookups_organisations
+        refEntity: rd3_info_organisations
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
       
       - name: ERN
         label: ERN
         description: ERN
         dataType: xref
-        refEntity: rd3_lookups_organisations
+        refEntity: rd3_info_erns
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
         
       - name: solved
@@ -179,7 +179,6 @@ entities:
         description: Is the subject retracted or not
         dataType: categorical
         refEntity: rd3_lookups_noyesunknown
-        defaultValue: N
   
       - name: recordMetadata
         dataType: compound
@@ -266,7 +265,7 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_lookups_datareleases
+        refEntity: rd3_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: recordMetadata
@@ -358,7 +357,7 @@ entities:
       - name: tissueType
         label: Tissue Types
         dataType: xref
-        refEntity: rd3_lookups_tissuetype
+        refEntity: rd3_lookups_tissueType
         tags: NCIT_C70713 http://purl.obolibrary.org/obo/NCIT_C70713
         
       - name: extractedProtocol
@@ -369,7 +368,7 @@ entities:
         label: materialType
         description: material type. E.g. DNA
         dataType: mref
-        refEntity: rd3_lookups_materialtype
+        refEntity: rd3_lookups_materialType
         
       - name: flag
         label: QC failed
@@ -380,28 +379,27 @@ entities:
         label: organisation
         description: Name of the organisation. E.g. University Medical Center Groningen
         dataType: xref
-        refEntity: rd3_lookups_organisations
+        refEntity: rd3_info_organisations
         
       - name: ERN
         label: ERN
         description: ERN
         dataType: xref
-        refEntity: rd3_lookups_organisations
+        refEntity: rd3_info_organisations
         
       - name: retracted
         label: Retracted Sample
         dataType: categorical
         refEntity: rd3_lookups_noyesunknown
-        defaultValue: N
         
       - name: dateAvailable
         label: Date available
         description: Date that a file became visible to sandbox/RD3
         dataType: datetime  
       
-      - name: anatomicalSource
+      - name: anatomicalLocation
         dataType: categorical
-        refEntity: rd3_lookups_anatomicalsource
+        refEntity: rd3_lookups_anatomicallocation
         description: Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken.
         tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264
         
@@ -412,7 +410,7 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_lookups_datareleases
+        refEntity: rd3_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
         
       - name: recordMetadata
@@ -475,7 +473,7 @@ entities:
         label: Library Source
         description: Library Source, e.g Genomic/Transcriptomic
         dataType: categorical
-        refEntity: rd3_lookups_librarytype
+        refEntity: rd3_lookups_libraryType
         
       - name: flowcell
         description: flowcell information
@@ -495,7 +493,7 @@ entities:
       - name: sequencingCentre
         description: An organization that provides sequence determination service
         dataType: xref
-        refEntity: rd3_lookups_organisations
+        refEntity: rd3_info_organisations
         tags: OBI_0001891 http://purl.obolibrary.org/obo/OBI_0001891
         
       - name: sequencer
@@ -505,7 +503,7 @@ entities:
       - name: seqType
         description: Method used to determine the order of bases in a nucleic acid sequence.
         dataType: xref
-        refEntity: rd3_lookups_seqtype
+        refEntity: rd3_lookups_seqType
         tags: FIX_0000704 http://purl.obolibrary.org/obo/FIX_0000704
         
       - name: arrayID
@@ -526,12 +524,11 @@ entities:
         description: Is the experiment retracted or not
         dataType: categorical
         refEntity: rd3_lookups_noyesunknown
-        defaultValue: N
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_lookups_datareleases
+        refEntity: rd3_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
     
       - name: recordMetadata
@@ -569,7 +566,7 @@ entities:
         partOfAttribute: recordMetadata
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
-  - name: file
+  - name: files
     label: Files
     description: Individuals files stored in the sandbox environments. Files are linked to subjects, samples, and experiments, as well as with EGA accession number.
     tags: NCIT_C42883 http://purl.obolibrary.org/obo/NCIT_C42883
@@ -598,7 +595,7 @@ entities:
       - name: fileFormat
         description: type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.)
         dataType: categorical
-        refEntity: rd3_lookups_typefile
+        refEntity: rd3_lookups_typeFile
         nillable: false
         aggregateable: true
         tags: NCIT_C171252 http://purl.obolibrary.org/obo/NCIT_C171252
@@ -623,7 +620,7 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_lookups_datareleases
+        refEntity: rd3_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: fenderFilePath
@@ -670,47 +667,4 @@ entities:
         partOfAttribute: recordMetadata
         dataType: text
         tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
-    
-  - name: jobs
-    label: Jobs
-    description: Jobs used to process sample data
-    attributes:
-      - name: jobID
-        description: unique identifier of the job
-        nillable: false
-        idAttribute: true
-        labelAttribute: true
-        lookupAttribute: true
-        unique: true
-        
-      - name: jobStatus
-        description: status of the job (running, completed, error)
-        dataType: ..............
-        refEntity: ..............
-        
-      - name: run
-        description: Job is part of a run
-        dataType: xref
-        refEntity: ..............
-        nillable: false
-        
-      - name: inputFile
-        description: Link to the file used in the job
-        dataType: mref
-        refEntity: ..............
-        
-      - name: outputFile
-        description: Link to the output file that was created at the end of the Job
-        dataType: mref
-        refEntity: ..............
-        
-      - name: dateTimeStarted
-        description: Date and time the job started
-        dataType: datetime
-        tags: SIO_000669 http://semanticscience.org/resource/SIO_000669
-        
-      - name: dateTimeEnded
-        description: Date and time the job ended
-        dataType: datetime
-        tags: SIO_000670 http://semanticscience.org/resource/SIO_000670
         

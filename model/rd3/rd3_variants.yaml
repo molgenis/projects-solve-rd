@@ -1,0 +1,136 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3_variants.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-10-03
+# MODIFIED: 2022-10-03
+# PURPOSE: YAML-EMX for Variant information
+# STATUS: in.progress
+# COMMENTS: NA
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_variants
+label: RD3 Variants
+parent: rd3
+
+defaults:
+  dataType: string
+  idAttribute: false
+  lookupAttribute: false
+  labelAttribute: false
+  nillable: true
+
+entities:
+
+  - name: assembly 
+    label: Genome Build
+    description: Human reference sequence used (https://genome-euro.ucsc.edu/cgi-bin/hgGateway?redirect=manual&source=genome.ucsc.edu)
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: label
+        lookupAttribute: true
+
+  - name: classification 
+    label: Clinical Classification (1,2,3,4,5)
+    description: clinical classification (https://blueprintgenetics.com/variant-classification/)
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: label
+        lookupAttribute: true
+
+  - name: variant 
+    label: Variants
+    description: variant information according toHGVS (http://varnomen.hgvs.org/)
+    attributes:
+      - name: hgvs_cdna
+        description: "hgvs notation for this allele. Format (NM_004006.2:c.4375C>T)"
+        idAttribute: true
+        lookupAttribute: true
+        labelAttribute: true
+        nillable: false
+        
+      - name: genomeBuild
+        description: Human Assembly, genomic build. Format (Mar.2006 (NCBI36/hg18))
+        dataType: categorical
+        refEntity: rd3_variants_assembly
+        
+      - name: chromosome
+        description: chromosome of variant
+        dataType: int
+        rangeMin: 0
+        rangeMax: 25
+
+      - name: start_gPosition
+        description: genomic start position
+        dataType: int
+
+      - name: stop_gPosition
+        description: genomic stop position
+        dataType: int
+
+      - name: ref
+        description: Reference allele
+        
+      - name: alt
+        description: Alternative allele
+        
+      - name: variantType
+        description: variantType
+        dataType: categorical
+        refEntity: rd3_variants_variantType
+
+  - name: variantType 
+    label: Variant Types
+    description: Sequence variant types (https://varnomen.hgvs.org/recommendations/DNA)
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: label
+        labelAttribute: true
+        lookupAttribute: true
+    
+  - name: variantinfo 
+    label: Variant Classification
+    description: variantinfo specific per subject
+    attributes:
+      - name: variantID
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: variant
+        description: link to variant
+        dataType: xref
+        refEntity: rd3_variants_variant
+      
+      - name: classification
+        description: clinical classification (https://blueprintgenetics.com/variant-classification/)
+        dataType: categorical
+        refEntity: rd3_variants_classification
+      
+      - name: extra
+        description: extra variantInfo
+        dataType: compound
+
+      - name: gene
+        description: gene of variant
+        partOfAttribute: extra
+        
+      - name: exon
+        description: "exon(s) involved in variant.Format (NM_004006.2:exon3)"
+        partOfAttribute: extra
+      
+      - name: protein
+        description: "p. notation. Format(NP_003997.1:p.Lys23_Val25del)"
+        partOfAttribute: extra

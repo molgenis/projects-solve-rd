@@ -1,0 +1,339 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-26
+# MODIFIED: 2022-09-27
+# PURPOSE: RD3 EMX Structure
+# STATUS: in.progress
+# COMMENTS: This file contains the EMX markup for the RD3 lookup tables. These
+# entities are references in the main `rd3.yaml` file.
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_lookups
+label: RD3 Lookups
+description: Lookup tables that contain standarized terms, codes, definitions, etc.
+parent: rd3
+
+defaults:
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  lookupAttribute: false
+  nillable: true
+  visible: true
+
+entities:
+  - name: anatomicallocation 
+    label: Anatomical Location
+    description: "SNOMED CT, code list for anatomicalLocation (Snomed, Body Structure ontlogy used) See: http://bioportal.bioontology.org/ontologies/SNMD_BDY"
+    attributes:
+      - name: id
+        description: Anatomical Location code
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: label
+        description: name of anatomicalLocation
+        lookupAttribute: true
+        nillable: false
+
+      - name: ontology
+        description: ontology used
+
+      - name: synonyms
+        description: synonyms of anatomicallocation
+        dataType: text
+
+      - name: uri
+        description: link to more information
+        dataType: hyperlink
+        
+  - name: country
+    tags: NCIT_C171105 http://purl.obolibrary.org/obo/NCIT_C171105
+    attributes:
+      - name: value
+        lookupAttribute: true
+        labelAttribute: true
+        tags: NCIT_C49100 http://purl.obolibrary.org/obo/NCIT_C49100
+        description: The information contained in a data field. It may represent a numeric quantity, a textual characterization, a date or time measurement, or some other state, depending on the nature of the attribute.
+        
+      - name: description
+        dataType: text
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+        description: A written or verbal account, representation, statement, or explanation of something
+      
+      - name: codesystem
+        tags: NCIT_C70895 http://purl.obolibrary.org/obo/NCIT_C70895
+        description: A systematized collection of concepts that define corresponding codes.
+      
+      - name: code
+        idAttribute: true
+        nillable: false
+        tags: NCIT_C25162 http://purl.obolibrary.org/obo/NCIT_C25162
+        description: A symbol or combination of symbols which is assigned to the members of a collection.
+      
+      - name: iri
+        dataType: hyperlink
+        tags: NCIT_C165071 http://purl.obolibrary.org/obo/NCIT_C165071
+        description: A unique symbol that establishes identity of the resource.
+
+  - name: dataUseConditions 
+    label: Data Use Conditions
+    description: code list describing different types of conditions to access the data
+    attributes:
+      - name: id
+        description: abbreviation,identifier for access conditions under which datasets are made accessible
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: label
+        description: human readable label
+      
+      - name: description
+        description: consentcodes according to https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4721915/
+
+  - name: disease 
+    label: Disease
+    description: ORDO codes en MIM codes
+    tags: NCIT_C15607 http://purl.obolibrary.org/obo/NCIT_C15607
+    attributes:
+      - name: id
+        description: Disease code
+        idAttribute: true
+        lookupAttribute:  true
+        nillable: false
+        
+      - name: label
+        description: name of disease
+        lookupAttribute: true
+        labelAttribute: true
+        nillable: false
+
+      - name: ontology
+        description: ontology used
+
+      - name: description
+        description: description of disease
+        dataType: text
+
+      - name: uri
+        description: link to more information
+        dataType: hyperlink
+
+      - name: parentId
+        description: link to parent disease
+        dataType: mref
+        refEntity: rd3_lookups_disease
+
+      - name: geneLocus
+
+      - name: geneSymbol
+        dataType: text
+
+  - name: library 
+    label: Library
+    description: sequencing library information
+    attributes:
+      - name: id
+        description: name of library used for NGS
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: designDescription
+        description: Description of library
+      
+      - name: libraryConstructionProtocol
+        description: Construction Protocol library
+      
+      - name: libraryLayoutId
+        description: "Library Layout: whether to expect SINGLE or PAIRED end reads."
+      
+      - name: pairedNominalLength
+        description: "Nominal Length: the expected size of the insert."
+      
+      - name: librarySelectionId
+        description: "Library Selection: the method used to select and/or enrich the material being sequenced."
+      
+
+  - name: libraryType 
+    label: Library Source
+    description: Library Source, e.g Genomic/Transcriptomic
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: label
+        lookupAttribute: true
+
+  - name: materialType 
+    label: MaterialType
+    description: code list for materialType according to MIABIS-2.0-14, e.g. DNA
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: label
+        description: name of disease
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: source
+        description: source used
+      
+      - name: description
+        description: description of disease
+        dataType: text
+      
+      - name: uri
+        description: link to more information
+        dataType: hyperlink 
+
+  - name: noyesunknown 
+    label: NoYesUnknown
+    description: Categories No, Unknown, Yes
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+      - name: label
+        lookupAttribute: true
+        labelAttribute: true
+        nillable: false
+      - name: description
+      - name: codesystem
+      - name: code
+      - name: iri
+        dataType: hyperlink
+
+  - name: pathologicalstate
+    description: 
+    attributes:
+      - name: value
+        idAttribute: true
+        nillable: false
+        lookupAttribute: true
+        labelAttribute: true
+        tags: NCIT_C49100 http://purl.obolibrary.org/obo/NCIT_C49100
+        description: The information contained in a data field. It may represent a numeric quantity, a textual characterization, a date or time measurement, or some other state, depending on the nature of the attribute.
+        
+      - name: description
+        dataType: text
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+        description: A written or verbal account, representation, statement, or explanation of something
+      
+      - name: codesystem
+        tags: NCIT_C70895 http://purl.obolibrary.org/obo/NCIT_C70895
+        description: A systematized collection of concepts that define corresponding codes.
+      
+      - name: code
+        tags: NCIT_C25162 http://purl.obolibrary.org/obo/NCIT_C25162
+        description: A symbol or combination of symbols which is assigned to the members of a collection.
+      
+      - name: iri
+        dataType: hyperlink
+        tags: NCIT_C165071 http://purl.obolibrary.org/obo/NCIT_C165071
+        description: A unique symbol that establishes identity of the resource.
+
+  - name: phenotype 
+    label: Phenotype
+    description: HPO code list for phenotype, version 2020-02-27 http://bioportal.bioontology.org/ontologies/HP
+    attributes:
+      - name: id
+        description: HPO Code
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+      
+      - name: label
+        description: label of the phenotype
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+
+      - name: description
+        description: description of the phenotype
+        dataType: text
+      
+      - name: synonyms
+        description: synonyms of the phenotype
+        dataType: text
+
+      - name: uri
+        description: link to more information
+        dataType: hyperlink
+      
+      - name: parents
+        description: link to parent phenotype(s)
+        dataType: mref
+        refEntity: rd3_lookups_phenotype
+
+  - name: seqType 
+    label: SequencingTechniqueType
+    description: Sequencing technique types (in CNAG batchfile = ExpType)
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: label
+        labelAttribute: true
+        lookupAttribute: true
+
+  - name: sex 
+    label: Sex
+    description: code list for sex. According to MIABIS-2.0-09, E.g. 'M'
+    attributes:
+      - name: id
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: true
+      - name: ontologyterm
+      - name: label
+
+  - name: tissueType 
+    label: Tissue Types
+    description: TissueTypes, source is GTeX;  https://www.gtexportal.org/home/tissueSummaryPage
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+      - name: label
+        lookupAttribute: true
+        labelAttribute: true
+        nillable: false
+      - name: description
+      - name: codesystem
+      - name: code
+      - name: iri
+        dataType: hyperlink
+
+  - name: typeFile 
+    label: File type
+    description: type of x (e.g. BAM, gVCF, phenopacket, BED, etc.)
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+      - name: label
+        lookupAttribute: true
+        labelAttribute: true
+        nillable: false
+      - name: description
+      - name: codesystem
+      - name: code
+      - name: iri
+        dataType: hyperlink

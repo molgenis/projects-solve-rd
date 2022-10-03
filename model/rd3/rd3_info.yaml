@@ -1,0 +1,413 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3_info.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-10-03
+# MODIFIED: 2022-10-03
+# PURPOSE: YAML-EMX for RD3-specific reference entities
+# STATUS: in.progress
+# COMMENTS: NA
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_info
+label: RD3 Information
+description: Information about RD3 Releases, Studies, Cohorts, Collaborators, etc.
+parent: rd3
+
+defaults:
+  dataType: string
+  idAttribute: false
+  lookupAttribute: false
+  labelAttribute: false
+  nillable: true
+  
+entities:
+  - name: cohorts
+    label: Cohorts
+    description: A group of individuals, identified by a common characteristic.
+    tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
+    attributes:
+      - name: cohortID
+        idAttribute: true
+        nillable: false
+        description: One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing.
+        tags: NCIT_C25364 http://purl.obolibrary.org/obo/NCIT_C25364
+        
+      - name: acronym
+        description: The non-unique initials or abbreviated name used for identification.
+        tags: NCIT_C93495 http://purl.obolibrary.org/obo/NCIT_C93495
+      
+      - name: name
+        lookupAttribute: true
+        labelAttribute: true
+        description: The words or language units by which a thing is known.
+        tags: NCIT_C42614 http://purl.obolibrary.org/obo/NCIT_C42614
+      
+      - name: description
+        dataType: text
+        description: The description of the characteristics that define a cohort.
+        tags: NCIT_C166209 http://purl.obolibrary.org/obo/NCIT_C166209 
+      
+      - name: principleInvestigator
+        description: The principle investigator or responsible person for this study.
+        tags: OMIABIS_0000100 http://purl.obolibrary.org/obo/OMIABIS_0000100
+        
+      - name: contactPerson
+        description: A person acting as a channel for communication between groups or on behalf of a group.
+        tags: NCIT_C25461 http://purl.obolibrary.org/obo/NCIT_C25461
+
+      - name: contactEmail
+        dataType: email
+        description: An email address for the purpose of contacting the study contact person.
+        tags: OMIABIS_0000035 http://purl.obolibrary.org/obo/OMIABIS_0000035
+        
+      - name: sizeOfCohort
+        dataType: int
+        description: A subset of a larger population, selected for investigation to draw conclusions or make estimates about the larger population.
+        tags: NCIT_C53190 http://purl.obolibrary.org/obo/NCIT_C53190
+
+  - name: datareleases
+    label: Data Releases
+    description: The act of making data or other structured information accessible to the public or to the user group of a database.
+    tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+    attributes:
+      - name: id
+        idAttribute: true
+        nillable: false
+        description: One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing.
+        tags: NCIT_C25364 http://purl.obolibrary.org/obo/NCIT_C25364
+      
+      - name: name
+        lookupAttribute: true
+        labelAttribute: true
+        description: The words or language units by which a thing is known.
+        tags: NCIT_C42614 http://purl.obolibrary.org/obo/NCIT_C42614
+      
+      - name: description
+        dataType: text
+        description: A written or verbal account, representation, statement, or explanation of something.
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+      
+      - name: date
+        dataType: date
+        description: A date of database submission refers to the moment in time in which some information was submitted/received to a database system.
+        tags: SIO_001083 http://semanticscience.org/resource/SIO_001083
+      
+      - name: createdBy
+        description: Indicates the person or authoritative body who brought the item into existence.
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+      
+      - name: dataSource
+        description: The person or authoritative body who provided the information.
+        tags: NCIT_C16493 http://purl.obolibrary.org/obo/NCIT_C16493
+      
+      - name: releaseNotes
+        dataType: text
+        description: A notation regarding the decisions, and/or clarification of any information pertaining to data management.
+        tags: NCIT_C115505 http://purl.obolibrary.org/obo/NCIT_C115505
+        
+  - name: datasets
+    label: Datasets
+    description: container of files belonging together (different datasets can contain overlapping files, except for the intial datasets containing startfiles (before analysis, startfiles= BAM, gVCF files (one per chromosome) and phenopacket file))
+    tags: NCIT_C47824 http://purl.obolibrary.org/obo/NCIT_C47824
+    attributes:
+      - name: id
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        description: One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing.
+        tags: NCIT_C25364 http://purl.obolibrary.org/obo/NCIT_C25364
+
+      - name: description
+        dataType: text
+        description: A written or verbal account, representation, statement, or explanation of something.
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+        
+      - name: datafiles
+        description: A set of related records (either written or electronic) kept together.
+        tags: NCIT:C42883 http://purl.obolibrary.org/obo/NCIT_C42883
+        dataType: mref
+        refEntity: rd3_files
+
+      - name: dataUseConditions
+        dataType: mref
+        refEntity: rd3_lookups_dataUseConditions
+        tags: DUO:0000001 http://purl.obolibrary.org/obo/DUO_0000001
+        
+      - name: datasetType
+        description: type of dataset (raw or processed (analysed) data)
+        dataType: enum
+        nillable: false
+        enumOptions: raw,processed
+      
+      - name: comments
+        dataType: text
+        description: A written explanation, observation or criticism added to textual material.
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+        
+  - name: erns 
+    label: European Reference Networks
+    description: "European Reference Networks, source: https://ec.europa.eu/health/ern/networks_en"
+    attributes:
+      - name: id
+        idAttribute: true
+        nillable: false
+      - name: shortname
+        lookupAttribute: true
+        labelAttribute: true
+      - name: fullname
+      - name: factsheet_url
+        dataType: hyperlink
+      - name: website
+        dataType: hyperlink
+  
+  - name: jobs
+    label: Jobs
+    description: Jobs used to process sample data
+    attributes:
+      - name: id
+        description: unique identifier of the job
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+        
+      - name: jobStatus
+        description: status of the job (running, completed, error)
+        dataType: enum
+        enumOptions: completed,error,running
+        
+      - name: run
+        description: Job is part of a run
+        dataType: xref
+        refEntity: rd3_info_run
+        nillable: false
+        
+      - name: inputFile
+        description: Link to the file used in the job
+        dataType: mref
+        refEntity: rd3_files
+        
+      - name: outputFile
+        description: Link to the output file that was created at the end of the Job
+        dataType: mref
+        refEntity: rd3_files
+        
+      - name: dateTimeStarted
+        description: Date and time the job started
+        dataType: datetime
+        tags: SIO_000669 http://semanticscience.org/resource/SIO_000669
+        
+      - name: dateTimeEnded
+        description: Date and time the job ended
+        dataType: datetime
+        tags: SIO_000670 http://semanticscience.org/resource/SIO_000670
+  
+  - name: organisations
+    label: Organisations
+    description: Organisation information standardized to the Research Organisation Registry (ROR)
+    tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+    attributes:
+      - name: value
+        idAttribute: true
+        nillable: false
+        lookupAttribute: true
+        labelAttribute: true
+        description: The information contained in a data field. It may represent a numeric quantity, a textual characterization, a date or time measurement, or some other state, depending on the nature of the attribute.
+        tags: NCIT_C49100 http://purl.obolibrary.org/obo/NCIT_C49100
+
+      - name: description
+        dataType: text
+        description: A written or verbal account, representation, statement, or explanation of something
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+      
+      - name: codesystem
+        description: A systematized collection of concepts that define corresponding codes.
+        tags: NCIT_C70895 http://purl.obolibrary.org/obo/NCIT_C70895
+      
+      - name: code
+        description: A symbol or combination of symbols which is assigned to the members of a collection.
+        tags: NCIT_C25162 http://purl.obolibrary.org/obo/NCIT_C25162
+      
+      - name: iri
+        dataType: hyperlink
+        description: A unique symbol that establishes identity of the resource.
+        tags: NCIT_C165071 http://purl.obolibrary.org/obo/NCIT_C165071
+        
+  - name: persons
+    label: Persons
+    description: researcher or contactperson involved in the study and/or affliated with organisation
+    tags: NCIT:C25461 http://purl.obolibrary.org/obo/NCIT_C25461
+    attributes:
+      - name: id
+        idAttribute: true
+        nillable: false
+        tags: NCIT:C25364 http://purl.obolibrary.org/obo/NCIT_C25364
+
+      - name: fullName
+        tags: GSSO:001755 http://purl.obolibrary.org/obo/GSSO_001755
+        lookupAttribute: true
+
+      - name: alternativeIdentifier
+        description: A backup sequence of characters used to identify an entity.
+        tags: NCIT_C90353 http://purl.obolibrary.org/obo/NCIT_C90353
+
+      - name: firstName
+        tags: NCIT:C40974 http://purl.obolibrary.org/obo/NCIT_C40974
+        lookupAttribute: true
+
+      - name: middleInitials
+        tags: NCIT:C166237 http://purl.obolibrary.org/obo/NCIT_C166237
+
+      - name: lastName
+        tags: NCIT:C40975 http://purl.obolibrary.org/obo/NCIT_C40975
+        lookupAttribute: true
+
+      - name: email
+        description: Email address of the contact person or organization
+        tags: NCIT:C42775 http://purl.obolibrary.org/obo/NCIT_C42775
+        dataType: email
+        lookupAttribute: true
+      
+      - name: primaryOrganisation
+        dataType: xref
+        refEntity: rd3_info_organisations
+        description: The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person.
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+
+  - name: publications 
+    label: Publications
+    description: Publication linked to subject or variants
+    tags: SIO_000087 http://semanticscience.org/resource/SIO_000087
+    attributes:
+      - name: doi
+        description: Publication persistent identifier
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+        dataType: hyperlink
+        tags: reproduceme_doi https://w3id.org/reproduceme#doi
+        
+      - name: title
+        description: The title for a published article.
+        tags: NCIT_C183337 http://purl.obolibrary.org/obo/NCIT_C183337
+        
+      - name: journal
+        description: A periodical dedicated to a particular subject.
+        tags: NCIT_C40976 http://purl.obolibrary.org/obo/NCIT_C40976
+        
+      - name: subjects
+        description: published paper linked to these subjects within RD3
+        dataType: mref
+        refEntity: rd3_subjects
+        
+      - name: variants
+        description: published paper linked to these variants within RD3
+        dataType: mref
+        refEntity: rd3_variants_variant
+        
+      - name: cohorts
+        description: published paper linked to these cohorts within RD3
+        dataType: mref
+        refEntity: rd3_info_cohorts
+      
+      - name: datasets
+        description: published paper linked to these datasets within RD3
+        dataType: mref
+        refEntity: rd3_info_datasets
+
+  - name: run
+    label: Run
+    description: container of jobs
+    attributes:
+      - name: id
+        idAttribute: true
+        labelAttribute: true
+        lookupAttribute: true
+        nillable: false
+      
+      - name: status
+        description: "status of all jobs (in this order: failed, running, completed, so if one job is failed, status of whole run is failed)"
+        dataType: enum
+        enumOptions: failed,running,completed
+        
+      - name: dataset
+        dataType: xref
+        refEntity: rd3_info_datasets
+        
+
+  - name: studies
+    label: Studies
+    description: A detailed examination, analysis, or critical inspection of one or multiple subjects designed to discover facts.
+    tags: NCIT_C63536 http://purl.obolibrary.org/obo/NCIT_C63536
+    attributes:
+      - name: studyID
+        nillable: false
+        idAttribute: true
+        dataType: string
+        labelAttribute: true
+        lookupAttribute: true
+        description: A unique proper name or character sequence that identifies this particular study.
+        tags: OMIABIS_0000006 http://purl.obolibrary.org/obo/OMIABIS_0000006
+        
+      - name: studyAcronym
+        description: The non-unique initials or abbreviated name used for identification.
+        tags: NCIT_C93495 http://purl.obolibrary.org/obo/NCIT_C93495
+
+      - name: studyName
+        description: A name that designates this study.
+        tags: OMIABIS_0000037 http://purl.obolibrary.org/obo/OMIABIS_0000037
+
+      - name: inclusionCriteria
+        dataType: text
+        description: The conditions which, if met, make an person eligible for participation in this study.
+        tags: OBI_0500027 http://purl.obolibrary.org/obo/OBI_0500027
+
+      - name: principleInvestigator
+        description: An investigator who is responsible for all aspects of the conduct of a study.
+        tags: NCIT_C19924 http://purl.obolibrary.org/obo/NCIT_C19924
+      
+      - name: contactPerson
+        description: Name of study contact.
+        tags: NCIT_C176373 http://purl.obolibrary.org/obo/NCIT_C176373
+        dataType: mref
+        refEntity: rd3_info_persons
+
+      - name: contactEmail
+        dataType: email
+        description: A text string identifier for a location to which e-mail for the study contact can be delivered.
+        tags: NCIT_C176375 http://purl.obolibrary.org/obo/NCIT_C176375
+
+      - name: studyDescription
+        dataType: text
+        description: A plan specification comprised of protocols (which may specify how and what kinds of data will be gathered) that are executed as part of this study.
+        tags: NCIT_C142704 http://purl.obolibrary.org/obo/NCIT_C142704
+
+      - name: studyStartDate
+        dataType: date
+        description: The date on which this study began.
+        tags: NCIT_C69208 http://purl.obolibrary.org/obo/NCIT_C69208
+
+      - name: studyCompletionDate
+        dataType: date
+        description: The date on which the concluding information for this study is completed. Usually, this is when the last subject has a final visit, or the main analysis has finished, or any other protocol-defined completion date.
+        tags: NCIT_C142702 http://purl.obolibrary.org/obo/NCIT_C142702
+
+      - name: currentStudyStatus
+        description: The status of a study or trial.
+        tags: NCIT_C171103 http://purl.obolibrary.org/obo/NCIT_C171103
+
+      - name: numberOfSubjectsEnrolled
+        dataType: int
+        description: An integer specifying the quantity of study subjects enrolled in the study at the current time.
+        tags: NCIT_C153145 http://purl.obolibrary.org/obo/NCIT_C153145
+
+      - name: samplesCollected
+        dataType: int
+        description: An integer specifying the quantity of samples collected at the current time.
+
+      - name: belongsToDataRelease
+        dataType: mref
+        refEntity: rd3_info_datareleases
+        description: The act of making data or other structured information accessible to the public or to the user group of a database.
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217

@@ -22,7 +22,7 @@ the columns `comments`, `dateRecordCreated`, `recordCreatedBy`, `dateRecordUpdat
 - subjectinfo updates: renamed `Country_of_origin` to `countryOfBirth`
 
 - samples updates: removed `id`; `sampleID` is now the primary key
-- samples updates: renamed `anatomicalLocation` to `anatomicalSource`
+- samples updates: renamed `anatomicalLocation` to `anatomicallocation`
 
 - labinfo updates: removed `id`; `experimentID` is now the primary key
 - labinfo updates: changed data type of `sequencingCenter` from `string` to `xref`
@@ -35,3 +35,7 @@ the columns `comments`, `dateRecordCreated`, `recordCreatedBy`, `dateRecordUpdat
 - files updates: added `gearshiftFilePath`
 - files updates: renamed `extraInfo` to `comments` and moved to `recordMetadata`
   
+- lookups: renamed `organisation` to `organisations`; `ERNs` are now stored in organisations
+- lookups: expanded `tissueTypes` table to link values to ontologies
+- lookups: split variant entities into a new nested package `rd3_variants`
+- lookups: split RD3 specific lookups into `rd3_info`

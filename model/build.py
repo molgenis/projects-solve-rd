@@ -2,11 +2,11 @@
 # FILE: build.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-10-03
-# MODIFIED: 2022-10-03
+# MODIFIED: 2022-10-06
 # PURPOSE: Build RD3 EMX-YAML Models
 # STATUS: stable
 # PACKAGES: yamlemxconvert
-# COMMENTS: NA
+# COMMENTS: saves using version number. Use mcmd import -p <path> --as rd3
 #///////////////////////////////////////////////////////////////////////////////
 
 from yamlemxconvert import Convert
@@ -21,4 +21,6 @@ rd3 = Convert(files=[
 
 rd3.convert()
 rd3.compileSemanticTags()
-rd3.write(name="rd3", outDir="dist")
+
+filename = f"rd3.{rd3.version}"
+rd3.write(name=filename, outDir="dist")

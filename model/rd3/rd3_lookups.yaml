@@ -36,6 +36,7 @@ entities:
       - name: label
         description: name of anatomicalLocation
         lookupAttribute: true
+        labelAttribute: true
         nillable: false
 
       - name: ontology
@@ -299,8 +300,8 @@ entities:
         labelAttribute: true
         lookupAttribute: true
         nillable: true
-      - name: ontologyterm
       - name: label
+      - name: description
 
   - name: tissueType 
     label: Tissue Types
@@ -311,9 +312,6 @@ entities:
         lookupAttribute: true
         nillable: false
       - name: label
-        lookupAttribute: true
-        labelAttribute: true
-        nillable: false
       - name: description
       - name: codesystem
       - name: code

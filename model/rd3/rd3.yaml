@@ -2,7 +2,7 @@
 # FILE: rd3.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-26
-# MODIFIED: 2022-09-27
+# MODIFIED: 2022-10-06
 # PURPOSE: RD3 EMX Structure
 # STATUS: in.progress
 # COMMENTS: This file contains the EMX markup for the RD3 database. All
@@ -20,8 +20,8 @@
 name: rd3
 label: RD3
 description: Solve-RD RD3
-version: 2.0-beta-0.9.0
-date: 2022-10-01
+version: 2.0-beta-0.9.1
+date: 2022-10-06
 
 # set package defaults
 defaults:
@@ -385,7 +385,7 @@ entities:
         label: ERN
         description: ERN
         dataType: xref
-        refEntity: rd3_info_organisations
+        refEntity: rd3_info_erns
         
       - name: retracted
         label: Retracted Sample
@@ -398,7 +398,7 @@ entities:
         dataType: datetime  
       
       - name: anatomicalLocation
-        dataType: categorical
+        dataType: xref
         refEntity: rd3_lookups_anatomicallocation
         description: Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken.
         tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264

@@ -1,0 +1,12 @@
+id,label
+1,Substitution
+2,Deletion
+3,Duplication
+4,Insertion
+5,Inversion
+6,Conversion
+7,Deletion-insertion
+8,Alleles
+9,Repeated sequences
+10,Complex
+11,Other

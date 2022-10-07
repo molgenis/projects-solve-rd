@@ -91,6 +91,8 @@ entities:
 
       - name: label
         description: human readable label
+        labelAttribute: true
+        lookupAttribute: true
       
       - name: description
         description: consentcodes according to https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4721915/

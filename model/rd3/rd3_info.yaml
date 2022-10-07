@@ -122,11 +122,11 @@ entities:
         description: A written or verbal account, representation, statement, or explanation of something.
         tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
         
-      - name: datafiles
-        description: A set of related records (either written or electronic) kept together.
-        tags: NCIT:C42883 http://purl.obolibrary.org/obo/NCIT_C42883
-        dataType: mref
-        refEntity: rd3_files
+      # - name: datafiles
+      #   description: A set of related records (either written or electronic) kept together.
+      #   tags: NCIT:C42883 http://purl.obolibrary.org/obo/NCIT_C42883
+      #   dataType: mref
+      #   refEntity: rd3_files
 
       - name: dataUseConditions
         dataType: mref

@@ -94,10 +94,14 @@ entities:
       
       - name: createdBy
         description: Indicates the person or authoritative body who brought the item into existence.
+        dataType: mref
+        refEntity: rd3_info_persons
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
       
       - name: dataSource
         description: The person or authoritative body who provided the information.
+        dataType: mref
+        refEntity: rd3_info_organisations
         tags: NCIT_C16493 http://purl.obolibrary.org/obo/NCIT_C16493
       
       - name: releaseNotes

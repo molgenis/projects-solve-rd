@@ -7,7 +7,13 @@
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
 
-include: model/base_rd3.yaml
+# include: model/base_rd3.yaml
+
+name: rd3
+label: RD3
+description: Solve-RD RD3
+version: 1.1.0
+date: 2021-03-07
 
 defaults:
   dataType: string
@@ -146,6 +152,12 @@ entities:
         refEntity: rd3_noveldeepwes_sample
         partOfAttribute: samples
       
+      - name: novelepigenomeSamples
+        label: NovelOmics Epigenome Samples
+        dataType: mref
+        refEntity: rd3_novelepigenome_sample
+        partOfAttribute: samples
+      
       - name: novelrnaseqSamples
         label: NovelOmics RNAseq Samples
         dataType: mref
@@ -205,6 +217,12 @@ entities:
         refEntity: rd3_noveldeepwes_labinfo
         partOfAttribute: experiments
       
+      - name: novelepigenomeExperiments
+        label: NovelOmics Epigenome Experiments
+        dataType: mref
+        refEntity: rd3_novelepigenome_labinfo
+        partOfAttribute: experiments
+      
       - name: novelrnaseqExperiments
         label: NovelOmics RNAseq Experiments
         dataType: mref
@@ -255,6 +273,11 @@ entities:
         dataType: hyperlink
         partOfAttribute: files
       
+      - name: novelepigenomeFiles
+        label: NovelOmics Epigenome Files
+        dataType: hyperlink
+        partOfAttribute: files
+      
       - name: novelrnaseqFiles
         label: NovelOmics RNAseq Files
         dataType: hyperlink
@@ -273,7 +296,6 @@ entities:
       #////////////////////////////////
       
       # Other row metadata
-
       - name: emxReleases
         dataType: string
         description: identifier for nested EMX package

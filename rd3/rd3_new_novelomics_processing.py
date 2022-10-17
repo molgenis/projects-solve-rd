@@ -30,17 +30,17 @@ from dotenv import load_dotenv
 from os import environ
 load_dotenv()
 
-# rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
-# rd3.login(
-#   username=environ['MOLGENIS_ACC_USR'],
-#   password=environ['MOLGENIS_ACC_PWD']
-# )
-
-rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+rd3=Molgenis(url=environ['MOLGENIS_ACC_HOST'])
 rd3.login(
-  username=environ['MOLGENIS_PROD_USR'],
-  password=environ['MOLGENIS_PROD_PWD']
+  username=environ['MOLGENIS_ACC_USR'],
+  password=environ['MOLGENIS_ACC_PWD']
 )
+
+# rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+# rd3.login(
+#   username=environ['MOLGENIS_PROD_USR'],
+#   password=environ['MOLGENIS_PROD_PWD']
+# )
 
 # SET EXISTING NOVELOMICS RELEASES
 # Since there are many substudies in the Novel Omics space, these releases are
@@ -70,7 +70,12 @@ novelOmicsReleases = {
 statusMsg('Pulling data from the portal....')
 
 shipment = dt.Frame(
-  rd3.get('rd3_portal_novelomics_shipment', q='processed==False', batch_size=10000)
+  rd3.get(
+    'rd3_portal_novelomics_shipment',
+    # q='processed==False',
+    q='date_created=ge=2022-10-17T09:00:00%2B0200',
+    batch_size=10000
+  )
 )
 del shipment['_href']
 
@@ -121,11 +126,6 @@ patches['isNewRelease'] = dt.Frame([
   for d in patches['id'].to_list()[0]
 ])
 
-
-# import new patches
-# newPatches = patches[f.isNewRelease, f[:].remove(f.isNewRelease)]
-# rd3.importDatatableAsCsv('rd3_patch', newPatches)
-
 # add typeofanalysis
 patches['typeOfAnalysis'] = dt.Frame([
   d.lower().replace('-','')
@@ -138,6 +138,10 @@ patchIDs = toKeyPairs(
   keyAttr='typeOfAnalysis',
   valueAttr='id'
 )
+
+# import new patches
+# newPatches = patches[f.isNewRelease, f[:].remove(f.isNewRelease)]
+# rd3.importDatatableAsCsv('rd3_patch', newPatches)
 
 #///////////////////////////////////////
 
@@ -866,3 +870,9 @@ rd3.updateColumn(
   attr = 'processed',
   data = rd3_experiment_updates
 )
+
+# clean up table in case of import errors
+pkg_entity = 'rd3_novelsrwgs_subjectinfo'
+data = dt.Frame(rd3.get(pkg_entity,attributes='id'))['id']
+idsToRemove = data[dt.re.match(f.id, '.*_srwgs.*'), :]
+rd3.delete_list(pkg_entity, idsToRemove.to_list()[0])

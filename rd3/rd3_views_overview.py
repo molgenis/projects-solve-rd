@@ -2,7 +2,7 @@
 #' FILE: rd3_views_overview.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-09-09
+#' MODIFIED: 2022-10-17
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -65,6 +65,7 @@ availableReleases = [
  
  # novel omics 
   'noveldeepwes',
+  'novelepigenome',
   'novelrnaseq',
   'novellrwgs',
   'novelsrwgs',
@@ -180,7 +181,6 @@ fileAttribs = ','.join(['EGA','samples', 'subjectID', 'experimentID','typeFile']
 
 # fetch data
 statusMsg('Fetching all file metadata....')
-
 files=[]
 for release in tqdm(availableReleases):
   pkgEntity=f"rd3_{release}_file"
@@ -506,6 +506,7 @@ samplesBySubject.names={
   'freeze2': 'df2Samples',
   'freeze3': 'df3Samples',
   'noveldeepwes': 'noveldeepwesSamples',
+  'novelepigenome': 'novelepigenomeSamples',
   'novelrnaseq': 'novelrnaseqSamples',
   'novellrwgs': 'novellrwgsSamples',
   'novelsrwgs': 'novelsrwgsSamples',
@@ -610,6 +611,7 @@ experimentsBySubject.names = {
   'freeze2': 'df2Experiments',
   'freeze3': 'df3Experiments',
   # 'noveldeepwes': 'noveldeepwesExperiments',
+  # 'novelepigenome': 'novelepigenomeExperiments',
   # 'novelrnaseq': 'novelrnaseqExperiments',
   # 'novellrwgs': 'novellrwgsExperiments',
   'novelsrwgs': 'novelsrwgsExperiments',
@@ -690,6 +692,7 @@ filesBySubject.names = {
   'freeze2': 'df2Files',
   # 'freeze3': 'df3Files',
   # 'noveldeepwes': 'noveldeepwesFiles',
+  # 'novelepigenome': 'novelepigenomeFiles',
   # 'novelrnaseq': 'novelrnaseqFiles',
   # 'novellrwgs': 'novellrwgsFiles',
   'novelsrwgs': 'novelsrwgsFiles',
@@ -733,7 +736,6 @@ del fileCountsBySubject
 # Import Data
 statusMsg('Importing data....')
 
-
 # clean up variables
 subjectsDT['id'] = dt.Frame([
   d.split('_')[0]
@@ -752,7 +754,16 @@ subjectsDT['pid'] = dt.Frame([
   for d in subjectsDT['pid'].to_list()[0]
 ])
 
+# convert int to string (so that import doesn't fail...????????!?!?!)
+subjectsDT[
+  :, dt.update(
+    numberOfSamples = as_type(f.numberOfSamples, str),
+    numberOfExperiments = as_type(f.numberOfExperiments, str),
+    numberOfFiles = as_type(f.numberOfFiles, str)
+  )
+]
+
 # rename columns
 subjectsDT.names = {'id': 'subjectID'}
-# rd3.importDatatableAsCsv(pkg_entity='rd3_overview', data=subjectsDT)
-subjectsDT.to_csv('data/rd3_overview.csv')
+rd3.importDatatableAsCsv(pkg_entity='rd3_overview', data=subjectsDT)
+# subjectsDT.to_csv('data/rd3_overview.csv')

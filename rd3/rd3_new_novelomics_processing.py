@@ -345,11 +345,6 @@ statusMsg('Processing shipment metadata....')
 
 # ~ 1a.i ~
 # Format identifiers in the shipment dataset
-# Like the main RD3 freezes, each record should receive a unique identifier
-# that corresponds to the release. For example, if a record has an ID of
-# "12345" and the type of analysis is "Deep-WES", then the new identifier
-# should be "12345_deepwes_original". Apply the same treatment to sample- and
-# subject identifiers
 statusMsg('Formatting identifiers....')
 
 # make sure all identifiers have uppercase letters
@@ -618,8 +613,7 @@ experiment['isNewExperiment'] = dt.Frame([
 # We only need to select new subjects
 
 # select columns of interest and unique rows
-# subjects = shipment[f.isNewSubject==True,:][:, dt.first(f[:]), dt.by(f.subjectID)][
-subjects = shipment[:, dt.first(f[:]), dt.by(f.subjectID, f.typeOfAnalysis)][
+subjects = shipment[f.isNewSubject, :][:, dt.first(f[:]), dt.by(f.subjectID, f.typeOfAnalysis)][
   :,{
     'id': f.subjectID,
     'subjectID': f.participant_subject,

@@ -5,24 +5,24 @@
 | Name | Description | Parent |
 |:---- |:-----------|:------|
 | rd3 | Solve-RD RD3 (v1.1.0, 2021-03-07) | - |
-| rd3_novellrwgs | RD3 Novel Omics LR-WGS | rd3 |
+| rd3_novelepigenome | RD3 Novel Omics Epigenome | rd3 |
 
 ## Entities
 
 | Name | Description | Package |
 |:---- |:-----------|:-------|
-| subject | patients and family members within Novel Omics LR-WGS | rd3_novellrwgs |
-| subjectinfo | Extra information about subjects within Novel Omics LR-WGS | rd3_novellrwgs |
-| sample | Samples used as input for analyses within Novel Omics LR-WGS | rd3_novellrwgs |
-| labinfo | information or process in the lab linked to samples | rd3_novellrwgs |
-| file | Individual files on file systems, files are linked in datasets, versioning with EGA accession number | rd3_novellrwgs |
-| job | Jobs used to process sampledata within Novel Omics LR-WGS | rd3_novellrwgs |
+| subject | patients and family members within Novel Omics Epigenome | rd3_novelepigenome |
+| subjectinfo | Extra information about subjects within Novel Omics Epigenome | rd3_novelepigenome |
+| sample | Samples used as input for analyses within Novel Omics Epigenome | rd3_novelepigenome |
+| labinfo | information or process in the lab linked to samples | rd3_novelepigenome |
+| file | Individual files on file systems, files are linked in datasets, versioning with EGA accession number | rd3_novelepigenome |
+| job | Jobs used to process sampledata within Novel Omics Epigenome | rd3_novelepigenome |
 
 ## Attributes
 
-### Entity: rd3_novellrwgs_subject
+### Entity: rd3_novelepigenome_subject
 
-patients and family members within Novel Omics LR-WGS
+patients and family members within Novel Omics Epigenome
 
 | Name | Label | Description | Data Type |
 |:---- |:-----|:-----------|:---------|
@@ -373,9 +373,9 @@ patients and family members within Novel Omics LR-WGS
 | retracted&#8251; | Retracted Subject | Is the subject retracted or not | categorical |
 | patch_comment&#8251; | Release Comments | Patch Comment | string |
 
-### Entity: rd3_novellrwgs_subjectinfo
+### Entity: rd3_novelepigenome_subjectinfo
 
-Extra information about subjects within Novel Omics LR-WGS
+Extra information about subjects within Novel Omics Epigenome
 
 | Name | Label | Description | Data Type |
 |:---- |:-----|:-----------|:---------|
@@ -1041,9 +1041,9 @@ Extra information about subjects within Novel Omics LR-WGS
 | patch&#8251; | Subject Releases | One or more RD3 releases associated with the subject | categorical_mref |
 | patch_comment&#8251; | Release Comment | Patch Comment | string |
 
-### Entity: rd3_novellrwgs_sample
+### Entity: rd3_novelepigenome_sample
 
-Samples used as input for analyses within Novel Omics LR-WGS
+Samples used as input for analyses within Novel Omics Epigenome
 
 | Name | Label | Description | Data Type |
 |:---- |:-----|:-----------|:---------|
@@ -1319,7 +1319,7 @@ Samples used as input for analyses within Novel Omics LR-WGS
 | patch&#8251; | Sample Releases | One or more RD3 releases associated with the sample | categorical_mref |
 | patch_comment&#8251; | Release Comment | Patch Comment | string |
 
-### Entity: rd3_novellrwgs_labinfo
+### Entity: rd3_novelepigenome_labinfo
 
 information or process in the lab linked to samples
 
@@ -1531,7 +1531,7 @@ information or process in the lab linked to samples
 | patch&#8251; | Experiment Releases | One or more RD3 releases associated with the sample | categorical_mref |
 | patch_comment&#8251; | Release Comment | Patch Comment | string |
 
-### Entity: rd3_novellrwgs_file
+### Entity: rd3_novelepigenome_file
 
 Individual files on file systems, files are linked in datasets, versioning with EGA accession number
 
@@ -1638,9 +1638,9 @@ Individual files on file systems, files are linked in datasets, versioning with 
 | experimentID&#8251; | experimentID | Identifier of the corresponding record in the labinfo table | string |
 | filepath_sandbox&#8251; | Fender Filepath | location of the file on Fender. For Gearshift, recode 'solve-rd' to 'umcg-solve-rd'. | string |
 
-### Entity: rd3_novellrwgs_job
+### Entity: rd3_novelepigenome_job
 
-Jobs used to process sampledata within Novel Omics LR-WGS
+Jobs used to process sampledata within Novel Omics Epigenome
 
 | Name | Label | Description | Data Type |
 |:---- |:-----|:-----------|:---------|

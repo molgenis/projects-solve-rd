@@ -12,7 +12,7 @@
 import molgenis.client as molgenis
 from os.path import abspath
 import numpy as np
-import datetime
+from datetime import datetime
 import tempfile
 import pytz
 import csv
@@ -20,18 +20,7 @@ import csv
 class Molgenis(molgenis.Session):
   def __init__(self, *args, **kwargs):
     super(Molgenis, self).__init__(*args, **kwargs)
-    self.__getApiUrl__()
-
-  def __getApiUrl__(self):
-    """Find API endpoint regardless of version"""
-    props = list(self.__dict__.keys())
-    if '_url' in props:
-      self._apiUrl = self._url
-    if '_api_url' in props:
-      self._apiUrl = self._api_url
-      
-    host=self._apiUrl.replace('/api/','')
-    self._fileImportUrl=f"{host}/plugin/importwizard/importFile"
+    self.fileImportEndpoint = f"{self._root_url}plugin/importwizard/importFile"
   
   def _print(self, *args):
     """Print
@@ -41,15 +30,8 @@ class Molgenis(molgenis.Session):
     @return string
     """
     message = ' '.join(map(str, args))
-    time = datetime.datetime.now(tz=pytz.timezone('Europe/Amsterdam')).strftime('%H:%M:%S.%f')[:-3]
+    time = datetime.now(tz=pytz.timezone('Europe/Amsterdam')).strftime('%H:%M:%S.%f')[:-3]
     print(f'[{time}] {message}')
-
-  def _checkResponseStatus(self, response, label):
-    if (response.status_code // 100) != 2:
-      err = response.json().get('errors')[0].get('message')
-      self._print('Failed to import data into',label,'(',response.status_code,'):',err)
-    else:
-      self._print('Imported data into', label)
   
   def _datatableToCsv(self, path, datatable):
     """To CSV
@@ -75,10 +57,13 @@ class Molgenis(molgenis.Session):
       self._datatableToCsv(filepath, data)
       with open(abspath(filepath),'r') as file:
         response = self._session.post(
-          url=self._fileImportUrl,
-          headers = self._get_token_header(),
-          files={'file': file},
+          url = self.fileImportEndpoint,
+          headers = self._headers.token_header,
+          files = {'file': file},
           params = {'action': 'add_update_existing', 'metadataAction': 'ignore'}
         )
-        self._checkResponseStatus(response, pkg_entity)
+        if (response.status_code // 100 ) != 2:
+          self._print('Failed to import data into', pkg_entity, '(', response.status_code, ')')
+        else:
+          self._print('Imported data into', pkg_entity)
         return response

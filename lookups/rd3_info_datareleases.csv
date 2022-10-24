@@ -1,13 +1,13 @@
 id,name,description,date
-"novelsrwgs_original","Novel Omics SR-WGS Data","","2022-03-10"
-"novelrnaseq_original","Novel Omics RNA-seq Data","","2022-03-10"
-"freeze1_patch1","Freeze 1 Patch 1","","2020-06-01"
-"freeze2_patch1","Freeze2 Patch1","","2022-01-13"
-"freeze3_original","Data Freeze 3","","2022-05-09"
-"novellrwgs_original","Novel Omics LR-WGS Data","","2022-05-31"
-"freeze1_original","Freeze1 Original data","","2019-10-01"
-"novelomics_original","Novelomics Original","","2021-04-30"
-"noveldeepwes_original","Novel Omics Deep-WES Data","","2022-03-10"
-"freeze1_patch3","Freeze1 Patch3","","2022-01-13"
-"freeze2_original","Freeze2 Original Data","","2021-03-15"
-"novelwgs_original","Novel Omics WGS","","2022-03-08"
+freeze1_original,DF1,,2019-10-01
+freeze1_patch1,DF1 Patch 1,,2022-06-01
+freeze1_patch3,DF1 Patch 3,,2022-01-13
+freeze2_original,DF2,,2021-03-15
+freeze2_patch1,DF2 Patch 1,,2022-01-13
+freeze3_original,DF3,,2022-05-09
+noveldeepwes_original,Novel Omics Deep-WES,,2022-03-10
+novellrwgs_original,Novel Omics LR-WGS,,2022-05-31
+novelomics_original,Novel Omics Original,,2021-04-30
+novelrnaseq_original,Novel Omics RNA-seq,,2022-03-10
+novelsrwgs_original,Novel Omics SR-WGS,,2022-03-10
+novelwgs_original,Novel Omics WGS,,2022-03-08

@@ -2,15 +2,15 @@
 # FILE: rd3_variants.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-10-03
-# MODIFIED: 2022-10-03
+# MODIFIED: 2022-10-24
 # PURPOSE: YAML-EMX for Variant information
-# STATUS: in.progress
+# STATUS: stable
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
 
-name: rd3_variants
+name: solverd_variants
 label: RD3 Variants
-parent: rd3
+parent: solverd
 
 defaults:
   dataType: string
@@ -59,7 +59,7 @@ entities:
       - name: genomeBuild
         description: Human Assembly, genomic build. Format (Mar.2006 (NCBI36/hg18))
         dataType: categorical
-        refEntity: rd3_variants_assembly
+        refEntity: solverd_variants_assembly
         
       - name: chromosome
         description: chromosome of variant
@@ -84,7 +84,7 @@ entities:
       - name: variantType
         description: variantType
         dataType: categorical
-        refEntity: rd3_variants_variantType
+        refEntity: solverd_variants_variantType
 
   - name: variantType 
     label: Variant Types
@@ -112,12 +112,12 @@ entities:
       - name: variant
         description: link to variant
         dataType: xref
-        refEntity: rd3_variants_variant
+        refEntity: solverd_variants_variant
       
       - name: classification
         description: clinical classification (https://blueprintgenetics.com/variant-classification/)
         dataType: categorical
-        refEntity: rd3_variants_classification
+        refEntity: solverd_variants_classification
       
       - name: extra
         description: extra variantInfo

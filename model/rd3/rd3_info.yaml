@@ -2,16 +2,16 @@
 # FILE: rd3_info.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-10-03
-# MODIFIED: 2022-10-03
+# MODIFIED: 2022-10-24
 # PURPOSE: YAML-EMX for RD3-specific reference entities
 # STATUS: in.progress
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
 
-name: rd3_info
+name: solverd_info
 label: RD3 Information
 description: Information about RD3 Releases, Studies, Cohorts, Collaborators, etc.
-parent: rd3
+parent: solverd
 
 defaults:
   dataType: string
@@ -95,13 +95,13 @@ entities:
       - name: createdBy
         description: Indicates the person or authoritative body who brought the item into existence.
         dataType: mref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
       
       - name: dataSource
         description: The person or authoritative body who provided the information.
         dataType: mref
-        refEntity: rd3_info_organisations
+        refEntity: solverd_info_organisations
         tags: NCIT_C16493 http://purl.obolibrary.org/obo/NCIT_C16493
       
       - name: releaseNotes
@@ -130,11 +130,11 @@ entities:
       #   description: A set of related records (either written or electronic) kept together.
       #   tags: NCIT:C42883 http://purl.obolibrary.org/obo/NCIT_C42883
       #   dataType: mref
-      #   refEntity: rd3_files
+      #   refEntity: solverd_files
 
       - name: dataUseConditions
         dataType: mref
-        refEntity: rd3_lookups_dataUseConditions
+        refEntity: solverd_lookups_dataUseConditions
         tags: DUO:0000001 http://purl.obolibrary.org/obo/DUO_0000001
         
       - name: datasetType
@@ -183,18 +183,18 @@ entities:
       - name: run
         description: Job is part of a run
         dataType: xref
-        refEntity: rd3_info_run
+        refEntity: solverd_info_run
         nillable: false
         
       - name: inputFile
         description: Link to the file used in the job
         dataType: mref
-        refEntity: rd3_files
+        refEntity: solverd_files
         
       - name: outputFile
         description: Link to the output file that was created at the end of the Job
         dataType: mref
-        refEntity: rd3_files
+        refEntity: solverd_files
         
       - name: dateTimeStarted
         description: Date and time the job started
@@ -274,7 +274,7 @@ entities:
       
       - name: primaryOrganisation
         dataType: xref
-        refEntity: rd3_info_organisations
+        refEntity: solverd_info_organisations
         description: The most significant institute for medical consultation and/or study inclusion in context of the genetic disease of this person.
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
 
@@ -303,22 +303,22 @@ entities:
       - name: subjects
         description: published paper linked to these subjects within RD3
         dataType: mref
-        refEntity: rd3_subjects
+        refEntity: solverd_subjects
         
       - name: variants
         description: published paper linked to these variants within RD3
         dataType: mref
-        refEntity: rd3_variants_variant
+        refEntity: solverd_variants_variant
         
       - name: cohorts
         description: published paper linked to these cohorts within RD3
         dataType: mref
-        refEntity: rd3_info_cohorts
+        refEntity: solverd_info_cohorts
       
       - name: datasets
         description: published paper linked to these datasets within RD3
         dataType: mref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
 
   - name: run
     label: Run
@@ -337,7 +337,7 @@ entities:
         
       - name: dataset
         dataType: xref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
         
 
   - name: studies
@@ -375,7 +375,7 @@ entities:
         description: Name of study contact.
         tags: NCIT_C176373 http://purl.obolibrary.org/obo/NCIT_C176373
         dataType: mref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
 
       - name: contactEmail
         dataType: email
@@ -412,6 +412,6 @@ entities:
 
       - name: belongsToDataRelease
         dataType: mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         description: The act of making data or other structured information accessible to the public or to the user group of a database.
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217

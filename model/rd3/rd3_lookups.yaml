@@ -2,17 +2,17 @@
 # FILE: rd3.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-26
-# MODIFIED: 2022-09-27
+# MODIFIED: 2022-10-24
 # PURPOSE: RD3 EMX Structure
 # STATUS: in.progress
 # COMMENTS: This file contains the EMX markup for the RD3 lookup tables. These
 # entities are references in the main `rd3.yaml` file.
 #//////////////////////////////////////////////////////////////////////////////
 
-name: rd3_lookups
+name: solverd_lookups
 label: RD3 Lookups
 description: Lookup tables that contain standarized terms, codes, definitions, etc.
-parent: rd3
+parent: solverd
 
 defaults:
   dataType: string
@@ -128,7 +128,7 @@ entities:
       - name: parentId
         description: link to parent disease
         dataType: mref
-        refEntity: rd3_lookups_disease
+        refEntity: solverd_lookups_disease
 
       - name: geneLocus
 
@@ -278,7 +278,7 @@ entities:
       - name: parents
         description: link to parent phenotype(s)
         dataType: mref
-        refEntity: rd3_lookups_phenotype
+        refEntity: solverd_lookups_phenotype
 
   - name: seqType 
     label: SequencingTechniqueType

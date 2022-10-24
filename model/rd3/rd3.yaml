@@ -2,7 +2,7 @@
 # FILE: rd3.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-26
-# MODIFIED: 2022-10-07
+# MODIFIED: 2022-10-24
 # PURPOSE: RD3 EMX Structure
 # STATUS: in.progress
 # COMMENTS: This file contains the EMX markup for the RD3 database. All
@@ -17,11 +17,11 @@
 #//////////////////////////////////////////////////////////////////////////////
 
 # define package
-name: rd3
-label: RD3
+name: solverd
+label: Solve-RD RD3 (New Model)
 description: Solve-RD RD3 database 
-version: 2.0-beta-0.9.4
-date: 2022-10-11
+version: 2.0-beta-0.9.5
+date: 2022-10-24
 
 # set package defaults
 defaults:
@@ -56,7 +56,7 @@ entities:
         label: Claimed sex
         description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
         dataType: xref
-        refEntity: rd3_lookups_sex
+        refEntity: solverd_lookups_sex
         
       - name: fid
         label: FamilyID
@@ -67,14 +67,14 @@ entities:
         label: MaternalID
         description: Identifier indicating a reference to mother of the subject
         dataType: xref
-        refEntity: rd3_subjects
+        refEntity: solverd_subjects
         tags: NCIT_C89336 http://purl.obolibrary.org/obo/NCIT_C89336
         
       - name: pid
         label: PaternalID
         description: Identifier indicating a reference to father of the subject
         dataType: xref
-        refEntity: rd3_subjects
+        refEntity: solverd_subjects
         tags: NCIT_C94324 http://purl.obolibrary.org/obo/NCIT_C94324
         
       - name: clinical_status
@@ -87,21 +87,21 @@ entities:
         label: disease
         description: if affected, which MAIN disease code(s) apply to subject
         dataType: mref
-        refEntity: rd3_lookups_disease
+        refEntity: solverd_lookups_disease
         tags: NCIT_C15607 http://purl.obolibrary.org/obo/NCIT_C15607
       
       - name: phenotype
         label: phenotype
         description: Phenotype based on Human Phenotype Ontology (HPO)
         dataType: mref
-        refEntity: rd3_lookups_phenotype
+        refEntity: solverd_lookups_phenotype
         tags: NCIT_C16977 http://purl.obolibrary.org/obo/NCIT_C16977
         
       - name: hasNotPhenotype
         label: hasNotPhenotype
         description: Relevant Phenotype NOT present in subject
         dataType: mref
-        refEntity: rd3_lookups_phenotype
+        refEntity: solverd_lookups_phenotype
         tags: HL7_C0442737 http://purl.bioontology.org/ontology/HL7/C0442737
         
       - name: mostRecentPhenopacketFile
@@ -110,24 +110,24 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
         
       - name: includedInStudies
         dataType: mref
-        refEntity: rd3_info_studies
+        refEntity: solverd_info_studies
         description: Reference to the study or studies in which this person participates.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
       - name: includedInCohorts
         dataType: mref
-        refEntity: rd3_info_cohorts
+        refEntity: solverd_info_cohorts
         description: A group of individuals, identified by a common characteristic.
         tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
       
       - name: includedInDatasets
         dataType: mref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
         description: Reference to the dataset or datasets in which this person was assigned to.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
@@ -135,20 +135,20 @@ entities:
         label: variant
         description: candidate pathogenic variant(s) for this subject
         dataType: mref
-        refEntity: rd3_variants_variantinfo
+        refEntity: solverd_variants_variantinfo
       
       - name: organisation
         label: Organisation
         description: Name of the organisation that submitted Subject
         dataType: xref
-        refEntity: rd3_info_organisations
+        refEntity: solverd_info_organisations
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
       
       - name: ERN
         label: ERN
         description: ERN
         dataType: xref
-        refEntity: rd3_info_erns
+        refEntity: solverd_info_erns
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
         
       - name: solved
@@ -188,7 +188,7 @@ entities:
         label: Recontact Incidental findings
         description: Recontact is allowed in case of incidental findings
         dataType: categorical
-        refEntity: rd3_lookups_noyesunknown
+        refEntity: solverd_lookups_noyesunknown
         partOfAttribute: consent
         tags: NCIT_C25737 http://purl.obolibrary.org/obo/NCIT_C25737
         
@@ -196,7 +196,7 @@ entities:
         label: Retracted Subject
         description: Is the subject retracted or not
         dataType: categorical
-        refEntity: rd3_lookups_noyesunknown
+        refEntity: solverd_lookups_noyesunknown
   
       - name: recordMetadata
         dataType: compound
@@ -213,7 +213,7 @@ entities:
       - name: recordCreatedBy
         nillable: false
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         description: Indicates the person or authoritative body who brought the item into existence.
         partOfAttribute: recordMetadata
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
@@ -228,7 +228,7 @@ entities:
         description: An entity which is updated by another entity or an agent.
         partOfAttribute: recordMetadata
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
       - name: comments
@@ -263,7 +263,7 @@ entities:
       
       - name: ageOfOnset
         dataType: xref
-        refEntity: rd3_lookups_phenotype
+        refEntity: solverd_lookups_phenotype
         description: Age (in years) of onset of clinical manifestations related to the disease of the patient.
         tags: Orphanet_C023 http://www.orpha.net/ORDO/Orphanet_C023
       
@@ -275,7 +275,7 @@ entities:
       - name: countryOfBirth
         description: The country that this person was born in.
         dataType: categorical
-        refEntity: rd3_lookups_country
+        refEntity: solverd_lookups_country
         tags: GENEPIO_0001094 http://purl.obolibrary.org/obo/GENEPIO_0001094
         
       - name: consanguinity_suspected
@@ -287,7 +287,7 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: recordMetadata
@@ -305,7 +305,7 @@ entities:
       - name: recordCreatedBy
         nillable: false
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         description: Indicates the person or authoritative body who brought the item into existence.
         partOfAttribute: recordMetadata
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
@@ -320,7 +320,7 @@ entities:
         description: An entity which is updated by another entity or an agent.
         partOfAttribute: recordMetadata
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
       - name: comments
@@ -348,7 +348,7 @@ entities:
       - name: belongsToSubject
         label: subjectID
         dataType: xref
-        refEntity: rd3_subjects
+        refEntity: solverd_subjects
         description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
         tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
         
@@ -361,18 +361,18 @@ entities:
         label: Claimed sex
         description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
         dataType: categorical
-        refEntity: rd3_lookups_sex
+        refEntity: solverd_lookups_sex
         
       - name: sex2
         label: Observed sex
         description: Computed sex (based on Y- chromosome)
         dataType: categorical
-        refEntity: rd3_lookups_sex
+        refEntity: solverd_lookups_sex
         
       - name: pathologicalState
         description: The pathological state of the tissue from which this material was derived. (GO:0001894)
         dataType: xref
-        refEntity: rd3_lookups_pathologicalstate
+        refEntity: solverd_lookups_pathologicalstate
         tags: GO_0001894 http://purl.obolibrary.org/obo/GO_0001894
         
       - name: percentageTumorCells
@@ -383,7 +383,7 @@ entities:
       - name: tissueType
         label: Tissue Types
         dataType: xref
-        refEntity: rd3_lookups_tissueType
+        refEntity: solverd_lookups_tissueType
         tags: NCIT_C70713 http://purl.obolibrary.org/obo/NCIT_C70713
         
       - name: extractedProtocol
@@ -394,7 +394,7 @@ entities:
         label: materialType
         description: material type. E.g. DNA
         dataType: mref
-        refEntity: rd3_lookups_materialType
+        refEntity: solverd_lookups_materialType
         
       - name: flag
         label: QC failed
@@ -405,18 +405,18 @@ entities:
         label: organisation
         description: Name of the organisation. E.g. University Medical Center Groningen
         dataType: xref
-        refEntity: rd3_info_organisations
+        refEntity: solverd_info_organisations
         
       - name: ERN
         label: ERN
         description: ERN
         dataType: xref
-        refEntity: rd3_info_erns
+        refEntity: solverd_info_erns
         
       - name: retracted
         label: Retracted Sample
         dataType: categorical
-        refEntity: rd3_lookups_noyesunknown
+        refEntity: solverd_lookups_noyesunknown
         
       - name: dateAvailable
         label: Date available
@@ -425,7 +425,7 @@ entities:
       
       - name: anatomicalLocation
         dataType: xref
-        refEntity: rd3_lookups_anatomicallocation
+        refEntity: solverd_lookups_anatomicallocation
         description: Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken.
         tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264
         
@@ -436,24 +436,24 @@ entities:
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: includedInStudies
         dataType: mref
-        refEntity: rd3_info_studies
+        refEntity: solverd_info_studies
         description: Reference to the study or studies in which this person participates.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
       - name: includedInCohorts
         dataType: mref
-        refEntity: rd3_info_cohorts
+        refEntity: solverd_info_cohorts
         description: A group of individuals, identified by a common characteristic.
         tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
       
       - name: includedInDatasets
         dataType: mref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
         description: Reference to the dataset or datasets in which this person was assigned to.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
@@ -472,7 +472,7 @@ entities:
       - name: recordCreatedBy
         nillable: false
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         description: Indicates the person or authoritative body who brought the item into existence.
         partOfAttribute: recordMetadata
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
@@ -487,7 +487,7 @@ entities:
         description: An entity which is updated by another entity or an agent.
         partOfAttribute: recordMetadata
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
       - name: comments
@@ -510,7 +510,7 @@ entities:
       - name: sampleID
         description: Name or other identifier of an entry from a biosample database.
         dataType: mref
-        refEntity: rd3_samples
+        refEntity: solverd_samples
         tags: NCIT_C93400 http://purl.obolibrary.org/obo/NCIT_C93400
         
       - name: capture
@@ -521,7 +521,7 @@ entities:
         label: Library Source
         description: Library Source, e.g Genomic/Transcriptomic
         dataType: categorical
-        refEntity: rd3_lookups_libraryType
+        refEntity: solverd_lookups_libraryType
         
       - name: flowcell
         description: flowcell information
@@ -536,12 +536,12 @@ entities:
       - name: library
         description: link to more information about the library used in experiment
         dataType: mref
-        refEntity: rd3_lookups_library
+        refEntity: solverd_lookups_library
         
       - name: sequencingCentre
         description: An organization that provides sequence determination service
         dataType: xref
-        refEntity: rd3_info_organisations
+        refEntity: solverd_info_organisations
         tags: OBI_0001891 http://purl.obolibrary.org/obo/OBI_0001891
         
       - name: sequencer
@@ -551,7 +551,7 @@ entities:
       - name: seqType
         description: Method used to determine the order of bases in a nucleic acid sequence.
         dataType: xref
-        refEntity: rd3_lookups_seqType
+        refEntity: solverd_lookups_seqType
         tags: FIX_0000704 http://purl.obolibrary.org/obo/FIX_0000704
         
       - name: arrayID
@@ -571,29 +571,29 @@ entities:
         label: Retracted Experiment
         description: Is the experiment retracted or not
         dataType: categorical
-        refEntity: rd3_lookups_noyesunknown
+        refEntity: solverd_lookups_noyesunknown
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: includedInStudies
         dataType: mref
-        refEntity: rd3_info_studies
+        refEntity: solverd_info_studies
         description: Reference to the study or studies in which this person participates.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
       - name: includedInCohorts
         dataType: mref
-        refEntity: rd3_info_cohorts
+        refEntity: solverd_info_cohorts
         description: A group of individuals, identified by a common characteristic.
         tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
       
       - name: includedInDatasets
         dataType: mref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
         description: Reference to the dataset or datasets in which this person was assigned to.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
     
@@ -612,7 +612,7 @@ entities:
       - name: recordCreatedBy
         nillable: false
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         description: Indicates the person or authoritative body who brought the item into existence.
         partOfAttribute: recordMetadata
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
@@ -627,7 +627,7 @@ entities:
         description: An entity which is updated by another entity or an agent.
         partOfAttribute: recordMetadata
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
       - name: comments
@@ -665,7 +665,7 @@ entities:
       - name: fileFormat
         description: type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.)
         dataType: categorical
-        refEntity: rd3_lookups_typeFile
+        refEntity: solverd_lookups_typeFile
         nillable: false
         aggregateable: true
         tags: NCIT_C171252 http://purl.obolibrary.org/obo/NCIT_C171252
@@ -673,24 +673,24 @@ entities:
       - name: subjectID
         description: One or more subject identifier associated with a file
         dataType: mref
-        refEntity: rd3_subjects
+        refEntity: solverd_subjects
         
       - name: sampleID
         description: One more more sample identifier associated with a file
         dataType: mref
-        refEntity: rd3_samples
+        refEntity: solverd_samples
         tags: NCIT_C93400 http://purl.obolibrary.org/obo/NCIT_C93400
 
       - name: experimentID
         description: Identifier of the corresponding record in the labinfo table
         dataType: xref
-        refEntity: rd3_labinfo
+        refEntity: solverd_labinfo
         tags: NCIT_C171337 http://purl.obolibrary.org/obo/NCIT_C171337
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
         dataType: categorical_mref
-        refEntity: rd3_info_datareleases
+        refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
       - name: fenderFilePath
@@ -705,19 +705,19 @@ entities:
         
       - name: includedInStudies
         dataType: mref
-        refEntity: rd3_info_studies
+        refEntity: solverd_info_studies
         description: Reference to the study or studies in which this person participates.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
         
       - name: includedInCohorts
         dataType: mref
-        refEntity: rd3_info_cohorts
+        refEntity: solverd_info_cohorts
         description: A group of individuals, identified by a common characteristic.
         tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
       
       - name: includedInDatasets
         dataType: mref
-        refEntity: rd3_info_datasets
+        refEntity: solverd_info_datasets
         description: Reference to the dataset or datasets in which this person was assigned to.
         tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
     
@@ -736,7 +736,7 @@ entities:
       - name: recordCreatedBy
         nillable: false
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         description: Indicates the person or authoritative body who brought the item into existence.
         partOfAttribute: recordMetadata
         tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
@@ -751,7 +751,7 @@ entities:
         description: An entity which is updated by another entity or an agent.
         partOfAttribute: recordMetadata
         dataType: xref
-        refEntity: rd3_info_persons
+        refEntity: solverd_info_persons
         tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
     
       - name: comments

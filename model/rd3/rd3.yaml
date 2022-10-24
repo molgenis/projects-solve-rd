@@ -140,14 +140,14 @@ entities:
       - name: organisation
         label: Organisation
         description: Name of the organisation that submitted Subject
-        dataType: xref
+        dataType: mref
         refEntity: solverd_info_organisations
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
       
       - name: ERN
         label: ERN
         description: ERN
-        dataType: xref
+        dataType: mref
         refEntity: solverd_info_erns
         tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
         
@@ -550,7 +550,7 @@ entities:
         
       - name: seqType
         description: Method used to determine the order of bases in a nucleic acid sequence.
-        dataType: xref
+        dataType: mref
         refEntity: solverd_lookups_seqType
         tags: FIX_0000704 http://purl.obolibrary.org/obo/FIX_0000704
         

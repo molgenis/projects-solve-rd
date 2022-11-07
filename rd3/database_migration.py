@@ -4,7 +4,7 @@
 # CREATED: 2022-10-11
 # MODIFIED: 2022-10-11
 # PURPOSE: script to migrate data from one instance to another
-# STATUS: in.progress
+# STATUS: stable
 # PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
@@ -157,7 +157,8 @@ def recodeERN(value):
     raise KeyError('No mapping for', str(value), 'found')
   except TypeError:
     raise TypeError('No mapping for', str(value), 'found')
-    
+
+
 def uniqueValuesById(data, groupby, column, dropDuplicates=True, keyGroupBy=True):
   """Unique Values By Id
   For a datatable object, collapse all unique values by ID into a comma
@@ -227,10 +228,10 @@ subjects = dt.rbind(
 # Process Subjects
 
 del subjects['id']
-
 subjects.names = {
   'phenopacketsID': 'mostRecentPhenopacketFile',
-  'patch': 'partOfRelease'
+  'patch': 'partOfRelease',
+  'patch_comment': 'comments'
 }
 
 # drop 'id' column -- not needed in new version
@@ -272,22 +273,19 @@ for column in subjects.names:
       keyGroupBy = False
     )[column]
 
-
 # for multiple values in the column `date_solved`, return the earliest date
 subjects['date_solved'] = dt.Frame([
   min([
     datetime.fromisoformat(date) for date in dates.split(',')
   ]).strftime('%Y-%m-%d')
-  if dates is not None
-  else dates
+  if dates is not None else dates
   for dates in subjects['date_solved'].to_list()[0]
 ])
 
 # check for multiple values in `solved`. If True exists in the string, return
 # True.
 subjects['solved'] = dt.Frame([
-  'True' in status.split(',')
-  if status else status
+  'True' in status.split(',') if status else status
   for status in subjects['solved'].to_list()[0]
 ])
 
@@ -316,12 +314,28 @@ subjects['sex1'] = dt.Frame([
   for value in subjects['sex1'].to_list()[0]
 ])
 
+# check retracted column -- make sure all values are 'Y' or 'N'
+# subjects[dt.re.match(f.retracted, '.*,.*'),:]
+# subjects[dt.re.match(f.retracted, '.*,.*'),'retracted']
+subjects[f.retracted == 'N,Y', 'retracted'] = 'Y'
+
+# make sure all retracted subjects have no metadata
+columnsToKeep = ['subjectID','partOfRelease', 'retracted', 'comments']
+for subject in subjects[f.retracted=='Y', 'subjectID'].to_list()[0]:
+  for column in subjects.names:
+    if column not in columnsToKeep:
+      subjects[f.subjectID==subject, column] = None
+
     
 # set metadata
 subjects['dateRecordCreated'] = dateCreated
 subjects['recordCreatedBy'] = createdBy
 
+# pull distinct rows
 subjects = subjects[:, dt.first(f[:]), dt.by(f.subjectID)]
+retractedSubjects = subjects[f.retracted == 'Y', 'subjectID'].to_list()[0]
+
+
 rd3.importDatatableAsCsv('solverd_subjects', subjects)
 
 #///////////////////////////////////////////////////////////////////////////////
@@ -355,7 +369,7 @@ del subjectinfo['id']
 subjectinfo.names = {
   'dateofBirth': 'dateOfBirth',
   'patch': 'partOfRelease',
-  'patch_comment': 'comment'
+  'patch_comment': 'comments'
 }
 
 # recode subject IDs
@@ -390,6 +404,14 @@ subjectinfo['partOfRelease'] = dt.Frame([
   ','.join(sorted(set(release.split(','))))
   for release in subjectinfo['partOfRelease'].to_list()[0]
 ])
+
+# remove metadata for retracted subjects
+subjects[f.retracted == 'Y', :].to_list()[0]
+columnsToKeep = ['subjectID', 'partOfRelease', 'comments']
+for subject in subjects[f.retracted == 'Y', 'subjectID'].to_list()[0]:
+  for column in subjectinfo.names:
+    if column not in columnsToKeep:
+      subjectinfo[f.subjectID==subject, column] = None
 
 # set import attribs
 subjectinfo['dateRecordCreated'] = dateCreated
@@ -430,7 +452,7 @@ del samples['id']
 samples.names = {
   'subject': 'belongsToSubject',
   'patch': 'partOfRelease',
-  'patch_comment': 'comment'
+  'patch_comment': 'comments'
 }
 
 # recode ERNs
@@ -462,6 +484,9 @@ for column in samples.names:
 # ---- OPTIONAL PROCESSING -----
 # Fix subject associations
 # correct samples that are linked to more than one subject
+samples[dt.re.match(f.belongsToSubject, '.*,.*'),:]
+samples[f.sampleID=='', 'belongsToSubject'] = ''
+#
 # samples['belongsToSubject'] = dt.Frame([
 #   ''
 #   if row[0] == '' else row[1]
@@ -469,11 +494,30 @@ for column in samples.names:
 # ])
 # ------------------------------
 
+# make sure all metadata of retracted samples are removed
+columnsToKeep = ['sampleID', 'partOfRelease', 'retracted', 'comments']
+for sample in samples[f.retracted == 'Y', :].to_list()[0]:
+  for column in samples.names:
+    if column not in columnsToKeep:
+      samples[f.sampleID==sample, column] = None
+
+
+# remove sample metadata if subjects were removed
+for subject in retractedSubjects:
+  sampleIDs = samples[f.belongsToSubject == subject, 'sampleID'].to_list()[0]
+  if sampleIDs:
+    for sample in sampleIDs:
+      for column in samples.names:
+        if column not in columnsToKeep:
+          samples[f.sampleID == sample, column] = None
+      
+
 # set row metadata
 samples['dateRecordCreated'] = dateCreated
 samples['recordCreatedBy'] = createdBy
 
 samples = samples[:, dt.first(f[:]), dt.by(f.sampleID)]
+retractedSamples = samples[f.retracted == 'Y', 'sampleID'].to_list()[0]
 
 rd3.importDatatableAsCsv('solverd_samples', samples)
 
@@ -508,7 +552,7 @@ del experiments['id']
 experiments.names = {
   'sample': 'sampleID',
   'patch': 'partOfRelease',
-  'patch_comment': 'comment'
+  'patch_comment': 'comments'
 }
 
 # drop old ID suffix
@@ -544,17 +588,35 @@ for column in experiments.names:
 
 # check for multiple string values
 # experiments[dt.re.match(f.seqType, '.*,.*'), :]
+# experiments[dt.re.match(f.seqType, '.*,.*'), (f.experimentID,f.sampleID,f.seqType,f.partOfRelease)].to_csv('data/solverd_multiple_sample_experiments.csv')
 
 experiments['partOfRelease'] = dt.Frame([
   ','.join(sorted(set(release.split(','))))
   for release in experiments['partOfRelease'].to_list()[0]
 ])
 
+# make sure all retracted experiments are removed
+columnsToKeep = ['experimentID', 'retracted', 'comments', 'partOfRelease']
+for experiment in experiments[f.retracted=='Y', :].to_list()[0]:
+  for column in experiments.names:
+    if column not in columnsToKeep:
+      experiments[f.experimentID==experiment, column] = None
+
+# remove experiments if sample was removed
+for sample in retractedSamples:
+  experimentIDs = experiments[f.sampleID == sample, 'experimentID'].to_list()[0]
+  if experimentIDs:
+    for experimentId in experimentIDs:
+      for column in experiments.names:
+        if column not in columnsToKeep:
+          experiments[f.experimentID==experiment, column] = None
+
 # set row metadata
 experiments['dateRecordCreated'] = dateCreated
 experiments['recordCreatedBy'] = createdBy
 
 experiments = experiments[:, dt.first(f[:]), dt.by(f.experimentID)]
+retractedExperiments = experiments[f.retracted=='Y', 'experimentID'].to_list()[0]
 
 rd3.importDatatableAsCsv('solverd_labinfo', experiments)
 
@@ -603,6 +665,69 @@ files['subjectID'] = dt.Frame([
   for value in files['subjectID'].to_list()[0]
 ])
 
+files['experimentID'] = dt.Frame([
+  value.replace('_original', '') if value else value
+  for value in files['experimentID'].to_list()[0]
+])
+
+
+# remove retracted identifiers (subject, sample, experiments)
+files['subjectID'] = dt.Frame([
+  None if id in retractedSubjects else id
+  for id in files['subjectID'].to_list()[0]
+])
+
+files['sampleID'] = dt.Frame([
+  None if id in retractedSamples else id
+  for id in files['sampleID'].to_list()[0]
+])
+
+files['experimentID'] = dt.Frame([
+  None if id in retractedExperiments else id
+  for id in files['experimentID'].to_list()[0]
+])
+
+# check for unknown experiments
+experimentsIDs = experiments['experimentID'].to_list()[0]
+files['hasExperiment'] = dt.Frame([
+  id in experimentsIDs
+  for id in tqdm(files['experimentID'].to_list()[0])
+])
+
+samplesIDs = samples['sampleID'].to_list()[0]
+files['hasSample'] = dt.Frame([
+  id in sampleIDs
+  for id in tqdm(files['sampleID'].to_list()[0])
+])
+
+
+# PROCESS UNKNOWN IDS
+# !-------- ONLY RUN THIS IF YOU KNOW WHAT YOU ARE DOING. ----------!
+# files[f.fileFormat!='json',:][:, dt.count(), dt.by(f.hasExperiment)]
+# files[(f.fileFormat!='json') & (f.hasExperiment==False), :]
+# dt.unique(files[(f.sampleID!=None) & (f.hasSample==False), 'sampleID'])
+# dt.unique(files[(f.experimentID!=None) & (f.hasExperiment==False), 'experimentID'])
+# dt.unique(
+#   files[
+#     (f.fileFormat!='json') & (f.hasExperiment==False),
+#     (f.EGA, f.subjectID, f.sampleID, f.experimentID, f.partOfRelease, f.hasExperiment)
+#   ][
+#     f.experimentID != None,
+#     # :
+#     'experimentID'
+#   ]
+# )
+# The following overwrites experimentIDs when the ID is valid, but there is
+# no matching record in the experiments table. This should be very few (<5), but 
+# it probably occurs when an experiment/sample/subject was retracted, but not
+# updated in the file manifest data.
+# files['experimentID'] = dt.Frame([
+#   None if (row[0]) and (row[1] == False) else row[0]
+#   for row in files[:, (f.experimentID, f.hasExperiment)].to_tuples()
+# ])
+# !----------------------------------------------------------------------------!
+
+# add row-level metadata
 files['dateRecordCreated'] = dateCreated
 files['recordCreatedBy'] = createdBy
 

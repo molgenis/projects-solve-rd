@@ -20,7 +20,7 @@ from yamlemxconvert import Convert
 # emx.write('rd3_portal_cluster', outDir='dist', includeData=False)
 
 # RD3 views
-emx = Convert(files = ['model/rd3_overview.yaml'])
+emx = Convert(files = ['model/rd3/rd3_overview'])
 emx.convert()
 emx.write('rd3_overview', outDir='dist')
 

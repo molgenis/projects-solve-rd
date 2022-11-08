@@ -17,21 +17,22 @@ import tempfile
 import pytz
 import csv
 
+def now():
+  return datetime.datetime.now(tz=pytz.timezone('Europe/Amsterdam')).strftime('%H:%M:%S.%f')[:-3]
+
+def print2(*args):
+  """Status Message
+  Print a log-style message, e.g., "[16:50:12.245] Hello world!"
+  @param *args one or more strings containing a message to print
+  @return string
+  """
+  message = ' '.join(map(str, args))
+  print(f'[{now()}] {message}')
+
 class Molgenis(molgenis.Session):
   def __init__(self, *args, **kwargs):
     super(Molgenis, self).__init__(*args, **kwargs)
     self.fileImportEndpoint = f"{self._root_url}plugin/importwizard/importFile"
-  
-  def _print(self, *args):
-    """Print
-    Print a message with a timestamp, e.g., "[16:50:12.245] Hello world!".
-
-    @param *args one or more strings containing a message to print
-    @return string
-    """
-    message = ' '.join(map(str, args))
-    time = datetime.now(tz=pytz.timezone('Europe/Amsterdam')).strftime('%H:%M:%S.%f')[:-3]
-    print(f'[{time}] {message}')
   
   def _datatableToCsv(self, path, datatable):
     """To CSV
@@ -63,7 +64,7 @@ class Molgenis(molgenis.Session):
           params = {'action': 'add_update_existing', 'metadataAction': 'ignore'}
         )
         if (response.status_code // 100 ) != 2:
-          self._print('Failed to import data into', pkg_entity, '(', response.status_code, ')')
+          print2('Failed to import data into', pkg_entity, '(', response.status_code, ')')
         else:
-          self._print('Imported data into', pkg_entity)
+          print2('Imported data into', pkg_entity)
         return response

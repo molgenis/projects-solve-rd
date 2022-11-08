@@ -1,0 +1,584 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-05-31
+# PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
+# COMMENTS:
+#   - Build model with the following script: index.py
+#   - Set release accordingly in the model.yaml file **see releases prop**
+#   - Do not change the pattern <freeze_label> and <freeze_identifier> as
+#     this is used in the build script. If you create new tables, make sure
+#     this pattern is followed.
+#//////////////////////////////////////////////////////////////////////////////
+
+# define subpackage
+name: rd3_<freeze_identifier>
+label: RD3 <freeze_label>
+description: RD3 <freeze_label>
+parent: rd3
+# date: 2022-01-01
+# version: 1.0.0
+
+defaults:
+  aggregateable: false
+  auto: false
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  lookupAttribute: false
+  nillable: true
+  visible: true
+  unique: false
+
+entities:
+  
+  # RD3: Subject
+  # primary patient metadata
+  - name: subject
+    label: <freeze_label> Subjects
+    description: patients and family members within <freeze_label>
+    attributes:
+      - name: id
+        label: id
+        description: Unique identifier (subjectID + patch number)
+        nillable: false
+        unique: true
+        visible: true
+        idAttribute: true
+        tags: token
+        
+      - name: subjectID
+        label: SubjectID
+        description: Unique identifier of the subject
+        labelAttribute: true
+        lookupAttribute: true
+        
+      - name: sex1
+        label: Claimed Sex
+        description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
+        dataType: xref
+        refEntity: rd3_sex
+        
+      - name: fid
+        label: FamilyID
+        description: Family ID (FID)
+        
+      - name: mid
+        label: MaternalID
+        description: Maternal ID (MID)
+        dataType: xref
+        refEntity: rd3_<freeze_identifier>_subject
+        
+      - name: pid
+        label: PaternalID
+        description: Paternal ID (PID)
+        dataType: xref
+        refEntity: rd3_<freeze_identifier>_subject
+        
+      - name: clinical_status
+        label: Affected status
+        description: whether it is an affected individual (main disease) Yes/No
+        dataType: bool
+        
+      - name: disease
+        label: disease
+        description: if affected, which MAIN disease code(s) apply to subject
+        dataType: mref
+        refEntity: rd3_disease
+        # visible: "$('clinical_status').eq(true).value()"
+        
+      - name: phenotype
+        label: phenotype
+        description: Phenotype based on Human Phenotype Ontology (HPO)
+        dataType: mref
+        refEntity: rd3_phenotype
+        
+      - name: hasNotPhenotype
+        label: hasNotPhenotype
+        description: Relevant Phenotype NOT present in subject
+        dataType: mref
+        refEntity: rd3_phenotype
+        
+      - name: phenopacketsID
+        label: Phenotype Patch
+        description: name of the most recent phenopackets file (formated as <subjectID>.<date>.json)
+      
+      - name: patch
+        label: Subject Releases
+        description: One or more RD3 releases associated with the subject
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        
+      - name: variant
+        label: variant
+        description: candidate pathogenic variant(s) for this subject
+        dataType: mref
+        refEntity: rd3_variantinfo
+        
+      - name: organisation
+        label: Organisation
+        description: Name of the organisation that submitted Subject
+        dataType: xref
+        refEntity: rd3_organisation
+        
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: xref
+        refEntity: rd3_ERN
+        
+      - name: solved
+        label: solved
+        description: Solved Case for Solve-RD (true/false)
+        dataType: bool
+        
+      - name: date_solved
+        label: DateSolved
+        description: Date Solved
+        dataType: date
+        
+      - name: remarks
+        label: Remarks
+        description: Remarks about this Subject (Relevant for SOLVE-RD project)
+        dataType: text
+        
+      - name: consent
+        label: Consent
+        dataType: compound
+        
+      - name: matchMakerPermission
+        label: MatchMaker Permission
+        description: Permission is given for MatchMaking (boolean)
+        dataType: bool
+        partOfAttribute: consent
+        
+      - name: noIncidentalFindings
+        label: No Incidental Findings
+        description: Do NOT report incidental findings back (boolean)
+        dataType: bool
+        partOfAttribute: consent
+        
+      - name: recontact
+        label: Recontact Incidental findings
+        description: Recontact is allowed in case of incidental findings
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        partOfAttribute: consent
+        
+      - name: retracted
+        label: Retracted Subject
+        description: Is the subject retracted or not
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        defaultValue: N
+        
+      - name: patch_comment
+        label: Release Comments
+        description: Patch Comment
+
+  # RD3: Subject Info
+  - name: subjectinfo
+    label: <freeze_label> Subject Information
+    description: Extra information about subjects within <freeze_label>
+    attributes:
+      - name: id
+        label: id
+        description: Unique identifier (subjectID + patch number)
+        dataType: string
+        nillable: false
+        unique: true
+        idAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        
+      - name: subjectID
+        label: SubjectID
+        description: Unique identifier of the subject
+        dataType: xref
+        refEntity: rd3_<freeze_identifier>_subject
+        nillable: false
+        readOnly: true
+        
+      - name: dateofBirth
+        label: Date of Birth
+        description: Date of birth (YYYY) (COMMON DATA ELEMENTS 2.1)
+        dataType: int
+
+      - name: ageOfDeath
+        label: ageOfDeath
+        description: if deceased, age of death (COMMON DATA ELEMENTS 3.2)
+        dataType: int
+        
+      - name: ageOfOnset
+        label: ageOfOnset
+        description: Age at onset (COMMON DATA ELEMENTS 5.1)
+        dataType: xref
+        refEntity: rd3_phenotype
+        
+      - name: ageOfDiagnosis
+        label: ageOfDiagnosis
+        description: Age at diagnosis (COMMON DATA ELEMENTS 5.2)
+        dataType: int
+        
+      - name: Country_of_origin
+        label: Country of Origin
+        description: country of origin (for pedigree?)
+        
+      - name: consanguinity_suspected
+        label: Consanguinity suspected
+        description: subject consanguinity (yes,no)
+        dataType: bool
+        
+      - name: patch
+        label: Subject Releases
+        description: One or more RD3 releases associated with the subject
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        
+      - name: patch_comment
+        label: Release Comment
+        description: Patch Comment
+
+  
+  # RD3: Samples
+  - name: sample
+    label: <freeze_label> Samples
+    description: Samples used as input for analyses within <freeze_label>
+    attributes:
+      - name: id
+        label: id
+        description: unique identifier (sampleID + patch)
+        nillable: false
+        unique: true
+        idAttribute: true
+        readOnly: true
+        
+      - name: sampleID
+        label: sampleID
+        description: Identifier of the sample
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        
+      - name: alternativeIdentifier
+        label: alternativeIdentifier
+        description: alternative identifier used by sample provider
+        
+      - name: subject
+        label: subject
+        description: reference to the subject from which samples was extracted
+        dataType: xref
+        refEntity: rd3_<freeze_identifier>_subject
+        
+      - name: ageAtSampling
+        label: ageAtSampling
+        description: age at sampling/ First contact with specialised centre (COMMON DATA ELEMENTS 4.1)
+        dataType: int
+        
+      - name: sex1
+        label: Claimed sex
+        description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
+        dataType: categorical
+        refEntity: rd3_sex
+        
+      - name: sex2
+        label: Observed sex
+        description: Computed sex (based on Y- chromosome)
+        dataType: categorical
+        refEntity: rd3_sex
+        
+      - name: pathologicalState
+        description: The pathological state of the tissue from which this material was derived. (GO:0001894)
+        dataType: xref
+        refEntity: rd3_pathologicalstate
+        
+      - name: percentageTumorCells
+        description: The percentage of tumor cells compared to total cells present in this material. (NCIT:C127771)
+        dataType: decimal
+        
+      - name: tissueType
+        label: Tissue Types
+        dataType: xref
+        refEntity: rd3_tissueType
+        
+      - name: extractedProtocol
+        label: Extracted Protocol 
+        
+      - name: materialType
+        label: materialType
+        description: material type. E.g. DNA
+        dataType: mref
+        refEntity: rd3_materialType
+        
+      - name: flag
+        label: QC failed
+        description: QC failed (True /False)
+        dataType: bool
+        
+      - name: organisation
+        label: organisation
+        description: Name of the organisation. E.g. University Medical Center Groningen
+        dataType: xref
+        refEntity: rd3_organisation
+        
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: xref
+        refEntity: rd3_ERN
+        
+      - name: retracted
+        label: Retracted Sample
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        defaultValue: N
+        
+      - name: dateAvailable
+        label: Date available
+        description: Date that a file became visible to sandbox/RD3
+        dataType: datetime
+        
+      - name: anatomicalLocation
+        label: anatomicalLocation
+        dataType: xref
+        refEntity: rd3_anatomicalLocation
+        
+      - name: batch
+        label: Batch Number
+        description: Sample batch number
+        
+      - name: patch
+        label: Sample Releases
+        description: One or more RD3 releases associated with the sample
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        
+      - name: patch_comment
+        label: Release Comment
+        description: Patch Comment
+      
+  # RD3: Lab Information
+  - name: labinfo
+    label: <freeze_label> Labinfo
+    description: information or process in the lab linked to samples
+    attributes:
+      - name: id
+        label: id
+        description: Unique identifier (experimentID + patch)
+        nillable: false
+        unique: true
+        idAttribute: true
+        readOnly: true
+        
+      - name: experimentID
+        label: experimentID
+        description: Experiment ID
+        labelAttribute: true
+        lookupAttribute: true
+        
+      - name: sample
+        label: sample
+        description: all samples run in this condition, using the same barcode
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_sample
+        
+      - name: capture
+        label: Enrichment kit
+        description: Enrichment kit
+        
+      - name: libraryType
+        label: Library Source
+        description: Library Source, e.g Genomic/Transcriptomic
+        dataType: categorical
+        refEntity: rd3_libraryType
+        
+      - name: flowcell
+        label: flowcell
+        description: flowcell information
+        
+      - name: barcode
+        label: barcode
+        description: barcode involved
+        
+      - name: samplePosition
+        label: samplePosition
+        description: lane, or possition in well (A1 t/mH12)
+        
+      - name: library
+        label: library
+        description: link to more information about the library used in experiment
+        dataType: mref
+        refEntity: rd3_library
+        
+      - name: sequencingCentre
+        label: Sequencing Centre
+        description: Centre where samples were sequenced
+        
+      - name: sequencer
+        label: sequencer
+        description: sequencerinfo
+        
+      - name: seqType
+        label: seqType
+        description: sequencing technique types (e.g. WXS, WGS)
+        dataType: xref
+        refEntity: rd3_seqType
+        
+      - name: arrayID
+        label: arrayID
+        description: arrayID
+        
+      - name: mean_cov
+        label: MeanCov
+        description: Mean read depth
+        dataType: decimal
+        
+      - name: c20
+        label: C20
+        description: Percentage of nucleotides within the Region of interest that is covered by at least 20 reads
+        dataType: decimal
+        
+      - name: retracted
+        label: Retracted Experiment
+        description: Is the experiment retracted or not
+        dataType: categorical
+        refEntity: rd3_noyesunknown
+        defaultValue: N
+        
+      - name: patch
+        label: Experiment Releases
+        description: One or more RD3 releases associated with the sample
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        
+      - name: patch_comment
+        label: Release Comment
+        description: Patch Comment
+  
+  # RD3: Files
+  - name: file
+    label: <freeze_label> Files
+    description: Individual files on file systems, files are linked in datasets, versioning with EGA accession number
+    attributes:  
+      - name: EGA
+        label: EGA Accession Number
+        description: EGA Accession Number
+        nillable: false
+        unique: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        
+      - name: name
+        label: Filename
+        description: Filename
+        nillable: false
+        lookupAttribute: true
+        
+      - name: md5
+        label: Checksum
+        description: hash code to check if file is not corrupted.
+        
+      - name: typeFile
+        label: typeFile
+        description: type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.)
+        dataType: categorical
+        refEntity: rd3_typeFile
+        nillable: false
+        aggregateable: true
+        
+      - name: samples
+        label: samples
+        description: link to file(s) produced for this sample
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_sample
+        
+      - name: subjectID
+        label: SubjectID
+        description: Unique identifier of the subject
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_subject
+        
+      - name: patch
+        label: File Releases
+        description: One or more RD3 releases associated with the file
+        dataType: categorical_mref
+        refEntity: rd3_patch
+        
+      - name: patch_comment
+        label: Patch Comment
+        description: Patch Comment
+        
+      - name: dateCreated
+        label: Created
+        description: Creation date in RD3 database
+        dataType: date
+        
+      - name: extraInfo
+        label: Extra Information
+        dataType: text
+        
+      - name: experimentID
+        label: experimentID
+        description: Identifier of the corresponding record in the labinfo table
+        
+      - name: filepath_sandbox
+        label: Fender Filepath
+        description: location of the file on Fender. For Gearshift, recode 'solve-rd' to 'umcg-solve-rd'.
+        
+  # RD3: jobs
+  - name: job
+    label: <freeze_label> Jobs
+    description: Jobs used to process sampledata within <freeze_label>
+    attributes:
+      - name: status
+        label: status
+        description: status of job (running, completed, or error)
+        dataType: enum
+        enumOptions: completed,error,running
+        
+      - name: identifier
+        label: identifier
+        description: unique identifier job
+        nillable: false
+        unique: true
+        visible: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        
+      - name: run
+        label: run
+        description: job is part of run
+        dataType: xref
+        refEntity: rd3_run
+        nillable: false
+        
+      - name: log
+        label: log
+        description: uri referencing to logfile
+        
+      - name: inputfile
+        label: inputfile
+        description: inputfile, link to file used in job
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_file
+        
+      - name: outputfile
+        label: outputfile
+        description: file produced with job
+        dataType: mref
+        refEntity: rd3_<freeze_identifier>_file
+        
+      - name: jobstart
+        label: jobstart
+        description: start date and time of job
+        dataType: datetime
+        
+      - name: jobend
+        label: jobend
+        description: end date and time of job
+        dataType: datetime

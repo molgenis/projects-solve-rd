@@ -1,0 +1,191 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: base_rd3_freeze.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2021-09-21
+# MODIFIED: 2022-09-01
+# PURPOSE: YAML-EMX for cluster files
+# COMMENTS:
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_portal_cluster
+label: Cluster Data
+description: Extracted metadata PED and Phenopacket files stored on the cluster
+parent: rd3_portal
+date: 2022-09-01
+version: 1.1.0
+
+# set defaults
+defaults:
+  dataType: string
+  visible: true
+  lookupAttribute: false
+
+#  define tables
+entities:
+  - name: phenopacket
+    label: Phenopacket
+    description: Extracted data from Phenopacket files
+    attributes:
+      - name: phenopacketsID
+        description: Name of the Phenopacket file
+        idAttribute: true
+        nillable: false
+        
+      - name: clusterRelease
+        description: the release, on the cluster, where the data comes from
+
+      - name: subjectID
+        description: RD3 subject identifier
+        
+      - name: dateofBirth
+        description: If available, the date the patient was born
+        
+      - name: sex1
+        description: If available, a string containing the sex of the patient
+        
+      - name: phenotype
+        description: If available, a comma separated strings containing HPO codes
+        dataType: text
+        
+      - name: hasNotPhenotype
+        description: If available, a comma separated strings containing HPO codes
+        dataType: text
+        
+      - name: disease
+        description: If available, a comma separated strings containing disease codes
+        dataType: text
+        
+      - name: ageOfOnset
+        description: If available, the age of the patient at onsent
+
+      - name: subjectExists
+        description: An indication if the subject exists in RD3
+        dataType: bool
+        defaultValue: false
+        
+      - name: releasesWhereSubjectExists
+        description: If the subject exists, which release
+
+      - name: unknownHpoCodes
+        description: A comma-separated string of all unknown HPO codes
+        dataType: text
+
+      - name: unknownDiseaseCodes
+        description: A comma-separated string of all unknown disease codes
+        dataType: text
+
+      - name: unknownOnsetCodes
+        description: A comma-separated string of all unknown onset codes
+        dataType: text
+        
+      - name: processed
+        description: An indication if the data has been imported into RD3 somewhere
+        dataType: bool
+        defaultValue: false
+
+  - name: ped
+    label: PED
+    description: Extracted data from PED files
+    attributes:
+    
+      - name: id
+        description: an auto generated ID
+        idAttribute: true
+        nillable: false
+    
+      - name: pedID
+        description: Name of the Phenopacket file
+        
+      - name: clusterRelease
+        description: the release, on the cluster, where the data comes from
+
+      - name: subjectID
+        description: RD3 subject identifier
+        
+      - name: fid
+        description: family identifier
+      
+      - name: mid
+        description: identifier of the mother
+        
+      - name: pid
+        description: identifier of the father
+        
+      - name: sex1
+        description: If available, a string containing the sex of the patient
+        
+      - name: clinical_status
+        description: An indication of affected status
+        dataType: bool
+      
+      - name: unknownMID
+        description: The identifier of the mother that was reported. It was either invalid or could not be found in RD3
+      
+      - name: unknownPID
+        description: The identifier of the father that was reported. It was either invalid or could not be found in RD3
+        
+      - name: unknownSexCodes
+        description: Code that was detected in the PED file, but it does not match expected values (1,2, other)
+      
+      - name: unknownClinicalStatus
+        description: A code that was detected in the PED file, but it does not match an expected value (-9, 0, 1,2)
+        
+      - name: subjectExists
+        description: An indication if the subject exists in RD3
+        dataType: bool
+        defaultValue: false
+        
+      - name: releasesWhereSubjectExists
+        description: If the subject exists, which release
+        
+      - name: upload
+        description: If True, the raw data for this subject can be imported into RD3 
+      
+      - name: processed
+        description: An indication if the data has been imported into RD3 somewhere
+        dataType: bool
+        defaultValue: false
+
+  - name: template
+    description: attribute template for listing all files of a release or type
+    abstract: true
+    attributes:
+      - name: filepath
+        idAttribute: true
+      - name: filename
+      - name: filetype
+      - name: subjectID
+      - name: familyID
+      - name: experimentID
+      - name: sampleID
+      - name: release
+      
+  - name: freeze1
+    label: Freeze 1 Files
+    description: Original gvcf, bam, ped, phenopacket
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze1-patch1
+    label: Freeze 1 Patch 1 Files
+    description: Updated ped and phenopacket files
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze1-patch3
+    label: Freeze 1 Patch 3 Files
+    description: Updated ped and phenopacket files
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze2
+    label: Freeze 2 Files
+    description: Original gvcf, bam, ped, phenopacket
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze2-patch1
+    label: Freeze 2 Patch 1 Files
+    description: Updated ped and phenopacket files
+    extends: rd3_portal_cluster_template
+  
+  - name: freeze3
+    label: Freeze 3 Files
+    description: Original gvcf, bam, ped, phenopacket
+    extends: rd3_portal_cluster_template

@@ -1,0 +1,102 @@
+#//////////////////////////////////////////////////////////////////////////////
+# NAME: rd3_cluster_results.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-15
+# MODIFIED: 2022-09-19
+# PURPOSE: EMX nested package containing information on available files by WG
+# STATUS: stable
+# COMMENTS: Use the file '_build.py' to build the model
+#//////////////////////////////////////////////////////////////////////////////
+
+name: rd3_cluster_results
+label: Analysis Files by Working Group
+description: Metadata on files produced by working group
+date: 2022-09-20
+version: 1.2.0
+parent: rd3_cluster
+
+# set defaults
+defaults:
+  idAttribute: false
+  labelAttribute: false
+
+entities:
+  - name: template
+    description: attribute template for listing files by working group
+    abstract: true
+    attributes:
+      - name: inode
+        description: unique identifier of a file in a specific location
+        dataType: string
+        idAttribute: true
+        unique: true
+      
+      - name: group
+        description: Solve-RD working group
+        dataType: string
+        
+      - name: ern
+        description: ERN 
+        dataType: categorical
+        refEntity: rd3_cluster_erns
+        
+      - name: name
+        description: Name of the file
+        
+      - name: path
+        description: Location of the file
+        dataType: text
+        
+      - name: extension
+        description: file extension
+        dataType: categorical
+        refEntity: rd3_cluster_filetypes
+        
+      - name: size
+        label: size (kb)
+        description: size of the file (in kilobytes)
+        
+  - name: cnv
+    label: CNV
+    description: CNV working group files
+    extends: rd3_cluster_results_template
+    
+  - name: denovo
+    label: Denovo
+    description: Denovo working group files
+    extends: rd3_cluster_results_template
+    
+  - name: meta
+    label: Meta Analysis
+    description: Meta Analysis working group files
+    extends: rd3_cluster_results_template
+    
+  - name: proteomics
+    label: Proteomics
+    description: Proteomics working group files
+    extends: rd3_cluster_results_template
+    
+  - name: roh
+    label: ROH Relatedness
+    description: ROG Relatedness working group files
+    extends: rd3_cluster_results_template
+    
+  - name: sandbox
+    label: Sandbox
+    description: Sandbox only files
+    extends: rd3_cluster_results_template
+        
+  - name: snvindel
+    label: SNV-Indel
+    description: SNV-Indel working group files
+    extends: rd3_cluster_results_template
+    
+  - name: str
+    label: STR
+    description: STR working group files
+    extends: rd3_cluster_results_template
+    
+  - name: transcriptomics
+    label: Transcriptomics
+    description: Transcriptomics working group files
+    extends: rd3_cluster_results_template

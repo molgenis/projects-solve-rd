@@ -1,0 +1,892 @@
+#//////////////////////////////////////////////////////////////////////////////
+# FILE: rd3.yaml
+# AUTHOR: David Ruvolo
+# CREATED: 2022-09-26
+# MODIFIED: 2022-11-07
+# PURPOSE: RD3 EMX Structure
+# STATUS: in.progress
+# COMMENTS: This file contains the EMX markup for the RD3 database. All
+# reference entities are defined in a separate file (rd3_lookups.yaml). The
+# structure of RD3 is as follows:
+#   - Subjects
+#   - Subject Info (extension of subjects)
+#   - Samples
+#   - Experiments (i.e., labinfo)
+#   - Files
+#   - Jobs (optional emx table)
+#//////////////////////////////////////////////////////////////////////////////
+
+# define package
+name: solverd
+label: Solve-RD RD3 (New Model)
+description: Solve-RD RD3 database 
+version: 2.0-beta-0.9.7
+date: 2022-11-08
+
+# set package defaults
+defaults:
+  aggregateable: false
+  auto: false
+  dataType: string
+  idAttribute: false
+  labelAttribute: false
+  lookupAttribute: false
+  nillable: true
+  visible: true
+  unique: false
+
+# define tables at the root level
+entities:
+
+  - name: subjects
+    label: Solve-RD Subjects
+    description: Information about patients and family members withing RD3
+    tags: ExO_0000127 http://purl.obolibrary.org/obo/ExO_0000127
+    attributes:
+    
+      - name: subjectID
+        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+        idAttribute: true
+        nillable: false
+        labelAttribute: true
+        lookupAttribute: true
+        tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
+        
+      - name: sex1
+        label: Claimed sex
+        description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
+        dataType: xref
+        refEntity: solverd_lookups_sex
+        
+      - name: fid
+        label: FamilyID
+        description: A domestic group, or a number of domestic groups linked through descent (demonstrated or stipulated) from a common ancestor, marriage, or adoption.
+        tags: NCIT_C25173 http://purl.obolibrary.org/obo/NCIT_C25173
+      
+      - name: mid
+        label: MaternalID
+        description: Identifier indicating a reference to mother of the subject
+        dataType: xref
+        refEntity: solverd_subjects
+        tags: NCIT_C89336 http://purl.obolibrary.org/obo/NCIT_C89336
+        
+      - name: pid
+        label: PaternalID
+        description: Identifier indicating a reference to father of the subject
+        dataType: xref
+        refEntity: solverd_subjects
+        tags: NCIT_C94324 http://purl.obolibrary.org/obo/NCIT_C94324
+        
+      - name: clinical_status
+        label: Affected status
+        description: whether it is an affected individual (main disease) Yes/No
+        dataType: bool
+        tags: NCIT_C64917 http://purl.obolibrary.org/obo/NCIT_C64917
+      
+      - name: disease
+        label: disease
+        description: if affected, which MAIN disease code(s) apply to subject
+        dataType: mref
+        refEntity: solverd_lookups_disease
+        tags: NCIT_C15607 http://purl.obolibrary.org/obo/NCIT_C15607
+      
+      - name: phenotype
+        label: phenotype
+        description: Phenotype based on Human Phenotype Ontology (HPO)
+        dataType: mref
+        refEntity: solverd_lookups_phenotype
+        tags: NCIT_C16977 http://purl.obolibrary.org/obo/NCIT_C16977
+        
+      - name: hasNotPhenotype
+        label: hasNotPhenotype
+        description: Relevant Phenotype NOT present in subject
+        dataType: mref
+        refEntity: solverd_lookups_phenotype
+        tags: HL7_C0442737 http://purl.bioontology.org/ontology/HL7/C0442737
+        
+      - name: mostRecentPhenopacketFile
+        description: name of the most recent phenopackets file (formated as <subjectID>.<date>.json)
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+        
+      - name: includedInStudies
+        dataType: mref
+        refEntity: solverd_info_studies
+        description: Reference to the study or studies in which this person participates.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: includedInCohorts
+        dataType: mref
+        refEntity: solverd_info_cohorts
+        description: A group of individuals, identified by a common characteristic.
+        tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
+      
+      - name: includedInDatasets
+        dataType: mref
+        refEntity: solverd_info_datasets
+        description: Reference to the dataset or datasets in which this person was assigned to.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: variant
+        label: variant
+        description: candidate pathogenic variant(s) for this subject
+        dataType: mref
+        refEntity: solverd_variants_variantinfo
+      
+      - name: organisation
+        label: Organisation
+        description: Name of the organisation that submitted Subject
+        dataType: mref
+        refEntity: solverd_info_organisations
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+      
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: mref
+        refEntity: solverd_info_erns
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+        
+      - name: solved
+        label: solved
+        description: Solved Case for Solve-RD (true/false)
+        dataType: bool
+        
+      - name: date_solved
+        label: DateSolved
+        description: Date Solved
+        dataType: date
+        
+      - name: remarks
+        label: Remarks
+        description: Remarks about this Subject (Relevant for SOLVE-RD project)
+        dataType: text
+        
+      - name: consent
+        label: Consent
+        dataType: compound
+        tags: NCIT_C16735 http://purl.obolibrary.org/obo/NCIT_C16735
+        
+      - name: matchMakerPermission
+        label: MatchMaker Permission
+        description: If true, permission is given for MatchMaking (boolean)
+        dataType: bool
+        partOfAttribute: consent
+        
+      - name: noIncidentalFindings
+        label: No Incidental Findings
+        description: If true, do NOT report incidental findings back (boolean)
+        dataType: bool
+        partOfAttribute: consent
+        tags: ICO_0000178 http://purl.obolibrary.org/obo/ICO_0000178
+        
+      - name: recontact
+        label: Recontact Incidental findings
+        description: Recontact is allowed in case of incidental findings
+        dataType: categorical
+        refEntity: solverd_lookups_noyesunknown
+        partOfAttribute: consent
+        tags: NCIT_C25737 http://purl.obolibrary.org/obo/NCIT_C25737
+        
+      - name: retracted
+        label: Retracted Subject
+        description: Is the subject retracted or not
+        dataType: categorical
+        refEntity: solverd_lookups_noyesunknown
+  
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      - name: dateRecordCreated
+        nillable: false
+        dataType: date
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      - name: recordCreatedBy
+        nillable: false
+        dataType: xref
+        refEntity: solverd_info_persons
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      - name: dateRecordUpdated
+        dataType: date
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        dataType: xref
+        refEntity: solverd_info_persons
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+    
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+    
+  - name: subjectinfo
+    label: Solve-RD Subject Information
+    description: Additional information about subjects included in RD3
+    tags: ExO_0000127 http://purl.obolibrary.org/obo/ExO_0000127
+    attributes:
+
+      - name: subjectID
+        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+        idAttribute: true
+        nillable: false
+        labelAttribute: true
+        lookupAttribute: true
+        tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
+      
+      - name: dateOfBirth
+        dataType: int
+        description: The year in which a person was born.
+        tags: NCIT_C83164 http://purl.obolibrary.org/obo/NCIT_C83164
+        
+      - name: ageAtDeath
+        dataType: int
+        description: The age at which death occurred.
+        tags: NCIT_C135383 http://purl.obolibrary.org/obo/NCIT_C135383
+      
+      - name: ageOfOnset
+        dataType: xref
+        refEntity: solverd_lookups_phenotype
+        description: Age (in years) of onset of clinical manifestations related to the disease of the patient.
+        tags: Orphanet_C023 http://www.orpha.net/ORDO/Orphanet_C023
+      
+      - name: ageAtDiagnosis
+        dataType: int
+        description: The age (in years), measured from some defined time point (e.g. birth) at which a patient is diagnosed with a disease.
+        tags: SNOMEDCT_423493009 http://purl.bioontology.org/ontology/SNOMEDCT/423493009
+        
+      - name: countryOfBirth
+        description: The country that this person was born in.
+        dataType: categorical
+        refEntity: solverd_lookups_country
+        tags: GENEPIO_0001094 http://purl.obolibrary.org/obo/GENEPIO_0001094
+        
+      - name: consanguinity_suspected
+        label: Consanguinity suspected
+        description: subject consanguinity (yes,no)
+        dataType: bool
+        tags: OMIT_0004546 http://purl.obolibrary.org/obo/OMIT_0004546
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+      
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      - name: dateRecordCreated
+        nillable: false
+        dataType: date
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      - name: recordCreatedBy
+        nillable: false
+        dataType: xref
+        refEntity: solverd_info_persons
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      - name: dateRecordUpdated
+        dataType: date
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        dataType: xref
+        refEntity: solverd_info_persons
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+    
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+    
+  - name: samples
+    label: Solve-RD Samples
+    description: Samples used as input for analyses in RD3
+    tags: SCDO_0002829 http://purl.obolibrary.org/obo/SCDO_0002829
+    attributes:
+    
+      - name: sampleID
+        idAttribute: true
+        nillable: false
+        description: Name or other identifier of an entry from a biosample database.
+        tags: EDAM_3273 http://edamontology.org/data_3273
+        
+      - name: alternativeIdentifier
+        description: A backup sequence of characters used to identify an entity.
+        tags: NCIT_C90353 http://purl.obolibrary.org/obo/NCIT_C90353
+        
+      - name: belongsToSubject
+        label: subjectID
+        dataType: xref
+        refEntity: solverd_subjects
+        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+        tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
+        
+      - name: ageAtSampling
+        label: ageAtSampling
+        description: age at sampling/ First contact with specialised centre (COMMON DATA ELEMENTS 4.1)
+        dataType: int
+        
+      - name: sex1
+        label: Claimed sex
+        description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
+        dataType: categorical
+        refEntity: solverd_lookups_sex
+        
+      - name: sex2
+        label: Observed sex
+        description: Computed sex (based on Y- chromosome)
+        dataType: categorical
+        refEntity: solverd_lookups_sex
+        
+      - name: pathologicalState
+        description: The pathological state of the tissue from which this material was derived. (GO:0001894)
+        dataType: xref
+        refEntity: solverd_lookups_pathologicalstate
+        tags: GO_0001894 http://purl.obolibrary.org/obo/GO_0001894
+        
+      - name: percentageTumorCells
+        description: The percentage of tumor cells compared to total cells present in this material. (NCIT:C127771)
+        dataType: decimal
+        tags: NCIT_C127771 http://purl.obolibrary.org/obo/NCIT_C127771
+        
+      - name: tissueType
+        label: Tissue Types
+        dataType: xref
+        refEntity: solverd_lookups_tissueType
+        tags: NCIT_C70713 http://purl.obolibrary.org/obo/NCIT_C70713
+        
+      - name: extractedProtocol
+        label: Extracted Protocol
+        tags: EFO_0005518 http://www.ebi.ac.uk/efo/EFO_0005518
+        
+      - name: materialType
+        label: materialType
+        description: material type. E.g. DNA
+        dataType: mref
+        refEntity: solverd_lookups_materialType
+        
+      - name: flag
+        label: QC failed
+        description: QC failed (True /False)
+        dataType: bool
+        
+      - name: organisation
+        label: organisation
+        description: Name of the organisation. E.g. University Medical Center Groningen
+        dataType: xref
+        refEntity: solverd_info_organisations
+        
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: xref
+        refEntity: solverd_info_erns
+        
+      - name: retracted
+        label: Retracted Sample
+        dataType: categorical
+        refEntity: solverd_lookups_noyesunknown
+        
+      - name: dateAvailable
+        label: Date available
+        description: Date that a file became visible to sandbox/RD3
+        dataType: date  
+      
+      - name: anatomicalLocation
+        dataType: xref
+        refEntity: solverd_lookups_anatomicallocation
+        description: Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken.
+        tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264
+        
+      - name: batch
+        description: Sample batch number
+        tags: NCIT_C67073 http://purl.obolibrary.org/obo/NCIT_C67073
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+      
+      - name: includedInStudies
+        dataType: mref
+        refEntity: solverd_info_studies
+        description: Reference to the study or studies in which this person participates.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: includedInCohorts
+        dataType: mref
+        refEntity: solverd_info_cohorts
+        description: A group of individuals, identified by a common characteristic.
+        tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
+      
+      - name: includedInDatasets
+        dataType: mref
+        refEntity: solverd_info_datasets
+        description: Reference to the dataset or datasets in which this person was assigned to.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      - name: dateRecordCreated
+        nillable: false
+        dataType: date
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      - name: recordCreatedBy
+        nillable: false
+        dataType: xref
+        refEntity: solverd_info_persons
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      - name: dateRecordUpdated
+        dataType: date
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        dataType: xref
+        refEntity: solverd_info_persons
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+    
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+  
+  - name: labinfo
+    label: Solve-RD Experiments
+    description: Information or proceesses in the lab that are linked to samples
+    attributes:
+    
+      - name: experimentID
+        idAttribute: true
+        nillable: false
+        labelAttribute: true
+        lookupAttribute: true
+    
+      - name: sampleID
+        description: Name or other identifier of an entry from a biosample database.
+        dataType: mref
+        refEntity: solverd_samples
+        tags: NCIT_C93400 http://purl.obolibrary.org/obo/NCIT_C93400
+        
+      - name: capture
+        label: Enrichment kit
+        description: Enrichment kit
+      
+      - name: libraryType
+        label: Library Source
+        description: Library Source, e.g Genomic/Transcriptomic
+        dataType: categorical
+        refEntity: solverd_lookups_libraryType
+        
+      - name: flowcell
+        description: flowcell information
+      
+      - name: barcode
+        description: A machine-readable representation of information in a visual format on a surface.
+        tags: NCIT_C43361 http://purl.obolibrary.org/obo/NCIT_C43361
+        
+      - name: samplePosition
+        description: lane, or possition in well (A1 t/mH12)
+      
+      - name: library
+        description: link to more information about the library used in experiment
+        dataType: mref
+        refEntity: solverd_lookups_library
+        
+      - name: sequencingCentre
+        description: An organization that provides sequence determination service
+        dataType: xref
+        refEntity: solverd_info_organisations
+        tags: OBI_0001891 http://purl.obolibrary.org/obo/OBI_0001891
+        
+      - name: sequencer
+        description: The used product name and model number of a manufacturer's genomic (dna) sequencer.
+        tags: GENEPIO_0001921 http://purl.obolibrary.org/obo/GENEPIO_0001921
+        
+      - name: seqType
+        description: Method used to determine the order of bases in a nucleic acid sequence.
+        dataType: mref
+        refEntity: solverd_lookups_seqType
+        tags: FIX_0000704 http://purl.obolibrary.org/obo/FIX_0000704
+        
+      - name: arrayID
+        description: arrayID
+        
+      - name: mean_cov
+        label: MeanCov
+        description: Mean read depth
+        dataType: decimal
+        
+      - name: c20
+        label: C20
+        description: Percentage of nucleotides within the Region of interest that is covered by at least 20 reads
+        dataType: decimal
+        
+      - name: retracted
+        label: Retracted Experiment
+        description: Is the experiment retracted or not
+        dataType: categorical
+        refEntity: solverd_lookups_noyesunknown
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+      
+      - name: includedInStudies
+        dataType: mref
+        refEntity: solverd_info_studies
+        description: Reference to the study or studies in which this person participates.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: includedInCohorts
+        dataType: mref
+        refEntity: solverd_info_cohorts
+        description: A group of individuals, identified by a common characteristic.
+        tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
+      
+      - name: includedInDatasets
+        dataType: mref
+        refEntity: solverd_info_datasets
+        description: Reference to the dataset or datasets in which this person was assigned to.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+    
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      - name: dateRecordCreated
+        nillable: false
+        dataType: date
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      - name: recordCreatedBy
+        nillable: false
+        dataType: xref
+        refEntity: solverd_info_persons
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      - name: dateRecordUpdated
+        dataType: date
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        dataType: xref
+        refEntity: solverd_info_persons
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+    
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+    
+  - name: files
+    label: Solve-RD Files
+    description: Individuals files stored in the sandbox environments. Files are linked to subjects, samples, and experiments, as well as with EGA accession number.
+    tags: NCIT_C42883 http://purl.obolibrary.org/obo/NCIT_C42883
+    attributes:
+    
+      - name: EGA
+        description: The literal identifier for an electronic file (EGA Accession number).
+        nillable: false
+        unique: true
+        idAttribute: true
+        labelAttribute: true
+        readOnly: true
+        lookupAttribute: true
+        tags: NCIT_C171191 http://purl.obolibrary.org/obo/NCIT_C171191
+      
+      - name: name
+        dataType: text
+        description: The literal identifier for an electronic file.
+        tags: NCIT_C171191 http://purl.obolibrary.org/obo/NCIT_C171191
+      
+      - name: md5
+        label: Checksum
+        description: A 32-character hexadecimal number that is computed on a file.
+        tags: NCIT_C171276 http://purl.obolibrary.org/obo/NCIT_C171276
+        
+      - name: fileFormat
+        description: type of file (BAM, FastQ, gVCF, phenopacket, BED, etc.)
+        dataType: categorical
+        refEntity: solverd_lookups_typeFile
+        nillable: false
+        aggregateable: true
+        tags: NCIT_C171252 http://purl.obolibrary.org/obo/NCIT_C171252
+
+      - name: subjectID
+        description: One or more subject identifier associated with a file
+        dataType: mref
+        refEntity: solverd_subjects
+        
+      - name: sampleID
+        description: One more more sample identifier associated with a file
+        dataType: mref
+        refEntity: solverd_samples
+        tags: NCIT_C93400 http://purl.obolibrary.org/obo/NCIT_C93400
+
+      - name: experimentID
+        description: Identifier of the corresponding record in the labinfo table
+        dataType: xref
+        refEntity: solverd_labinfo
+        tags: NCIT_C171337 http://purl.obolibrary.org/obo/NCIT_C171337
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+      
+      - name: fenderFilePath
+        label: Fender file path
+        description: The location of the file on Fender
+        tags: NCIT_C47922 http://purl.obolibrary.org/obo/NCIT_C47922
+        
+      - name: gearshiftFilePath
+        label: Gearshift file path
+        description: The location of the file on Gearshift
+        tags: NCIT_C47922 http://purl.obolibrary.org/obo/NCIT_C47922
+        
+      - name: includedInStudies
+        dataType: mref
+        refEntity: solverd_info_studies
+        description: Reference to the study or studies in which this person participates.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+        
+      - name: includedInCohorts
+        dataType: mref
+        refEntity: solverd_info_cohorts
+        description: A group of individuals, identified by a common characteristic.
+        tags: NCIT_C61512 http://purl.obolibrary.org/obo/NCIT_C61512
+      
+      - name: includedInDatasets
+        dataType: mref
+        refEntity: solverd_info_datasets
+        description: Reference to the dataset or datasets in which this person was assigned to.
+        tags: RO_0000056 http://purl.obolibrary.org/obo/RO_0000056
+    
+      - name: recordMetadata
+        dataType: compound
+        description: metadata is data that provides information about data.
+        tags: SIO_001330 http://semanticscience.org/resource/SIO_001330
+        
+      - name: dateRecordCreated
+        nillable: false
+        dataType: date
+        description: The date on which the activity or entity is created.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C164483 http://purl.obolibrary.org/obo/NCIT_C164483
+        
+      - name: recordCreatedBy
+        nillable: false
+        dataType: xref
+        refEntity: solverd_info_persons
+        description: Indicates the person or authoritative body who brought the item into existence.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C42628 http://purl.obolibrary.org/obo/NCIT_C42628
+
+      - name: dateRecordUpdated
+        dataType: date
+        description: The date (and time) on which report was updated after it had been submitted.
+        partOfAttribute: recordMetadata
+        tags: NCIT_C93629 http://purl.obolibrary.org/obo/NCIT_C93629
+
+      - name: wasUpdatedBy
+        description: An entity which is updated by another entity or an agent.
+        partOfAttribute: recordMetadata
+        dataType: xref
+        refEntity: solverd_info_persons
+        tags: reproduceme_wasUpdatedBy https://w3id.org/reproduceme#wasUpdatedBy
+    
+      - name: comments
+        description: A written explanation, observation or criticism added to textual material.
+        partOfAttribute: recordMetadata
+        dataType: text
+        tags: NCIT_C25393 http://purl.obolibrary.org/obo/NCIT_C25393
+        
+  - name: overview
+    label: RD3 Overview
+    description: Overview on RD3 Subjects, samples, and experiments
+    tags: NCIT_C80271 http://purl.obolibrary.org/obo/NCIT_C80271
+    attributes:
+    
+      - name: subjectID
+        description: An individual who is the subject of personal data, persons to whom data refers, and from whom data are collected, processed, and stored.
+        idAttribute: true
+        nillable: false
+        labelAttribute: true
+        lookupAttribute: true
+        tags: NCIT_C142495 http://purl.obolibrary.org/obo/NCIT_C142495
+      
+      - name: sex1
+        label: Claimed sex
+        description: Claimed Sex / Sex at birth (can be different from observed sex, see sample)
+        dataType: xref
+        refEntity: solverd_lookups_sex
+      
+      - name: fid
+        label: FamilyID
+        description: A domestic group, or a number of domestic groups linked through descent (demonstrated or stipulated) from a common ancestor, marriage, or adoption.
+        tags: NCIT_C25173 http://purl.obolibrary.org/obo/NCIT_C25173
+        
+      - name: mid
+        label: MaternalID
+        description: Identifier indicating a reference to mother of the subject
+        dataType: xref
+        refEntity: solverd_subjects
+        tags: NCIT_C89336 http://purl.obolibrary.org/obo/NCIT_C89336
+        
+      - name: pid
+        label: PaternalID
+        description: Identifier indicating a reference to father of the subject
+        dataType: xref
+        refEntity: solverd_subjects
+        tags: NCIT_C94324 http://purl.obolibrary.org/obo/NCIT_C94324
+        
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+        
+      - name: hasOnlyNovelOmics
+        description: If true, this subject does not have data in any data freeze (1,2,3,etc.)
+        dataType: bool
+        
+      - name: organisation
+        label: Organisation
+        description: Name of the organisation that submitted Subject
+        dataType: mref
+        refEntity: solverd_info_organisations
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+      
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: mref
+        refEntity: solverd_info_erns
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
+        
+      - name: clinical_status
+        label: Affected status
+        description: whether it is an affected individual (main disease) Yes/No
+        dataType: bool
+        tags: NCIT_C64917 http://purl.obolibrary.org/obo/NCIT_C64917
+        
+      - name: solved
+        dataType: bool
+        description: Solved status for RD3 (True/False)
+        
+      - name: phenotype
+        label: phenotype
+        description: Phenotype based on Human Phenotype Ontology (HPO)
+        dataType: mref
+        refEntity: solverd_lookups_phenotype
+        tags: NCIT_C16977 http://purl.obolibrary.org/obo/NCIT_C16977
+        
+      - name: hasNotPhenotype
+        label: hasNotPhenotype
+        description: Relevant Phenotype NOT present in subject
+        dataType: mref
+        refEntity: solverd_lookups_phenotype
+        tags: HL7_C0442737 http://purl.bioontology.org/ontology/HL7/C0442737
+        
+      - name: disease
+        label: disease
+        description: if affected, which MAIN disease code(s) apply to subject
+        dataType: mref
+        refEntity: solverd_lookups_disease
+        tags: NCIT_C15607 http://purl.obolibrary.org/obo/NCIT_C15607
+
+      - name: subjectData
+        dataType: compound
+
+      - name: numberOfSamples
+        label: Total Number of Samples
+        description: Number of samples derived from a subject
+        dataType: int
+        partOfAttribute: subjectData
+        
+      - name: samples
+        description: All samples derived from a subject
+        dataType: mref
+        refEntity: solverd_samples
+        partOfAttribute: subjectData
+        
+      - name: numberOfExperiments
+        label: Total Number of Experiments
+        dataType: int
+        partOfAttribute: subjectData
+        
+      - name: experiments
+        description: All experiments associated with a subject
+        dataType: mref
+        refEntity: solverd_labinfo
+        partOfAttribute: subjectData
+        
+      # - name: numberOfFiles
+      #   label: Total Number of Files
+      #   dataType: int
+      #   partOfAttribute: subjectData
+        
+      - name: files
+        description: Files associated with a subject
+        dataType: hyperlink
+        # refEntity: solverd_files
+        partOfAttribute: subjectData

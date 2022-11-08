@@ -22,11 +22,11 @@ import json
 
 # connect to database
 
-# rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-# rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
-rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 def getExperiment(table,sample):
   """Get Experiment
@@ -91,7 +91,6 @@ def createUrlFilter(entity, attribute, value):
 rd3._print('Pull data from overview table....')
 data = rd3.get(entity = 'rd3_overview', attributes = "subjectID,fid,samples")
 
-
 # ~ 1a ~
 # extract sample identifiers
 rd3._print('Building patient metadata....')
@@ -110,17 +109,14 @@ for row in tqdm(data):
         }
         patientdata.append(newrecord)
 
-
 # ~ 1b ~
 # Get EID from RD3
 rd3._print('Retrieving experiment data....')
 for row in tqdm(patientdata):
   row['experiment'] = getExperiment(row['table'], row['sampleID'])
 
-
 # ~ 1c ~
 # Generate Data Explorer URLS for use in the Vue application
-
 rd3._print('Generating Data Explorer urls....')
 patientsamples = dt.Frame(patientdata)
 
@@ -141,7 +137,6 @@ patientsamples['experimentHref'] = dt.Frame([
   if d[0] and d[1] else None
   for d in patientsamples[:, ['table', 'experiment']].to_tuples()
 ])
-
 
 # ~ 1d ~
 # compile dataset
@@ -206,7 +201,7 @@ for id in tqdm(subjectidentifiers):
 
   counter += 1
   jsonData.append(patientRow)
-  
+
 
 #//////////////////////////////////////
 
@@ -215,6 +210,7 @@ for id in tqdm(subjectidentifiers):
 
 # reconnecting to database
 rd3._print('Refreshing database connection....')
+rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 rd3._print('Importing data....')

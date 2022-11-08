@@ -52,11 +52,8 @@ del file
 # RD3 `rd3_freeze[x]_subject` where `[x]` is the freeze that the new PED files
 # are tied to (e.g., `rd3_freeze2_subject`).
 #
-#   - `id`: the molgenis row ID; a concatenation of subject ID and release
 #   - `subjectID`: RD3 P number
-#   - `sex`: patient's sex
-#   - `fid`: family ID
-#
+# 
 # It isn't necessary to run extensive checks that compare PED file data with
 # the values that are in RD3 as PED files should be considered the most
 # up to date.

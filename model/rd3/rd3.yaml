@@ -20,8 +20,8 @@
 name: solverd
 label: Solve-RD RD3 (New Model)
 description: Solve-RD RD3 database 
-version: 2.0-beta-0.9.6
-date: 2022-11-07
+version: 2.0-beta-0.9.7
+date: 2022-11-08
 
 # set package defaults
 defaults:
@@ -109,7 +109,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
         
@@ -286,7 +286,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
@@ -435,7 +435,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
@@ -575,7 +575,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
@@ -689,7 +689,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
       
@@ -801,7 +801,7 @@ entities:
         
       - name: partOfRelease
         description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
-        dataType: categorical_mref
+        dataType: mref
         refEntity: solverd_info_datareleases
         tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
         
@@ -880,13 +880,13 @@ entities:
         refEntity: solverd_labinfo
         partOfAttribute: subjectData
         
-      - name: numberOfFiles
-        label: Total Number of Files
-        dataType: int
-        partOfAttribute: subjectData
+      # - name: numberOfFiles
+      #   label: Total Number of Files
+      #   dataType: int
+      #   partOfAttribute: subjectData
         
       - name: files
         description: Files associated with a subject
-        dataType: mref
-        refEntity: solverd_files
+        dataType: hyperlink
+        # refEntity: solverd_files
         partOfAttribute: subjectData

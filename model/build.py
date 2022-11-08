@@ -2,7 +2,7 @@
 # FILE: build.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-10-03
-# MODIFIED: 2022-10-06
+# MODIFIED: 2022-11-08
 # PURPOSE: Build RD3 EMX-YAML Models
 # STATUS: stable
 # PACKAGES: yamlemxconvert
@@ -21,6 +21,10 @@ rd3 = Convert(files=[
 
 rd3.convert()
 rd3.compileSemanticTags()
+
+for row in rd3.attributes:
+  if row['dataType'] == 'categorical_mref':
+    row['dataType'] = 'categoricalmref'
 
 filename = f"rd3.{rd3.version}"
 rd3.write(name=filename, outDir="dist")

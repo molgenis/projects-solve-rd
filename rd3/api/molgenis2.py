@@ -12,7 +12,7 @@
 import molgenis.client as molgenis
 from os.path import abspath
 import numpy as np
-from datetime import datetime
+import datetime
 import tempfile
 import pytz
 import csv

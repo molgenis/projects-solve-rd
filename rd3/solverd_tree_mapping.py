@@ -87,13 +87,8 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # pull all available subjects
 subjects = dt.Frame(
-  rd3.get(
-    'solverd_subjects',
-    attributes = 'subjectID,fid',
-    batch_size=10000
-  )
+  rd3.get('solverd_subjects', attributes = 'subjectID,fid', batch_size=10000)
 )
-subjectIDs = subjects['subjectID'].to_list()[0]
 
 # get sample metadata
 solverdSamples = rd3.get(
@@ -148,8 +143,7 @@ samples.key = 'sampleID'
 experiments.key = 'sampleID'
 
 summarizedDT = experiments[:, :, dt.join(samples)][
-  f.belongsToSubject!=None,
-  (f.belongsToSubject, f.sampleID, f.experimentID)
+  f.belongsToSubject!=None, (f.belongsToSubject, f.sampleID, f.experimentID)
 ][:, :, dt.sort(f.belongsToSubject)]
 
 
@@ -161,12 +155,9 @@ samples['missing'] = dt.Frame([
   for id in tqdm(samples['sampleID'].to_list()[0])
 ])
 
-# join
 summarizedDT = dt.rbind(
   summarizedDT,
-  samples[
-    f.missing, (f.belongsToSubject, f.sampleID)
-  ][f.belongsToSubject != None, :],
+  samples[f.missing, (f.belongsToSubject, f.sampleID)][f.belongsToSubject != None, :],
   force=True
 )
 
@@ -190,10 +181,7 @@ subjects['missing'] = dt.Frame([
 # join and update names
 summarizedDT = dt.rbind(
   summarizedDT,
-  subjects[f.missing, {
-    'belongsToSubject': f.subjectID,
-    'fid': f.fid
-  }],
+  subjects[f.missing, { 'belongsToSubject': f.subjectID, 'fid': f.fid }],
   force = True
 )
 
@@ -241,12 +229,11 @@ for (index, id) in enumerate(tqdm(treeDataSubjects)):
   )
   
   # compile json if there are sampleIDs
-  subjectSamples = dt.unique(subjectData['sampleID']).to_list()[0]
-  if bool(subjectSamples):
+  sampleIDs = dt.unique(subjectData['sampleID']).to_list()[0]
+  if bool(sampleIDs) and (str(sampleIDs) != '[None]'):
     subjectJson['children'] = []
     
     # loop through sampleIDs
-    sampleIDs = subjectData['sampleID'].to_list()[0]
     for (sampleIndex, sampleID) in enumerate(sampleIDs):
       sampleJson = initSubJson(
         index = f"{index}.{sampleIndex}",
@@ -257,8 +244,8 @@ for (index, id) in enumerate(tqdm(treeDataSubjects)):
       )
       
       # detect experiment IDs
-      experimentIDs = subjectData[f.sampleID == sampleID, 'experimentID'].to_list()[0]
-      if bool(experimentIDs):
+      experimentIDs = dt.unique(subjectData[f.sampleID==sampleID, f.experimentID]).to_list()[0]
+      if bool(experimentIDs) and (str(experimentIDs) != '[None]'):
         sampleJson['children'] = []
         for (experimentIndex, experimentID) in enumerate(experimentIDs):
           experimentJson = initSubJson(
@@ -272,7 +259,6 @@ for (index, id) in enumerate(tqdm(treeDataSubjects)):
       
       # add sample json object to subject json
       subjectJson['children'].append(sampleJson)
-  
   # add subject json to treedata record for this subject
   newRow['json'] = json.dumps(subjectJson)
   treedata = dt.rbind(treedata, newRow, force=True)
@@ -284,8 +270,6 @@ treedata.names = {
 }
 
 treedata = treedata[f.id != '', :]
-
-treedata.to_csv('data/rd3stats_treedata.csv')
 
 #///////////////////////////////////////////////////////////////////////////////
 

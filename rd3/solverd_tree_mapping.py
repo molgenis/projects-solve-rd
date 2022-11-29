@@ -20,6 +20,27 @@ from rd3.api.molgenis2 import Molgenis
 from tqdm import tqdm
 import json
 
+def initJson(index, subjectID, familyID):
+  baseUrl='/menu/plugins/dataexplorer?entity=solverd_subjects'
+  url = f"{baseUrl}&filter=subjectID%3Dq%3D{subjectID}"
+  return {
+    'id': f"RD-{index}",
+    'subjectID': subjectID,
+    'familyID': familyID,
+    'group': 'patient',
+    'href': url
+  }
+  
+def initSubJson(index, id, group, table, tableAttr):
+  baseUrl = f"/menu/plugins/dataexplorer?entity=solverd_{table}"
+  url=f"{baseUrl}&filter={tableAttr}%3Dq%3D{id}"
+  return {
+    'id': f"RD-{index}",
+    'name': id,
+    'group': group,
+    'href': url
+  }
+
 # connect to database
 # rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
 # rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
@@ -189,28 +210,6 @@ summarizedDT = dt.rbind(
 summarizedDT = summarizedDT[
   :, :, dt.sort(f.belongsToSubject, f.sampleID, f.experimentID)
 ]
-
-
-def initJson(index, subjectID, familyID):
-  baseUrl='/menu/plugins/dataexplorer?entity=solverd_subjects'
-  url = f"{baseUrl}&filter=subjectID%3Dq%3D{subjectID}"
-  return {
-    'id': f"RD-{index}",
-    'subjectID': subjectID,
-    'familyID': familyID,
-    'group': 'patient',
-    'href': url
-  }
-  
-def initSubJson(index, id, group, table, tableAttr):
-  baseUrl = f"/menu/plugins/dataexplorer?entity=solverd_{table}"
-  url=f"{baseUrl}&filter={tableAttr}%3Dq%3D{id}"
-  return {
-    'id': f"RD-{index}",
-    'name': id,
-    'group': group,
-    'href': url
-  }
    
 # ~ 1b.v ~ 
 # Compile JSON

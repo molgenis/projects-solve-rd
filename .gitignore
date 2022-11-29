@@ -5,7 +5,7 @@ node_modules
 
 # python
 __pycache__/
-
+venv
 
 # R files
 .Rproj.user

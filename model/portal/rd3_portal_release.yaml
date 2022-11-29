@@ -21,14 +21,13 @@
 #
 #//////////////////////////////////////////////////////////////////////////////
 
-
 # define package
 name: rd3_portal_release
 label: Releases
 description: Intermediate tables for RD3 releases
 parent: rd3_portal
-# version: 1.1.0
-# date: 2022-01-31
+version: 1.1.0
+date: 2022-01-31
 
 # Defaults:
 # Set default attribute options. By default, all rows are given an auto ID

@@ -2,7 +2,7 @@
 # FILE: rd3_portal_novelomics.yaml
 # AUTHOR: davidruvolo51
 # CREATED: 2021-10-11
-# MODIFED: 2022-02-03
+# MODIFED: 2022-11-29
 # PURPOSE: EMX for novelomics portal tables
 # DEPENDENCIES: NA
 # COMMENTS: This file contains the EMX markup for the RD3 Portal novel omics
@@ -17,8 +17,8 @@ name: rd3_portal_novelomics
 label: Novel Omics
 description: Staging tables for novel omics sample and experiment metadata
 parent: rd3_portal
-version: 1.5.0
-date: 2022-05-30
+version: 1.6.0
+date: 2022-11-29
 
 # set defaults for both tables
 defaults:
@@ -149,6 +149,12 @@ entities:
         
       - name: tumor_cell_fraction
         description: the percentange of tumor cells compared to total cells present in this material
+        dataType: string
+        
+      - name: anatomical_location
+        dataType: string
+        
+      - name: extracted_protocol
         dataType: string
         
       # record metadata attributes (for internal use only)

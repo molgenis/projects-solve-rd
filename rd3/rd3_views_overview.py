@@ -16,6 +16,7 @@ load_dotenv()
 sys.path.append(environ['SYS_PATH'])
 
 from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import statusMsg
 from datatable import dt, f, as_type
 import re
 
@@ -48,14 +49,15 @@ def uniqueValuesById(data, groupby, column, dropDuplicates=True, keyGroupBy=True
 # ~ 0 ~
 # Fetch RD3 Data
 
+statusMsg('Connecting to RD3....')
 # rd3=Molgenis(environ['MOLGENIS_ACC_HOST'])
 # rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-
 rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
 
 # ~ 0a ~
 # Pull All Subject Metadata
+statusMsg('Pulling subject metadata....')
 rawsubjects = rd3.get(
   'solverd_subjects',
   batch_size=10000,
@@ -138,7 +140,7 @@ del subjects['_href']
 
 # ~ 1b ~
 # fetch sample metadata
-
+statusMsg('Pulling sample metadata....')
 rawsamples = rd3.get(
   'solverd_samples',
   batch_size=10000,
@@ -154,6 +156,7 @@ samples=dt.Frame(rawsamples)
 del samples['_href']
 
 # summarize sampleIDs by subjectID
+statusMsg('Summarising sample metadata by subject....')
 samplesBySubject = uniqueValuesById(
   data = samples[:, (f.belongsToSubject, f.sampleID)],
   groupby='belongsToSubject',
@@ -161,6 +164,8 @@ samplesBySubject = uniqueValuesById(
 )
 
 # summarize number of samples per subject
+statusMsg('Preparing sample data for join....')
+
 sampleCountsBySubject = samples[:, dt.count(), dt.by(f.belongsToSubject)]
 sampleCountsBySubject.key = 'belongsToSubject'
 
@@ -172,6 +177,7 @@ samplesBySubject.names = {
 }
 
 # join data
+statusMsg('Joining sample metadata with subjects....')
 subjects.key = 'subjectID'
 samplesBySubject.key = 'subjectID'
 subjects = subjects[:, :, dt.join(samplesBySubject)]
@@ -180,7 +186,7 @@ subjects = subjects[:, :, dt.join(samplesBySubject)]
 
 # ~ 0c ~    
 # fetch experiment metadata
-
+statusMsg('Pulling experiment metadata....')
 rawexperiments = rd3.get(
   'solverd_labinfo',
   batch_size=10000,
@@ -196,11 +202,13 @@ experiments=dt.Frame(rawexperiments)
 del experiments['_href']
 
 # join subject ID
+statusMsg('Joining experiment data with samples....')
 experiments.key = 'sampleID'
 samples.key = 'sampleID'
 experiments = experiments[:, :, dt.join(samples)]
 
 # summarize data
+statusMsg('Summarizing experiment data by subject and generating counts....')
 experimentCountsBySubject = experiments[:, dt.count(f.experimentID), dt.by(f.belongsToSubject)]
 experimentCountsBySubject.names = {'experimentID': 'numberOfExperiments'}
 
@@ -217,6 +225,7 @@ experimentCountsBySubject.key = 'belongsToSubject'
 experimentsBySubject = experimentsBySubject[:, :, dt.join(experimentCountsBySubject)]
 
 # join with main dataset
+statusMsg('Joining experiment data with subjects....')
 experimentsBySubject.names = {'experimentID': 'experiments', 'belongsToSubject': 'subjectID'}
 experimentsBySubject.key = 'subjectID'
 subjects.key = 'subjectID'
@@ -234,12 +243,14 @@ subjects = subjects[:, :, dt.join(experimentsBySubject)]
 #     for id in subjects['subjectID'].to_list()[0]
 # ])
 
+statusMsg('Init file columns (always none; for now)')
 subjects['files'] = None
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
 # Import Data
+statusMsg('Detecting novel omics only samples....')
 
 # compute 'hasOnlyNovelOmics' stauts
 subjects['hasOnlyNovelOmics'] = dt.Frame([
@@ -248,6 +259,7 @@ subjects['hasOnlyNovelOmics'] = dt.Frame([
 ])
 
 # prep columns
+statusMsg('Renaming columns....')
 subjects[
   :, dt.update(
     hasOnlyNovelOmics = as_type(f.hasOnlyNovelOmics, str),
@@ -257,6 +269,7 @@ subjects[
 )]
 
 # import
+statusMsg('Importing overview dataset into RD3.....')
 rd3.importDatatableAsCsv('solverd_overview', data = subjects)
 
 # fileTypeQuery="typeFile=in=(bai,bam,bed,cram,fastq,vcf)" # remove json and ped for now

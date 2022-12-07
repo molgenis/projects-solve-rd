@@ -2,14 +2,14 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2022-11-15
+# MODIFIED: 2022-12-07
 # PURPOSE: Import new novelomics data
 # STATUS: in.progress
 # PACKAGES: NA
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
-from datatable import dt, f, as_type
+from datatable import dt, f, first, as_type
 from dotenv import load_dotenv
 from os import environ
 from tqdm import tqdm
@@ -63,6 +63,11 @@ def flattenDataset(data, columnPatterns=None):
   return newData
 
 def getWrappedValues(value):
+  """Get Wrapped Values
+  In a string, extract the value between two parentheses.
+  @param value a string that may or may not contain parentheses
+  @return string or none
+  """
   search = re.search(r'([\(].*?[\)])', value)
   if search:
     match=search.group()
@@ -117,10 +122,7 @@ del shipmentDT['_href']
 # of a new or existing release. As of now, all shipment mantifests will
 # contain new "releases" or updates to an existing one. It isn't necessary to 
 # indicate patches for novel omics releases when importing new sample data.
-releaseinfo = dt.Frame(
-  rd3.get('solverd_info_datareleases', attributes = 'id')
-)['id']
-
+releaseinfo = dt.Frame(rd3.get('solverd_info_datareleases', attributes = 'id'))['id']
 releases = dt.unique(shipmentDT['type_of_analysis'])[:, {
   'id': f.type_of_analysis,
   'type': 'freeze',
@@ -168,7 +170,6 @@ if releases[f.isNewRelease, :].nrows > 0:
 # Make sure all unique incoming ERN values are mapped to an official ERN code
 # in RD3.
 erns = dt.Frame(rd3.get('solverd_info_erns',attributes='id'))['id']
-
 ernMappings = toKeyPairs(
   data = dtFrameToRecords(data = erns),
   keyAttr='id',
@@ -211,15 +212,12 @@ for value in incomingOrgValues:
     print(f"Value '{value}' not in Organistion mappings")
 
 # if there are new values enter them here
-# organisationMappings.update({
-  
-# })
+# organisationMappings.update({ ... })
 
 #///////////////////////////////////////
 
 # ~ 1d ~
 # Create tissue type mappings
-
 tissueTypes = dt.Frame(
   rd3.get('solverd_lookups_tissueType', attributes='id')
 )['id']
@@ -258,10 +256,13 @@ tissueTypeMappings.update({
 # ~ 1e ~
 # Create anatomical location mappings
 
+# As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
+# to a more specific term
 anatomicalLocationMappings = {
   'chest skin': '74160004', # Skin of Chest
   'skin scalp': '43067004', # Skin of Scalp
-  'right retro auricular skin': '244080005', # TODO: confirm; Entire skin of postauricular region
+  'right retro auricular skin': '244080005', # Entire skin of postauricular region
+  'skin': '314818000', # Skin Tissue
 }
 
 # check incoming data, update mappings (if applicable), and rerun
@@ -269,19 +270,16 @@ incomingAnatomicalValues = dt.unique(
   shipmentDT[f.anatomical_location != None, 'anatomical_location']
 ).to_list()[0]
 for value in incomingAnatomicalValues:
-  if value not in anatomicalLocationMappings:
+  if value.lower() not in anatomicalLocationMappings:
     print(f"Value '{value}' not in anatomical location mappings")
 
 # if there are mappings, update here. 
-# anatomicalLocationMappings.update({
-  
-# })
+# anatomicalLocationMappings.update({ ... })
 
 #///////////////////////////////////////
 
 # ~ 1f ~
 # Create material type mappings
-
 materialTypes = dt.Frame(
   rd3.get('solverd_lookups_materialType', attributes='id')
 )['id']
@@ -334,9 +332,7 @@ for value in incomingPathologicalStateValues:
     print(f"Value '{value}' does not exist in pathological state mappings")
 
 # if there are any values, enter them below ->
-# pathologicalStateMappings.update({
-#  'affected': '' # TODO: update when we've received confirmation
-# })
+# pathologicalStateMappings.update({ ... })
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -405,7 +401,6 @@ shipmentDT['extracted_protocol'] = dt.Frame([
 if 'alternative_sample_identifier' not in shipmentDT.names:
   shipmentDT['alternative_sample_identifier']=None
 
-
 if 'pathological_state' in shipmentDT.names:
   shipmentDT['pathological_state'] = dt.Frame([
     recodeValue(
@@ -418,7 +413,6 @@ if 'pathological_state' in shipmentDT.names:
   ])
 else:
   shipmentDT['pathological_state'] = None
-  
 
 if 'tumor_cell_fraction' in shipmentDT.names:
   shipmentDT['tumor_cell_fraction'] = dt.Frame([
@@ -483,14 +477,10 @@ shipmentDT['isNewSample'] = dt.Frame([
 ])
 
 shipmentDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample)]
-
-shipmentDT[(f.isNewSubject==False) & (f.isNewSample ==False),:]
-
-#///////////////////////////////////////
+# shipmentDT[(f.isNewSubject==False) & (f.isNewSample ==False),:]
 
 # ~ 1g ~
 # Rename columns
-
 shipmentDT.names = {
   'participant_subject': 'subjectID',
   'sample_id': 'sampleID',
@@ -503,180 +493,216 @@ shipmentDT.names = {
 
 #///////////////////////////////////////////////////////////////////////////////
 
+# ~ 2 ~
+# Validate existing subjects and samples for conflicts
+# For all incoming samples that already exist in RD3, it is important to check
+# for any conflicts between the two records as these will need to be resolved
+# independently. The following attributes must be checked.
+#
+# - subjectID: was the sample incorrectly associated with a subject?
+# - tissueType: flag conflicts for review
+# - materialType: flag conflicts for review
+# - batchNumber: add if not already present
+# - extractedProtocol: add if not already present
+# - anatomicalLocation: flag conflicts for review
+# - pathologicalState: flag conflicts for review
+# - alternativeSampleIdentifiers: add if not already present
+# - percentageTumorCells: flag conflicts for review
+# - partOfRelease: add if not already present
+#
+# Some attributes can be automatically updated with out review (see notes above).
 
+samplesToValidate = shipmentDT[(f.isNewSubject==False) & (f.isNewSample==False),:]
+samplesToCompare = samplesDT[
+  functools.reduce(
+    operator.or_,
+    (f.sampleID == value for value in samplesToValidate['sampleID'].to_list()[0])
+  ),
+  :
+]
 
+# define object that will store all conflicting data
+incomingSamplesWithConflicts = []
+potentialConflictColumns = [
+  'subjectID',
+  'tissueType',
+  'materialType',
+  'extractedProtocol',
+  'anatomicalLocation',
+  'pathologicalState',
+  'percentageTumorCells',
+]
 
+# define object that will stored rows that can be updated without review
+# for these cases, confirm that the incoming value does not exist for this
+# record (in the string). If it does not, join the two strings.
+existingSamplesThatCanBeUpdated = []
+nonConflictColumns =[ 
+  'batchNumber',
+  'alternativeSampleIdentifiers',
+  'partOfRelease'
+]
 
+for id in tqdm(samplesToValidate['sampleID'].to_list()[0]):
+  incomingSample = dtFrameToRecords(samplesToValidate[f.sampleID==id, :])[0]
+  existingSample = dtFrameToRecords(samplesToCompare[f.sampleID==id, :])[0]
 
-
-
-# ~ 0 ~
-# Connect to DB and get data
-# data = dt.Frame(pd.read_excel('data/shipment_metadata.xlsx'))
-# data[:, dt.update(sample_id=as_type(f.sample_id, str))]
-# data.names = { 'sample_id': 'sampleID', 'tissue_types': 'tissueType' }
-
-# solverdSamples = rd3.get('solverd_samples', batch_size=1000)
-# solverdSamples[:1]
-# flatten all nested attributes (xref, mref)
-# columnPatterns = r'id|subjectID|value'
-# for row in tqdm(solverdSamples):
-#   if '_href' in row:
-#     del row['_href']
-#   for column in row.keys():
-#     if isinstance(row[column], dict):
-#       if bool(row[column]):
-#         columnMatch = re.search(columnPatterns, ','.join(row[column].keys()))
-#         if bool(columnMatch):
-#           row[column] = row[column][columnMatch.group()]
-#         else:
-#           print(f'Variable {column} is type "dict", but no target column found')
-#       else:
-#         row[column] = None
-#     if isinstance(row[column], list):
-#       if bool(row[column]):
-#         values = []
-#         for nestedrow in row[column]:
-#           columnMatch = re.search(columnPatterns, ','.join(nestedrow.keys()))
-#           if bool(columnMatch):
-#             values.append(nestedrow[columnMatch.group()])
-#           else:
-#             print(f'Variable {column} is type "list", but no target column found')
-#         if bool(values):
-#           row[column] = ','.join(values)
-#       else:
-#         row[column] = None
-
-# samples = dt.Frame(solverdSamples)
-
-# ~ 1 ~
-# Update columns
-
-# find matching samples only
-# matchingSamples = samples[
-#   functools.reduce(
-#     operator.or_,
-#     (f.sampleID == str(item) for item in data['sampleID'].to_list()[0])
-#   ), :
-# ]
-
-# # do matching samples match new data?
-# matchingSamples.nrows == data.nrows
-
-# # ~ 1a ~
-# # update tissueTypes -- make sure there are no unique values
-# dt.unique(matchingSamples['tissueType'])
-# del matchingSamples['tissueType']
-
-# # join data
-# tissueTypes = data[:, (f.sampleID, f.tissueType)]
-# tissueTypes.key = 'sampleID'
-# matchingSamples.key = 'sampleID'
-# matchingSamples = matchingSamples[:, :, dt.join(tissueTypes)]
-
-
-# # ~ 1b ~
-# # Update materialTypes
-# dt.unique(matchingSamples['materialType'])
-# matchingSamples[:, dt.count(), dt.by(f.partOfRelease, f.materialType)]
-
-# materialTypes = data[:, (f.sampleID, f.materialType, f.pathological_state)]
-# materialTypes.names = {'materialType': 'materialType2'}
-# materialTypes.key = 'sampleID'
-# matchingSamples.key = 'sampleID'
-# matchingSamples = matchingSamples[:, :, dt.join(materialTypes)]
-
-# materialTypeMatches = matchingSamples[
-#   :, {
-#     'sampleID': f.sampleID,
-#     'partOfRelease': f.partOfRelease,
-#     'materialType_Original': f.materialType,
-#     'materialType_Updated': f.materialType2,
-#     'pathologicalState_Original': f.pathologicalState,
-#     'pathologicalState_Updated': f.pathological_state,
-#   }
-# ]
-
-# materialTypeMatches['match'] = dt.Frame([
-#   ( row[0] == row[1] ) if (row[0] is not None) and (row[1] is not None) else None
-#   for row in materialTypeMatches[:, (f.materialType_Original, f.materialType_Updated)].to_tuples()
-# ])
-
-# materialTypeMatches \
-#   .to_pandas() \
-#   .replace({ np.nan: None }) \
-#   .to_excel('data/novelomics_material_type_discrepancies.xlsx',index=False)
+  # identify records that require manually verification
+  for column in potentialConflictColumns:
+    if (column in incomingSample) and (column in existingSample):
+      if incomingSample[column] != existingSample[column]:
+        print(f"Incoming sample {id} has conflicting {column} values")
+        incomingSamplesWithConflicts.append({
+          'incomingValue': incomingSample[column],
+          'existingValue': existingSample[column],
+          'message': f"values in {column} do not match"
+        })
   
-# del matchingSamples['materialType2']
+  # identify columns that can automatically imported
+  for column in nonConflictColumns:
+    if (column in incomingSample) and (column in existingSample):
+      if incomingSample[column] not in existingSample[column]:
+        newRow = {'sampleID': id, 'subjectID': incomingSample['subjectID'] }
+        newRow[column] =  ','.join(
+          list(set([existingSample[column], incomingSample[column]]))
+        )
+        existingSamplesThatCanBeUpdated.append(newRow)
 
-# # dt.unique(matchingSamples['pathologicalState'])
-# # matchingSamples[:, dt.count(), dt.by(f.partOfRelease, f.pathologicalState)]
+numIssues=len(incomingSamplesWithConflicts)
+numUpdates = len(existingSamplesThatCanBeUpdated)
+print(f"Detcted {numIssues} conflict{'s'[:numIssues^1]} that require manual verification")
+print(f"Detected {numUpdates} update{'s'[:numUpdates^1]} that can be imported without review")
 
-# # ~ 1c ~
-# # Update batch
+#///////////////////////////////////////////////////////////////////////////////
 
-# batchData = data[:, (f.sampleID, f.batch)]
-# batchData.key = 'sampleID'
-# matchingSamples.key = 'sampleID'
-# matchingSamples = matchingSamples[:, :, dt.join(batchData)]
+# ~ 2 ~
+# Import data
+# Data will be imported using several methods.
+#
+# 1) IMPORT NEW SUBJECTS: All new subjects should be imported first. Metadata
+#    should be also imported into the `subjectinfo` table. Import using the
+#    `importDataTableAsCsv` method.
+# 2) IMPORT NEW SAMPLES: All new samples can be imported as is. Select columns
+#    and import using `importDataTableAsCsv`. Make sure release information
+#    is updated in the subjects table.
+# 3) UPDATING RECORDS: Using the object `existingSamplesThatCanBeUpdated`,
+#    batch update each attribute.
 
-# matchingSamples['batch'] = dt.Frame([
-#   ','.join(row) if not (row[1] in row[0]) else row[0]
-#   for row in matchingSamples[:, ['batch', 'batch.0']].to_tuples()
-# ])
+shipmentDT['dateRecordCreated'] = timestamp()
+shipmentDT['recordCreatedBy'] = 'rd3-bot'
 
-# del matchingSamples['batch.0']
+# ~ 2a ~
+# Import new subject metadata
+newSubjects = shipmentDT[
+  f.isNewSubject,
+  (
+    f.subjectID,
+    f.organisation,
+    f.ERN,
+    f.partOfRelease,
+    f.dateRecordCreated,
+    f.recordCreatedBy
+  )
+][:, first(f[:]), dt.by(f.subjectID)]
 
-# # ~ 1d ~
-# # Update alternativeIdentifiers
-# dt.unique(matchingSamples['alternativeIdentifier'])
-# del matchingSamples['alternativeIdentifier']
+rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
+rd3.importDatatableAsCsv(
+  pkg_entity='solverd_subjectinfo',
+  data = newSubjects[
+    :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
+  ]
+)
 
-# altIDs = data[:, (f.sampleID, f.external_sample_ID)]
-# altIDs.names = { 'external_sample_ID': 'alternativeIdentifier' }
-# altIDs.key = 'sampleID'
-# matchingSamples.key = 'sampleID'
+# ~ 2b ~
+# Import new sample metadata
+newSamples = shipmentDT[
+  f.isNewSample,
+  (
+    f.sampleID,
+    f.alternativeIdentifier,
+    f.subjectID,
+    f.tissueType,
+    f.materialType,
+    f.pathologicalState,
+    f.percentageTumorCells,
+    f.partOfRelease,
+    f.batch,
+    f.organisation,
+    f.ERN,
+    f.dateRecordCreated,
+    f.recordCreatedBy
+  )
+]
 
-# matchingSamples = matchingSamples[:, :, dt.join(altIDs)]
+newSamples.names = {'subjectID': 'belongsToSubject'}
+
+rd3.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
+
+# ~ 2c ~
+# Update Columns
+# Importing update metadata is split into two parts based on column names. Data
+# will either go into the subjects or samples table.
+
+existingSamplesThatCanBeUpdated = dt.Frame(existingSamplesThatCanBeUpdated)
+
+# records to update in subjects
+for column in existingSamplesThatCanBeUpdated.names:
+  if column in ['partOfRelease']:
+    print(f"Updating column {column}....")
+    rd3.batchUpdate(
+      pkg_entity='solverd_subjects',
+      column = column,
+      data = dtFrameToRecords(
+        data = existingSamplesThatCanBeUpdated[:, ['subjectID', column]]
+      )
+    )
+
+# records to update in samples
+for column in existingSamplesThatCanBeUpdated.names:
+  if column in nonConflictColumns:
+    print(f"Updating column {column}....")
+    rd3.batchUpdate(
+      pkg_entity='solverd_samples',
+      column=column,
+      data=dtFrameToRecords(
+        data = existingSamplesThatCanBeUpdated[:, ['sampleID', column]]
+      )
+    )
 
 
-# # ~ 1d ~
-# # Add extractedProtocol based on tissue type
-# # If the material is "Tissue (*)"", the extracted protocol should receive the
-# # the content in the parentheses (e.g., 'FFPE', 'FROZEN', etc.). If the material
-# # is different than the what already exists in RD3, then the material type should
-# # remain as existing value.
-# extractedProtocol = data[:, (f.sampleID, f.materialType)]
-# extractedProtocol['extractedProtocol'] = dt.Frame([
-#   getWrappedValues(value)
-#   if value is not None else value
-#   for value in extractedProtocol['materialType'].to_list()[0]
-# ])
 
-# del extractedProtocol['materialType']
-# extractedProtocol.key = 'sampleID'
-# matchingSamples.key = 'sampleID'
+#///////////////////////////////////////
 
-# matchingSamples=matchingSamples[:, :, dt.join(extractedProtocol)]
+# ~ 2d ~
+# Update processed status in the portal table
+# Create a list of all molgenis IDs where 
 
+portalRecordsToUpdate = dt.Frame(
+  existingSamplesThatCanBeUpdated['sampleID'].to_list()[0] + newSamples['sampleID'].to_list()[0]
+)
+portalRecordsToUpdate.names = {'C0': 'sampleID'}
 
-# #///////////////////////////////////////////////////////////////////////////////
+# (f.sampleID == value for value in samplesToValidate['sampleID'].to_list()[0])
+molgenisIDs = shipmentDT[
+  functools.reduce(
+    operator.or_,
+    (f.sampleID == value for value in portalRecordsToUpdate['sampleID'].to_list()[0])
+  ),
+  (f.sampleID, f.molgenis_id)
+]
 
-# # ~ 2 ~
-# # Import data
+molgenisIDs.key = 'sampleID'
+portalRecordsToUpdate.key = 'sampleID'
+portalRecordsToUpdate = portalRecordsToUpdate[:, :, dt.join(molgenisIDs)]
 
-# # importData = matchingSamples[:, (f.sampleID, f.tissueType)] \
-# # importData = matchingSamples[:, (f.sampleID, f.alternativeIdentifier)] \
-# importData = matchingSamples[:, (f.sampleID, f.extractedProtocol)] \
-#   .to_pandas() \
-#   .replace({ np.nan: None }) \
-#   .to_dict('records')
+portalRecordsToUpdate['processed'] = True
+portalRecordsToUpdate[:, dt.update(processed = as_type(f.processed, str))]
 
-# for row in tqdm(importData):
-#   print(f"Updating {row['sampleID']}....")
-#   response=rd3.update_one(
-#     entity = 'solverd_samples',
-#     id_=row['sampleID'],
-#     attr="extractedProtocol",
-#     value = row['extractedProtocol']
-#   )
+rd3.batchUpdate(
+  pkg_entity='rd3_portal_novelomics_shipment',
+  column = 'processed',
+  data = dtFrameToRecords(portalRecordsToUpdate[:, (f.molgenis_id, f.processed)])
+)
+
+# logout
+rd3.logout()

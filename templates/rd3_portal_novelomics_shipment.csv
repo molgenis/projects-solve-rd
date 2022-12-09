@@ -1,1 +1,1 @@
-sample_id,participant_subject,type_of_analysis,tissue_type,sample_type,solve_rd_experiment_id,batch,organisation,ERN,CNAG_barcode,alternative_sample_identifier,pathological_state,tumor_cell_fraction
+"sample_id","participant_subject","type_of_analysis","tissue_type","sample_type","solve_rd_experiment_id","batch","organisation","ERN","CNAG_barcode","alternative_sample_identifier","pathological_state","tumor_cell_fraction","anatomical_location","extracted_protocol"

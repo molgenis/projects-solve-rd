@@ -45,6 +45,10 @@ def unpackPhenotypicFeatures(data):
   for row in data:
     if 'type' in row:
       hpoId = row['type']['id'].replace('HP:','HP_')
+      hpoId = hpoId.replace('\n','').strip()
+      hpoId = re.sub('^(P:)', 'HP:', hpoId)
+      if re.search('^(HP[0-9]{1,})', hpoId):
+        hpoId = hpoId.replace('HP', 'HP:')
       if not (hpoId in result['phenotype']) and not (hpoId in result['hasNotPhenotype']):
         if row.get('negated'):
           if row['negated']:

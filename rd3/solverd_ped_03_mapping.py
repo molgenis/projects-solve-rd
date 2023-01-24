@@ -150,11 +150,11 @@ releases = pedDT[f.partOfRelease != None, (f.subjectID, f.partOfRelease)]
 #   data = dtFrameToRecords(releases)
 # )
 
-rd3_prod.updateColumn(
-  entity = 'solverd_subjects',
-  attr = 'partOfRelease',
-  data = dtFrameToRecords(releases)
-)
+# rd3_prod.updateColumn(
+#   entity = 'solverd_subjects',
+#   attr = 'partOfRelease',
+#   data = dtFrameToRecords(releases)
+# )
      
 # disconnect
 rd3_acc.logout()

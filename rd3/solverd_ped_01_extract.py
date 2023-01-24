@@ -4,7 +4,7 @@
 # CREATED: 2023-01-23
 # MODIFIED: 2023-01-23
 # PURPOSE: extract contents from PED files
-# STATUS: in.progress
+# STATUS: stable
 # PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
@@ -30,8 +30,11 @@ def readTextFile(file):
   return data
 
 # set release
-currentRelease = 'novelwgs_original'
-pathToCurrentRelease = '/Users/davidcruvolo/Desktop/RD3/SolveRD_NovelOmics_PEDs'
+currentRelease = 'freeze1_patch3'
+pathToCurrentRelease = '/Users/davidcruvolo/Desktop/RD3/SolveRD_DF1-3_PEDs'
+
+# currentRelease = 'novelwgs_original'
+# pathToCurrentRelease = '/Users/davidcruvolo/Desktop/RD3/SolveRD_NovelOmics_PEDs'
 # cluster = clustertools('corridor+fender')
 
 # connect to RD3

@@ -2,7 +2,7 @@
 #' FILE: rd3_phenopacket_02_validation.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-02
-#' MODIFIED: 2022-09-07
+#' MODIFIED: 2023-01-24
 #' PURPOSE: process new phenopacket data
 #' STATUS: stable
 #' PACKAGES: **see below**

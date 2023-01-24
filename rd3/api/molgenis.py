@@ -36,7 +36,8 @@ class Molgenis(molgenis.Session):
     def _POST(self, url: str = None, data: list = None, label: str=None):
         response = self._session.post(
             url = url,
-            headers = self._get_token_header_with_content_type(),
+            # headers = self._get_token_header_with_content_type(),
+            headers = self._headers.ct_token_header,
             data = json.dumps({'entities': data})
         )
             
@@ -46,7 +47,8 @@ class Molgenis(molgenis.Session):
     def _PUT(self, url: str=None, data: list=None, label: str=None):
         response = self._session.put(
             url = url,
-            headers = self._get_token_header_with_content_type(),
+            # headers = self._get_token_header_with_content_type(),
+            headers = self._headers.ct_token_header,
             data = json.dumps({'entities': data})
         )    
         self._checkResponseStatus(response, label)

@@ -9,11 +9,12 @@
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.utils import timestamp, dtFrameToRecords
-from rd3.api.molgenis import Molgenis
+from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import timestamp
+from datatable import dt, f, as_type
 from dotenv import load_dotenv
-from datatable import dt, f
 from os import environ
+from tqdm import tqdm
 load_dotenv()
 
 def uniqueStringValues(value, separator=','):
@@ -21,9 +22,9 @@ def uniqueStringValues(value, separator=','):
   values = value.split(separator)
   return ','.join(list(set(values)))
 
-#///////////////////////////////////////
+#///////////////////////////////////////////////////////////////////////////////
 
-# ~ 0 ~
+# ~ 1 ~
 # Get Data
 
 # Connect to RD3: acc and prod
@@ -36,7 +37,104 @@ rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-# ~ 0a ~ 
+
+# ~ 1a ~
+# Retrieve subject IDs
+
+subjects = rd3_prod.get('solverd_subjects', batch_size=10000)
+
+# collapse everything
+for row in subjects:
+  del row['_href']
+  del row['includedInStudies']
+  del row['includedInCohorts']
+  del row['includedInDatasets'] 
+  del row['variant']
+  if row.get('sex1'):
+    row['sex1'] = row['sex1']['id']
+  
+  if row.get('mid'):
+    row['mid'] = row['mid']['subjectID']
+  
+  if row.get('pid'):
+    row['pid'] = row['pid']['subjectID']
+  
+  if bool(row.get('disease')):
+    row['disease'] = ','.join([ d['id'] for d in row['disease'] ])
+  else:
+    row['disease'] = None
+    
+  if bool(row.get('phenotype')):
+    row['phenotype'] = ','.join([ d['id'] for d in row['phenotype'] ])
+  else:
+    row['phenotype'] = None
+  
+  if bool(row.get('hasNotPhenotype')):
+    row['hasNotPhenotype'] = ','.join([ d['id'] for d in row['hasNotPhenotype'] ])
+  else:
+    row['hasNotPhenotype'] = None
+  
+  if row.get('partOfRelease'):
+    row['partOfRelease'] = ','.join([ d['id'] for d in row['partOfRelease'] ])
+    
+  if bool(row.get('ERN')):
+    row['ERN'] = ','.join([ d['id'] for d in row['ERN'] ])
+  else:
+    row['ERN'] = None
+    
+  if bool(row.get('organisation')):
+    row['organisation'] = ','.join([ d['value'] for d in row['organisation'] ])
+  else:
+    row['organisation'] = None
+  
+  if row.get('recontact'):
+    row['recontact'] = row['recontact']['id']
+  
+  if row.get('retracted'):
+    row['retracted'] = row['retracted']['id']
+  
+  if row.get('recordCreatedBy'):
+    row['recordCreatedBy'] = row['recordCreatedBy']['id']
+    
+  if row.get('wasUpdatedBy'):
+    row['wasUpdatedBy'] = row['wasUpdatedBy']['id']
+
+
+# convert to datatable object
+subjectsDT = dt.Frame(subjects)
+subjectsDT[:, dt.update(clinical_status=as_type(f.clinical_status, 'str'))]
+
+# pull subjectIDs
+subjectsIDs = subjectsDT['subjectID'].to_list()[0]
+
+#///////////////////////////////////////
+
+# ~ 1b ~
+# Get Subject INfo data
+
+subjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=10000)
+
+for row in subjectinfo:
+  del row['_href']
+  
+  if bool(row.get('ageOfOnset')):
+    row['ageOfOnset'] = row['ageOfOnset']['id']
+  
+  if row.get('partOfRelease'):
+    row['partOfRelease'] = ','.join([ d['id'] for d in row['partOfRelease'] ])
+
+  if row.get('recordCreatedBy'):
+    row['recordCreatedBy'] = row['recordCreatedBy']['id']
+    
+  if row.get('wasUpdatedBy'):
+    row['wasUpdatedBy'] = row['wasUpdatedBy']['id']
+
+subjectinfoDT = dt.Frame(subjectinfo)
+subjectinfoDT[:, dt.update(dateOfBirth=as_type(f.dateOfBirth,str))]
+
+#///////////////////////////////////////
+
+# ~ 1c ~ 
 # Retrieve phenopacket data
 phenopacketsDT = dt.Frame(
   rd3_prod.get(
@@ -47,40 +145,20 @@ phenopacketsDT = dt.Frame(
 
 phenopacketsDT.names = {
   'dateofBirth': 'dateOfBirth',
-  'phenopacketsID': 'mostRecentPhenopacketFile'
+  'phenopacketsID': 'mostRecentPhenopacketFile',
+  # 'releasesWhereSubjectExists': 'partOfRelease'
 }
 
 del phenopacketsDT[:, ['clusterRelease', 'releasesWhereSubjectExists']]
 del phenopacketsDT['_href']
 
-# ~ 0b ~
-# Retrieve subject IDs
-# until all subjects have been added to RD3 run this
-subjectsIDs = dt.Frame(
-  rd3_prod.get(
-    entity = 'solverd_subjects',
-    attributes = 'subjectID',
-    batch_size=10000
-  )
-)['subjectID'].to_list()[0]
 
+# make sure all subjects exist. Remove (temporarily) non-existent subjects
 phenopacketsDT['subjectExists'] = dt.Frame([
-  id in subjectsIDs
-  for id in phenopacketsDT['subjectID'].to_list()[0]
+  id in subjectsIDs for id in phenopacketsDT['subjectID'].to_list()[0]
 ])
-
 phenopacketsDT[:, dt.count(), dt.by(f.subjectExists)]
 phenopacketsDT = phenopacketsDT[f.subjectExists, :]
-
-
-# rename releases column to RD3 terminology
-# phenopacketsDT.names = {'releasesWhereSubjectExists': 'partOfRelease'}
-
-# set id: append subjectIDs with '_original' as it's the primary key
-# phenopacketsDT['id'] = dt.Frame([
-#   f'{subjectID}_original'
-#   for subjectID in phenopacketsDT['subjectID'].to_list()[0]
-# ])
 
 # make sure current freeze is in the patch
 # phenopacketsDT['partOfRelease'] = dt.Frame([
@@ -107,14 +185,14 @@ dt.unique(phenopacketsDT['subjectID']).nrows == phenopacketsDT.nrows
 
 # find unique phenopackets releases
 # if there is more than one release
-filesReleaseDates = phenopacketsDT[:, f.mostRecentPhenopacketFile]
-filesReleaseDates['dates'] = dt.Frame([
-  value.split('.')[1]
-  for value in filesReleaseDates['mostRecentPhenopacketFile'].to_list()[0]
-])
+# filesReleaseDates = phenopacketsDT[:, f.mostRecentPhenopacketFile]
+# filesReleaseDates['dates'] = dt.Frame([
+#   value.split('.')[1]
+#   for value in filesReleaseDates['mostRecentPhenopacketFile'].to_list()[0]
+# ])
 
-dt.unique(filesReleaseDates['dates'])
-filesReleaseDates[:, dt.count(f.mostRecentPhenopacketFile), dt.by(f.dates)]
+# dt.unique(filesReleaseDates['dates'])
+# filesReleaseDates[:, dt.count(f.mostRecentPhenopacketFile), dt.by(f.dates)]
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -138,179 +216,40 @@ filesReleaseDates[:, dt.count(f.mostRecentPhenopacketFile), dt.by(f.dates)]
 #   - associated SolveRD releases: `partOfRelease`
 #
 
+phenopacketIDs = phenopacketsDT['subjectID'].to_list()[0]
 
-# ~ 1a ~
-# Init Import Object
-# To make the import a bit easier, we will create an object that we can use to
-# loop over when it is time to build and import the data.
+for id in tqdm(phenopacketIDs):
+  newData = phenopacketsDT[f.subjectID == id, :]
+  
+  subjectsDT[f.subjectID==id, 'sex1'] = newData['sex1'].to_list()[0]
+  subjectsDT[f.subjectID==id, 'phenotype'] = newData['phenotype'].to_list()[0]
+  subjectsDT[f.subjectID==id, 'hasNotPhenotype'] = newData['hasNotPhenotype'].to_list()[0]
+  subjectsDT[f.subjectID==id, 'disease'] = newData['disease'].to_list()[0]
+  subjectsDT[
+    f.subjectID==id,
+    'mostRecentPhenopacketFile'
+  ] = newData['mostRecentPhenopacketFile'].to_list()[0]
+  
+  if 'dateOfBirth' in newData.names:
+    if newData['dateOfBirth'].to_list()[0] != [None]:
+      subjectinfoDT[f.subjectID==id, 'dateOfBirth'] = newData['dateOfBirth'].to_list()[0]
+  
+  if 'ageOfOnset' in newData.names:
+    if newData['ageOfOnset'].to_list()[0] != [None]:
+      subjectinfoDT[f.subjectID==id, 'ageOfOnset'] = newData['ageOfOnset'].to_list()[0]
 
-datasetsToImport = {
-  # subjects
-  'sex1': None,
-  'phenotype': None,
-  'hasNotPhenotype': None,
-  'disease': None,
-  'mostRecentPhenopacketFile': None,
-  # subject info
-  'dateOfBirth': None,
-  'ageOfOnset': None,
-  # 'partOfRelease': None
-}
+  subjectsDT[f.subjectID==id, 'dateRecordUpdated'] = timestamp()
+  subjectsDT[f.subjectID==id, 'wasUpdatedBy'] = 'rd3-bot'
+  subjectinfoDT[f.subjectID==id, 'dateRecordUpdated'] = timestamp()
+  subjectinfoDT[f.subjectID==id, 'wasUpdatedBy'] = 'rd3-bot'
 
-# create datasets
-for column in datasetsToImport:
-  if column in phenopacketsDT.names:
-    datasetsToImport[column] = phenopacketsDT[f[column] != None, (f.subjectID, f[column])]
 
-# manually create columns
-datasetsToImport['dateRecordUpdated'] = phenopacketsDT[
-  :,
-  {
-    'subjectID': f.subjectID,
-    'dateRecordUpdated': timestamp()
-  }
-]
+# import
+rd3_acc.importDatatableAsCsv('solverd_subjects', subjectsDT)
+rd3_acc.importDatatableAsCsv('solverd_subjectinfo', subjectinfoDT)
 
-datasetsToImport['wasUpdatedBy'] = phenopacketsDT[
-  :,
-  {
-    'subjectID': f.subjectID,
-    'wasUpdatedBy': 'rd3-bot'
-  }
-]
-
-# check
-datasetsToImport['sex1']
-datasetsToImport['phenotype']
-datasetsToImport['hasNotPhenotype']
-datasetsToImport['disease']
-datasetsToImport['dateOfBirth']
-datasetsToImport['ageOfOnset']
-datasetsToImport['mostRecentPhenopacketFile']
-
-#///////////////////////////////////////
-
-# ~ 1b ~
-# Import data into ACC AND PROD
-# You can automate this, but it's best to import each dataset one-by-one in case
-# there are any errors.
-
-# Import sex1
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'sex1',
-#   data = dtFrameToRecords(datasetsToImport['sex1'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'sex1',
-#   data = dtFrameToRecords(datasetsToImport['sex1'])
-# )
-
-# Import phenotype
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'phenotype',
-#   data = dtFrameToRecords(datasetsToImport['phenotype'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'phenotype',
-#   data = dtFrameToRecords(datasetsToImport['phenotype'])
-# )
-
-# Import hasNotPhenotype
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'hasNotPhenotype',
-#   data = dtFrameToRecords(datasetsToImport['hasNotPhenotype'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'hasNotPhenotype',
-#   data = dtFrameToRecords(datasetsToImport['hasNotPhenotype'])
-# )
-
-# Import disease
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'disease',
-#   data = dtFrameToRecords(datasetsToImport['disease'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'disease',
-#   data = dtFrameToRecords(datasetsToImport['disease'])
-# )
-
-# Import dateOfBirth
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjectinfo',
-#   attr = 'dateOfBirth',
-#   data = dtFrameToRecords(datasetsToImport['dateOfBirth'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjectinfo',
-#   attr = 'dateOfBirth',
-#   data = dtFrameToRecords(datasetsToImport['dateOfBirth'])
-# )
-
-# Import ageOfOnset (if available)
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjectinfo',
-#   attr = 'ageOfOnset',
-#   data = dtFrameToRecords(datasetsToImport['ageOfOnset'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjectinfo',
-#   attr = 'ageOfOnset',
-#   data = dtFrameToRecords(datasetsToImport['ageOfOnset'])
-# )
-
-# import phenopacketsID
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'mostRecentPhenopacketFile',
-#   data = dtFrameToRecords(datasetsToImport['mostRecentPhenopacketFile'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'mostRecentPhenopacketFile',
-#   data = dtFrameToRecords(datasetsToImport['mostRecentPhenopacketFile'])
-# )
-
-# import dateRecordUpdated
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'dateRecordUpdated',
-#   data = dtFrameToRecords(datasetsToImport['dateRecordUpdated'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'dateRecordUpdated',
-#   data = dtFrameToRecords(datasetsToImport['dateRecordUpdated'])
-# )
-
-# import wasUpdatedBy
-# rd3_acc.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'wasUpdatedBy',
-#   data = dtFrameToRecords(datasetsToImport['wasUpdatedBy'])
-# )
-
-# rd3_prod.updateColumn(
-#   entity = 'solverd_subjects',
-#   attr = 'wasUpdatedBy',
-#   data = dtFrameToRecords(datasetsToImport['wasUpdatedBy'])
-# )
+rd3_prod.importDatatableAsCsv('solverd_subjects', subjectsDT)
+rd3_prod.importDatatableAsCsv('solverd_subjectinfo', subjectinfoDT)
 
 # logout
 rd3_acc.logout()

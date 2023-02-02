@@ -2,7 +2,7 @@
 # FILE: rd3_ped_02_validation.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-21
-# MODIFIED: 2023-01-24
+# MODIFIED: 2023-02-02
 # PURPOSE: Validate new PED data
 # STATUS: stable
 # PACKAGES: datatable, os, tqdm, dotenv
@@ -16,13 +16,11 @@ from os import environ
 from tqdm import tqdm
 load_dotenv()
 
-# currentRelease = 'freeze3_patch1'
+rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
 rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-
-rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +28,7 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # Get data from RD3
 
 # get subject patch information to join later on
-subjects = rd3.get(
+subjects = rd3_prod.get(
   entity = 'solverd_overview',
   attributes='subjectID,partOfRelease',
   batch_size=10000
@@ -48,7 +46,7 @@ subjects = dt.Frame(subjects)[:,['subjectID','partOfRelease']]
 subjectIDs = dt.unique(subjects['subjectID']).to_list()[0]
 
 # Get sex codes
-sexcodes = dt.Frame(rd3.get('solverd_lookups_sex'))['id'].to_list()[0]
+sexcodes = dt.Frame(rd3_prod.get('solverd_lookups_sex'))['id'].to_list()[0]
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +55,7 @@ sexcodes = dt.Frame(rd3.get('solverd_lookups_sex'))['id'].to_list()[0]
 # Pull data from the data from the rd3_portal. Validate subject identifier and
 # merge release data.
 
-pedDT = dt.Frame(rd3.get(entity='rd3_portal_cluster_ped', batch_size = 10000))
+pedDT = dt.Frame(rd3_prod.get(entity='rd3_portal_cluster_ped', batch_size = 10000))
 del pedDT['_href']
 
 # ~ 1a ~
@@ -76,8 +74,8 @@ pedDT = pedDT[:, :, dt.join(subjects)]
 pedDT.names = {'partOfRelease': 'releasesWhereSubjectExists'}
 
 # import
-rd3.importDatatableAsCsv(pkg_entity = 'rd3_portal_cluster_ped', data = pedDT)
-# rd3_acc.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_ped', data=pedDT)
+rd3_prod.importDatatableAsCsv(pkg_entity = 'rd3_portal_cluster_ped', data = pedDT)
+rd3_acc.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_ped', data=pedDT)
 
 #///////////////////////////////////////////////////////////////////////////////
 

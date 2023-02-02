@@ -26,8 +26,8 @@ name: rd3_portal_release
 label: Releases
 description: Intermediate tables for RD3 releases
 parent: rd3_portal
-version: 1.1.0
-date: 2022-01-31
+version: 1.2.0
+date: 2023-01-25
 
 # Defaults:
 # Set default attribute options. By default, all rows are given an auto ID
@@ -129,17 +129,22 @@ entities:
   
   # Define tables for new releases below
 
-  - name: freeze2
-    label: Data Freeze 2
-    description: Staging table for raw DF2 data
-    extends: rd3_portal_release_attrTmplate
+  # - name: freeze2
+  #   label: Data Freeze 2
+  #   description: Staging table for raw DF2 data
+  #   extends: rd3_portal_release_attrTmplate
     
-  - name: freeze3
-    label: Data Freeze 3
-    description: Staging table for raw DF3 data
-    extends: rd3_portal_release_attrTmplate
+  # - name: freeze3
+  #   label: Data Freeze 3
+  #   description: Staging table for raw DF3 data
+  #   extends: rd3_portal_release_attrTmplate
     
-  - name: novelwgs
-    label: Novel Omics WGS
-    description: Staging table for raw Novel Omics WGS data
+  # - name: novelwgs
+  #   label: Novel Omics WGS
+  #   description: Staging table for raw Novel Omics WGS data
+  #   extends: rd3_portal_release_attrTmplate
+
+  - name: patches
+    label: All patches
+    description: Staging table for all patches
     extends: rd3_portal_release_attrTmplate

@@ -39,8 +39,8 @@ rd3.write_schema(path="model/schemas/rd3.md")
 
 portal = Convert(files = [
   'model/portal/rd3_portal.yaml',
-  # 'model/portal/rd3_portal_release.yaml',
-  'model/portal/rd3_portal_novelomics.yaml',
+  'model/portal/rd3_portal_release.yaml',
+  # 'model/portal/rd3_portal_novelomics.yaml',
   # 'model/portal/rd3_portal_cluster.yaml'
 ])
 

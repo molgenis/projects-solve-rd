@@ -2,7 +2,7 @@
 #' FILE: rd3_phenopacket_02_validation.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-02
-#' MODIFIED: 2023-01-24
+#' MODIFIED: 2023-02-02
 #' PURPOSE: process new phenopacket data
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -67,11 +67,6 @@ rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # ~ 0b ~
-# Set release
-# This is the Phenopacket release as indicated by the original file path
-currentRelease = 'freeze3_patch1'
-
-# ~ 0c ~
 # get subject patch information to join later on
 subjects = rd3.get(
   entity = 'solverd_overview',
@@ -91,7 +86,7 @@ subjectIDs = dt.unique(subjects['subjectID']).to_list()[0]
 # len(subjectIDs) == subjects.nrows
 del subjects['_href']
 
-# ~ 0d ~
+# ~ 0c ~
 # Get HPO terms
 knownHpoCodes = dt.Frame(
   rd3.get(
@@ -141,11 +136,15 @@ phenopacketDT['releasesWhereSubjectExists'] = dt.Frame([
 # phenopacketDT[f.releasesWhereSubjectExists==None, :]
 
 # import
-rd3.importDatatableAsCsv(
+rd3_acc.importDatatableAsCsv(
   pkg_entity='rd3_portal_cluster_phenopacket',
   data = phenopacketDT
 )
 
+rd3.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data = phenopacketDT
+)
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -214,6 +213,11 @@ phenopacketDT['dateofBirth'] = dt.Frame([
 dt.unique(phenopacketDT['dateofBirth'])
 
 # If everything looks good, then import into RD3
+rd3_acc.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data = phenopacketDT
+)
+
 rd3.importDatatableAsCsv(
   pkg_entity='rd3_portal_cluster_phenopacket',
   data = phenopacketDT
@@ -345,8 +349,15 @@ dt.unique(phenopacketDT['unknownHpoCodes'])[f.unknownHpoCodes!=None,:]
 dt.unique(phenopacketDT['unknownHpoCodes2'])[f.unknownHpoCodes2!=None,:]
 
 # import cleaned HPO terms
-rd3.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_phenopacket', data=phenopacketDT)
-rd3_acc.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_phenopacket', data=phenopacketDT)
+rd3_acc.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data=phenopacketDT
+)
+
+rd3.importDatatableAsCsv(
+  pkg_entity='rd3_portal_cluster_phenopacket',
+  data=phenopacketDT
+)
 
 
 # ~ 2c.ii ~
@@ -413,103 +424,7 @@ if phenopacketDT['unknownHpoCodes'].type == dt.Type.void:
   # run only if you are confident that you know what you are doing!
   # rd3.importDatatableAsCsv(pkg_entity = 'rd3_portal_cluster_phenopacket', data = phenopacketDT)
 
-#///////////////////////////////////////////////////////////////////////////////
+#///////////////////////////////////////
 
-
-
-# ~ 1c ~  
-# Merge Patch information
-# subjects['shouldMerge'] = dt.Frame([
-#   d in phenopacketDT['subjectID'].to_list()[0]
-#   for d in subjects['subjectID'].to_list()[0]
-# ])
-
-# subjectPatchInfo = subjects[f.shouldMerge==True,:]
-# if subjectPatchInfo.nrows != phenopacketDT.nrows:
-#   raise ValueError('Warning dimensions of join dataset does not match target dataset')
-  
-# subjectPatchInfo.key = 'subjectID'
-# phenopacketDT.key = 'subjectID'
-# phenopacketDT = phenopacketDT[:, :, dt.join(subjectPatchInfo['patch'])]
-
-
-# # ~ 1c ~
-# # Find releases
-# statusMsg('Finding unique RD3 releases and preparing import object....')
-
-# uniqueReleases = dt.unique(phenopacketDT['releasesWhereSubjectExists']).to_list()[0]
-
-# existingReleases = []
-# for release in uniqueReleases:
-#   values = release.split(',')
-#   if len(values) > 1:
-#     for value in values:
-#       if (value not in existingReleases) and (value != 'novelomics_original'):
-#         existingReleases.append(value)
-#   else:
-#     if value != 'novelomics_original':
-#       existingReleases.append(value)
-
-
-# datasetsToImport = {}
-# for release in existingReleases:
-#   datasetsToImport[release] = {
-#     'subject': {
-#       'sex1': None,
-#       'phenotype': None,
-#       'hasNotPhenotype': None,
-#       'disease': None,
-#       'phenopacketsID': None,
-#       'patch': None
-#     },
-#     'subjectinfo': {
-#       'dateofBirth': None,
-#       'ageOfOnset': None,
-#       'patch': None
-#     }
-#   }
-
-# # for each detected release prepare datasets
-# for dataset in datasetsToImport:
-#   statusMsg('Preparing data for',dataset,'....')
-#   phenopacketDT['tmpfilter'] = dt.Frame([
-#     bool(re.search(dataset, d))
-#     for d in phenopacketDT['releasesWhereSubjectExists'].to_list()[0]
-#   ])
-
-#   tmpDT = phenopacketDT[f.tmpfilter,:]
-#   tmpDT['subjectID'] = dt.Frame([f'{d}_original' for d in tmpDT['subjectID'].to_list()[0]])
-#   tmpDT['patch'] = dt.Frame([
-#     f"{d},{currentRelease}" if currentRelease not in d else d
-#     for d in tmpDT['patch'].to_list()[0]
-#   ])
-  
-#   datasetsToImport[dataset]['subject']['patch'] = tmpDT[:, (f.subjectID, f.patch)] 
-#   datasetsToImport[dataset]['subject']['sex1'] = tmpDT[:, (f.subjectID, f.sex1)]
-#   datasetsToImport[dataset]['subject']['phenotype'] = tmpDT[:, (f.subjectID, f.phenotype)]
-#   datasetsToImport[dataset]['subject']['hasNotPhenotype'] = tmpDT[:, (f.subjectID, f.hasNotPhenotype)]
-#   if 'disease' in tmpDT.names:
-#     datasetsToImport[dataset]['subject']['disease'] = tmpDT[:, (f.subjectID, f.disease)]
-  
-#   datasetsToImport[dataset]['subjectinfo']['dateofBirth'] = tmpDT[:, (f.subjectID, f.dateofBirth)]
-#   datasetsToImport[dataset]['subjectinfo']['patch'] = tmpDT[:, (f.subjectID, f.patch)]
-#   if 'ageOfOnset' in tmpDT.names:
-#     datasetsToImport[dataset]['subjectinfo']['ageOfOnset'] = tmpDT[:, (f.subjectID, f.ageOfOnset)]
-  
-
-# # import data
-# for dataset in datasetsToImport:
-#   statusMsg('Importing dataset',dataset,'....')
-#   for table in datasetsToImport[dataset]:
-#     statusMsg('Updating table',table,'....')
-#     columns = datasetsToImport[dataset][table]
-#     for column in columns:
-#       pkg_entity = f"rd3_{dataset.replace('_original','')}_{table}"
-#       statusMsg('Updating column',column,'in table',pkg_entity)
-#       columnData = dtFrameToRecords(data=columns[column])
-#       rd3.updateColumn(
-#         entity=pkg_entity,
-#         attr = column,
-#         data = columnData
-#       )
-      
+rd3_acc.logout()
+rd3.logout()

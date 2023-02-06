@@ -2,10 +2,10 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2022-12-07
+# MODIFIED: 2023-02-06
 # PURPOSE: Import new novelomics data
-# STATUS: in.progress
-# PACKAGES: NA
+# STATUS: stable
+# PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -74,33 +74,40 @@ def getWrappedValues(value):
     return re.sub(r'[\(\)]', '', match)
   else:
     return None
+    
+# init connection to RD3
+load_dotenv()
+rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+
+rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
+rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 #///////////////////////////////////////////////////////////////////////////////
-
 
 # ~ 0 ~
 # Connect to DB and get data
 
-load_dotenv()
-rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
 # get existing RD3 data
-rawsubjects = rd3.get('solverd_subjects', attributes='subjectID,partOfRelease')
+rawsubjects = rd3_prod.get(
+  entity='solverd_subjects',
+  attributes='subjectID,partOfRelease',
+  batch_size=10000
+)
 subjects = flattenDataset(rawsubjects, columnPatterns="id")
 subjectsDT = dt.Frame(subjects)
 existingSubjectIDs = subjectsDT['subjectID'].to_list()[0]
 
-rawsamples = rd3.get('solverd_samples', batch_size=10000)
+rawsamples = rd3_prod.get('solverd_samples', batch_size=10000)
 samples = flattenDataset(rawsamples, columnPatterns="subjectID|id|value")
 samplesDT = dt.Frame(samples)
 existingSampleIDs = samplesDT['sampleID'].to_list()[0]
 
 # pull shipment metadata
 shipmentDT = dt.Frame(
-  rd3.get(
+  rd3_prod.get(
     'rd3_portal_novelomics_shipment',
-    q="processed==false;date_created=ge=2022-11-29T12:00:00%2B0100"
+    q="processed==false"
   )
 )
 
@@ -122,7 +129,13 @@ del shipmentDT['_href']
 # of a new or existing release. As of now, all shipment mantifests will
 # contain new "releases" or updates to an existing one. It isn't necessary to 
 # indicate patches for novel omics releases when importing new sample data.
-releaseinfo = dt.Frame(rd3.get('solverd_info_datareleases', attributes = 'id'))['id']
+releaseinfo = dt.Frame(
+  rd3_prod.get(
+    entity='solverd_info_datareleases',
+    attributes = 'id'
+  )
+)['id']
+
 releases = dt.unique(shipmentDT['type_of_analysis'])[:, {
   'id': f.type_of_analysis,
   'type': 'freeze',
@@ -169,7 +182,13 @@ if releases[f.isNewRelease, :].nrows > 0:
 # Check ERNs and recode into RD3 terminology
 # Make sure all unique incoming ERN values are mapped to an official ERN code
 # in RD3.
-erns = dt.Frame(rd3.get('solverd_info_erns',attributes='id'))['id']
+erns = dt.Frame(
+  rd3_prod.get(
+    entity='solverd_info_erns',
+    attributes='id'
+  )
+)['id']
+
 ernMappings = toKeyPairs(
   data = dtFrameToRecords(data = erns),
   keyAttr='id',
@@ -182,11 +201,16 @@ for value in incomingErnValues:
   if value.lower() not in ernMappings:
     print(f'Value "{value}" not in ERN mapping dataset')
 
+# update mappings and rerun previous incomingErnValues check until
+# all mappings are resolved
 ernMappings.update({
   'epicare': 'ern_epicare',
+  'ern-epicare': 'ern_epicare',
+  'ern-genturis': 'ern_genturis',
   'ithaca': 'ern_ithaca',
   'nmd': 'ern_euro_nmd',
   'rita': 'ern_rita',
+  'ern-rita': 'ern_rita',
   'rnd': 'ern_rnd',
 })
 
@@ -196,7 +220,10 @@ ernMappings.update({
 # Check Organisation mappings
 # Make sure
 organisations = dt.Frame(
-  rd3.get('solverd_info_organisations', attributes='value')
+  rd3_prod.get(
+    entity='solverd_info_organisations',
+    attributes='value'
+  )
 )['value']
 
 organisationMappings = toKeyPairs(
@@ -219,7 +246,10 @@ for value in incomingOrgValues:
 # ~ 1d ~
 # Create tissue type mappings
 tissueTypes = dt.Frame(
-  rd3.get('solverd_lookups_tissueType', attributes='id')
+  rd3_prod.get(
+    entity='solverd_lookups_tissueType',
+    attributes='id'
+  )
 )['id']
 
 tissueTypes['mappingID'] = dt.Frame([
@@ -269,6 +299,7 @@ anatomicalLocationMappings = {
 incomingAnatomicalValues = dt.unique(
   shipmentDT[f.anatomical_location != None, 'anatomical_location']
 ).to_list()[0]
+
 for value in incomingAnatomicalValues:
   if value.lower() not in anatomicalLocationMappings:
     print(f"Value '{value}' not in anatomical location mappings")
@@ -281,7 +312,10 @@ for value in incomingAnatomicalValues:
 # ~ 1f ~
 # Create material type mappings
 materialTypes = dt.Frame(
-  rd3.get('solverd_lookups_materialType', attributes='id')
+  rd3_prod.get(
+    entity='solverd_lookups_materialType',
+    attributes='id'
+  )
 )['id']
 
 materialTypes['mappingID'] = dt.Frame([
@@ -310,7 +344,12 @@ materialTypeMappings.update({
 
 # ~ 1d ~
 # Create pathological state mappings
-pathologicalState = dt.Frame(rd3.get('solverd_lookups_pathologicalstate'))['value']
+pathologicalState = dt.Frame(
+  rd3_prod.get(
+    entity='solverd_lookups_pathologicalstate'
+  )
+)['value']
+
 pathologicalState['mappingID'] = dt.Frame([
   value.lower()
   for value in pathologicalState['value'].to_list()[0]
@@ -365,6 +404,7 @@ shipmentDT['organisation'] = dt.Frame([
   for value in shipmentDT['organisation'].to_list()[0]
 ])
 
+# recode anatomical location (if available)
 shipmentDT['anatomical_location'] = dt.Frame([
   recodeValue(
     mappings = anatomicalLocationMappings,
@@ -374,6 +414,7 @@ shipmentDT['anatomical_location'] = dt.Frame([
   for value in shipmentDT['anatomical_location'].to_list()[0]
 ])
 
+# recode sample types (i.e., materialType)
 shipmentDT['sample_type'] = dt.Frame([
   'TISSUE (FFPE)'
   if row[0] and (row[0].lower() == 'ffpe')
@@ -387,14 +428,27 @@ shipmentDT['sample_type'] = dt.Frame([
   for row in shipmentDT[:, (f.tissue_type, f.sample_type)].to_tuples()
 ])
 
+# update sample types for DEEP-WES samples
+shipmentDT['sample_type'] = dt.Frame([
+  'TISSUE (FFPE)'
+  if row[1].lower().strip() == 'tumor' and row[2].lower().strip() == 'tissue (ffpe)'
+  else row[0]
+  for row in shipmentDT[:, (f.sample_type, f.tissue_type, f.extracted_protocol)].to_tuples()
+])
+
+# recode tissue types
 shipmentDT['tissue_type'] = dt.Frame([
-  recodeValue(mappings=tissueTypeMappings, value=value.lower(), label='Tissue')
+  recodeValue(mappings=tissueTypeMappings, value=value.strip().lower(), label='Tissue')
   for value in shipmentDT['tissue_type'].to_list()[0]
 ])
 
+# extract values inside parenthesis
 shipmentDT['extracted_protocol'] = dt.Frame([
-  getWrappedValues(value) if '(' in row[0] else row[1]
-  for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()
+  # getWrappedValues(row[0]) if '(' in row[0] else row[1]
+  # for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()
+  
+  getWrappedValues(value) if value and '(' in value else value
+  for value in shipmentDT[:, (f.extracted_protocol)].to_list()[0]
 ])
 
 # add alternative identifier if not present
@@ -452,7 +506,7 @@ else:
 #     - the rest of the subject metadata can be ignored
 
 
-# triage incoming subjects: which subjects are new?
+# triage incoming subjects: which subjects exist in RD3?
 reduceToExistingSubjects = functools.reduce(
   operator.or_,
   (f.participant_subject == value for value in existingSubjectIDs)
@@ -464,7 +518,7 @@ shipmentDT['isNewSubject'] = dt.Frame([
   for value in shipmentDT['participant_subject'].to_list()[0]
 ])
 
-# triage incoming samples: which samples are new?
+# triage incoming samples: which samples exist in RD3?
 reduceToExistingSamples = functools.reduce(
   operator.or_,
   (f.sample_id == value for value in existingSampleIDs)
@@ -512,7 +566,11 @@ shipmentDT.names = {
 #
 # Some attributes can be automatically updated with out review (see notes above).
 
+# If this step returns records, continue with the rest of the code. Otherwise, you
+# may skip to the next section. :-)
 samplesToValidate = shipmentDT[(f.isNewSubject==False) & (f.isNewSample==False),:]
+
+# identify records that need to be validated
 samplesToCompare = samplesDT[
   functools.reduce(
     operator.or_,
@@ -605,8 +663,19 @@ newSubjects = shipmentDT[
   )
 ][:, first(f[:]), dt.by(f.subjectID)]
 
-rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
-rd3.importDatatableAsCsv(
+# import into solverd_subjects
+rd3_acc.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
+
+# import into solverd_subjectinfo
+rd3_acc.importDatatableAsCsv(
+  pkg_entity='solverd_subjectinfo',
+  data = newSubjects[
+    :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
+  ]
+)
+
+rd3_prod.importDatatableAsCsv(
   pkg_entity='solverd_subjectinfo',
   data = newSubjects[
     :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
@@ -636,7 +705,40 @@ newSamples = shipmentDT[
 
 newSamples.names = {'subjectID': 'belongsToSubject'}
 
-rd3.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
+rd3_acc.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
+
+# ~ 2b ~
+# Update subject release information
+
+existingSubjects = shipmentDT[f.isNewSubject==False,:]
+
+# Is the current analysis associated with this participant?
+for id in existingSubjects['subjectID'].to_list()[0]:
+  subjectReleases = subjectsDT[f.subjectID==id,(f.partOfRelease)].to_list()[0][0]
+  newRelease = recodeValue(
+    mappings=releaseIDs,
+    value=existingSubjects[f.subjectID==id,'type_of_analysis'].to_list()[0][0]
+  )
+  
+  if newRelease not in subjectReleases:
+    print('Updating releases....')
+    subjectReleases = f"{subjectReleases},{newRelease}"
+    subjectsDT[f.subjectID==id,(f.partOfRelease)] = subjectReleases
+    subjectsDT[f.subjectID==id,'updatedRecord'] = True
+
+updateExistingSubjects = dtFrameToRecords(
+  data = subjectsDT[f.updatedRecord, (f.subjectID, f.partOfRelease)]
+)
+
+# update in subjects
+rd3_acc.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
+rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
+
+# update in subject info
+rd3_acc.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
+rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
+
 
 # ~ 2c ~
 # Update Columns
@@ -649,7 +751,7 @@ existingSamplesThatCanBeUpdated = dt.Frame(existingSamplesThatCanBeUpdated)
 for column in existingSamplesThatCanBeUpdated.names:
   if column in ['partOfRelease']:
     print(f"Updating column {column}....")
-    rd3.batchUpdate(
+    rd3_prod.batchUpdate(
       pkg_entity='solverd_subjects',
       column = column,
       data = dtFrameToRecords(
@@ -661,15 +763,13 @@ for column in existingSamplesThatCanBeUpdated.names:
 for column in existingSamplesThatCanBeUpdated.names:
   if column in nonConflictColumns:
     print(f"Updating column {column}....")
-    rd3.batchUpdate(
+    rd3_prod.batchUpdate(
       pkg_entity='solverd_samples',
       column=column,
       data=dtFrameToRecords(
         data = existingSamplesThatCanBeUpdated[:, ['sampleID', column]]
       )
     )
-
-
 
 #///////////////////////////////////////
 
@@ -698,11 +798,38 @@ portalRecordsToUpdate = portalRecordsToUpdate[:, :, dt.join(molgenisIDs)]
 portalRecordsToUpdate['processed'] = True
 portalRecordsToUpdate[:, dt.update(processed = as_type(f.processed, str))]
 
-rd3.batchUpdate(
+rd3_acc.batchUpdate(
   pkg_entity='rd3_portal_novelomics_shipment',
   column = 'processed',
   data = dtFrameToRecords(portalRecordsToUpdate[:, (f.molgenis_id, f.processed)])
 )
 
-# logout
-rd3.logout()
+
+#///////////////////////////////////////
+
+# Alternatively, update all records. If you use this method, make sure you
+# pull the data from each instance
+portalUpdate = dt.Frame(
+  rd3_acc.get(
+    entity='rd3_portal_novelomics_shipment',
+    q='processed==false')
+)
+portalUpdate['processed'] = 'true'
+
+rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
+
+# update prod
+portalUpdate = dt.Frame(
+  rd3_acc.get(
+    entity='rd3_portal_novelomics_shipment',
+    q='processed==false')
+)
+portalUpdate['processed'] = 'true'
+rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
+
+
+#///////////////////////////////////////
+
+
+rd3_acc.logout()
+rd3_prod.logout()

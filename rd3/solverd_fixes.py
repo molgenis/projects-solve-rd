@@ -2,16 +2,16 @@
 # FILE: solverd_fix_experiment_releases.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-02-02
-# MODIFIED: 2023-02-02
-# PURPOSE: fix release associations in the labinfo table
+# MODIFIED: 2023-02-06
+# PURPOSE: general fixes
 # STATUS: stable
 # PACKAGES: **see below**
-# COMMENTS: Experiments were assigned to the wrong release. This script will
-# fix the association by comparing experiment IDs that are in the portal table
+# COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
 from rd3.utils.utils import dtFrameToRecords
-from rd3.api.molgenis import Molgenis
+# from rd3.api.molgenis import Molgenis
+from rd3.api.molgenis2 import Molgenis
 from dotenv import load_dotenv
 from datatable import dt, f
 from os import environ
@@ -24,6 +24,12 @@ rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
 rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
+#///////////////////////////////////////////////////////////////////////////////
+
+# ~ 1 ~
+# fix release associations in the labinfo table
+# Experiments were assigned to the wrong release. This script will fix the
+# association by comparing experiment IDs that are in the portal table
 
 # get data current experiments and releases
 freeze = rd3_prod.get(
@@ -94,6 +100,64 @@ rd3_prod.updateColumn(
   attr = 'partOfRelease',
   data = importData
 )
+
+#///////////////////////////////////////////////////////////////////////////////
+
+# ~ 2 ~
+# Update processed status in the portal
+
+# get samples and extract subjectID
+samples = rd3_acc.get(
+  entity = 'solverd_samples',
+  attributes='sampleID,belongsToSubject',
+  batch_size=10000
+)
+
+for row in samples:
+  if 'belongsToSubject' in row:
+    row['belongsToSubject'] = row['belongsToSubject']['subjectID']
+
+samplesDT = dt.Frame(samples)
+del samplesDT['_href']
+
+sampleIDs = samplesDT['sampleID'].to_list()[0]
+subjectIDs = samplesDT['belongsToSubject'].to_list()[0]
+
+# pull data from the staging table
+shipmentDT = dt.Frame(
+  rd3_acc.get(
+    entity = 'rd3_portal_novelomics_shipment',
+    q='processed==false'
+  )
+)
+
+del shipmentDT['_href']
+
+# check each sample- and participant- ID to make sure they exist in RD3
+shipmentDT['sampleExists'] = dt.Frame([
+  value in sampleIDs
+  for value in shipmentDT['sample_id'].to_list()[0]
+])
+
+shipmentDT['subjectExists'] = dt.Frame([
+  value in subjectIDs
+  for value in shipmentDT['participant_subject'].to_list()[0]
+])
+
+# make sure all records exist. Otherwise, import the data
+shipmentDT[:, dt.count(), dt.by(f.sampleExists)]
+shipmentDT[:, dt.count(), dt.by(f.subjectExists)]
+
+# update status accordingly
+shipmentDT['processed'] = True
+
+rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
+rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
+
+#///////////////////////////////////////////////////////////////////////////////
+
+# ~ 999 ~
+# Logout
 
 rd3_acc.logout()
 rd3_prod.logout()

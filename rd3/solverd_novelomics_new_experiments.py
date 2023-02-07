@@ -10,14 +10,14 @@
 #///////////////////////////////////////////////////////////////////////////////
 
 from datatable import dt, f, first, as_type
+from rd3.api.molgenis2 import Molgenis
 from dotenv import load_dotenv
+from datetime import datetime
 from os import environ
 from tqdm import tqdm
 import functools
 import operator
 import re
-
-from rd3.api.molgenis2 import Molgenis
 from rd3.utils.utils import (
   dtFrameToRecords,
   timestamp,
@@ -25,6 +25,12 @@ from rd3.utils.utils import (
   recodeValue,
   flattenDataset
 )
+
+
+
+def today():
+  return datetime.now().strftime('%Y-%m-%d')
+
 
 # init connection to RD3
 load_dotenv()
@@ -67,14 +73,15 @@ experiments = flattenDataset(rawexperiments, columnPatterns="sampleID|id")
 experimentsDT = dt.Frame(experiments)
 
 # get new experiment metadata
-experimentDT = dt.Frame(
+novelomicsDT = dt.Frame(
   rd3_prod.get(
     entity='rd3_portal_novelomics_experiment',
     q="processed==false"
   )
 )
 
-del experimentDT['_href']
+del novelomicsDT['_href']
+# novelomicsDT.to_csv('data/rd3_portal_novelomics_experiment.csv')
 
 # extract identifiers
 subjectIDs = subjectsDT['subjectID'].to_list()[0]
@@ -99,7 +106,7 @@ releaseinfo = dt.Frame(
   )
 )['id']
 
-releases = dt.unique(experimentDT['experiment_type'])[:, {
+releases = dt.unique(novelomicsDT['experiment_type'])[:, {
   'id': f.experiment_type,
   'type': 'freeze',
   'name': f.experiment_type,
@@ -141,6 +148,55 @@ if releases[f.isNewRelease, :].nrows > 0:
   # rd3_acc.importDatatableAsCsv('solverd_info_datareleases', newReleases)
   # rd3_prod.importDatatableAsCsv('solverd_info_datareleases', newReleases)
 
+
+# ~ 1b ~
+# Define new library_strategy (seqType) mappings
+seqTypes = dt.Frame(
+  rd3_prod.get(entity='solverd_lookups_seqType')
+)[:, (f.id, f.label)]
+
+seqTypesMappings = toKeyPairs(
+  data = dtFrameToRecords(seqTypes),
+  keyAttr='id',
+  valueAttr='id'
+)
+
+# check for new values
+incomingSeqTypes = dt.unique(novelomicsDT['library_strategy'])
+incomingSeqTypes['isNewMapping'] = dt.Frame([
+  value not in seqTypesMappings
+  for value in incomingSeqTypes['library_strategy'].to_list()[0]
+])
+
+if incomingSeqTypes[f.isNewMapping,:].nrows:
+  print(f"New seqtypes found not in seqType mappings")
+
+
+# import new seqTypes
+newSeqTypes = incomingSeqTypes[
+  f.isNewMapping, f[:].remove(f.isNewMapping)
+][:, {'id': f.library_strategy, 'label': f.library_strategy}]
+rd3_acc.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
+
+
+# ~ 1c ~
+# Recode File Formats
+fileFormats = dt.Frame(rd3_prod.get('solverd_lookups_typeFile'))
+del fileFormats['_href']
+
+incomingFileTypes = dt.unique(novelomicsDT['file_type'])
+incomingFileTypes['isNewMapping'] = dt.Frame([
+  value not in fileFormats['id'].to_list()[0]
+  for value in incomingFileTypes['file_type'].to_list()[0]
+])
+
+if incomingFileTypes[f.isNewMapping,:].nrows:
+  print('New file formats to import')
+
+newFileTypes = incomingFileTypes[f.isNewMapping,:]
+
+
 #///////////////////////////////////////
 
 # ~ 1b ~
@@ -150,40 +206,61 @@ if releases[f.isNewRelease, :].nrows > 0:
 
 # ~ 1b.i ~
 # make sure all P numbers are uppercase (we've had some lowercase values in the past)
-experimentDT['subject_id'] = dt.Frame([
-  value.strip().upper() for value in experimentDT['subject_id'].to_list()[0]
+novelomicsDT['subject_id'] = dt.Frame([
+  value.strip().upper() for value in novelomicsDT['subject_id'].to_list()[0]
 ])
 
 # ~ 1b.ii ~
 # transform incoming analysis so that it can be mapped to a release
-experimentDT['experiment_type'] = dt.Frame([
+novelomicsDT['experiment_type'] = dt.Frame([
   value.strip().lower().replace('-','')
-  for value in experimentDT['experiment_type'].to_list()[0]
+  for value in novelomicsDT['experiment_type'].to_list()[0]
 ])
 
-experimentDT['partOfRelease'] = dt.Frame([
+novelomicsDT['partOfRelease'] = dt.Frame([
   recodeValue(mappings = releaseIDs, value = value, label = 'Release')
-  for value in experimentDT['experiment_type'].to_list()[0]
+  for value in novelomicsDT['experiment_type'].to_list()[0]
 ])
 
 # ~ 1b.iii ~
 # recode library layout
-experimentDT['library'] = dt.Frame([
-  '1' if d == 'PAIRED' else d
-  for d in experimentDT['library_layout'].to_list()[0]
+novelomicsDT['library'] = dt.Frame([
+  '1' if d == 'PAIRED' else (
+    '2' if d == 'SINGLE' else d
+  )
+  for d in novelomicsDT['library_layout'].to_list()[0]
 ])
 
 # ~ 1b.iv ~
 # library_source to title case
-experimentDT['library_source'] = dt.Frame([
-  d.title() for d in experimentDT['library_source'].to_list()[0]
+novelomicsDT['library_source'] = dt.Frame([
+  d.title() for d in novelomicsDT['library_source'].to_list()[0]
 ])
 
 # ~ 1b.v ~
-# create full path column (concat path and name)
-experimentDT['name'] = dt.Frame([
-  '/'.join(d) for d in experimentDT[:, (f.file_path,f.file_name)].to_tuples()
+# recode library strategy
+novelomicsDT['library_strategy'] = dt.Frame([
+  recodeValue(
+    mappings = seqTypesMappings,
+    value = value,
+    label='SeqTypes/Library Strategy'
+  )
+  if value else value
+  for value in novelomicsDT['library_strategy'].to_list()[0]
 ])
+
+# ~ 1b.vi ~
+# create full path column (concat path and name)
+novelomicsDT['name'] = dt.Frame([
+  '/'.join(d) for d in novelomicsDT[:, (f.file_path,f.file_name)].to_tuples()
+])
+
+# ~ 1b.vii ~
+# recode file types
+# novelomicsDT['file_type'] = dt.Frame([
+  
+# ])
+
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -194,8 +271,32 @@ experimentDT['name'] = dt.Frame([
 # records, these cases need to be manually resolved. Lastly, we will identify
 # which subjects are new and validate existing records.
 
+# ~ 2a ~
+# Create flags for new subjects, samples, and experiments
+
+# are there new subjects?
+novelomicsDT['isNewSubject'] = dt.Frame([
+  id not in subjectIDs
+  for id in novelomicsDT['subject_id'].to_list()[0]
+])
+
+# are there new samples?
+novelomicsDT['isNewSample'] = dt.Frame([
+  id not in sampleIDs
+  for id in novelomicsDT['sample_id'].to_list()[0]
+])
+
+# are there new experiments?
+novelomicsDT['isNewExperiment'] = dt.Frame([
+  id not in experimentIDs
+  for id in novelomicsDT['project_experiment_dataset_id'].to_list()[0]
+])
+
+#///////////////////////////////////////
+
+# ~ 2b ~
 # Create labinfo table
-labinfoDT = experimentDT[
+labinfoDT = novelomicsDT[
   :, dt.first(f[:]), dt.by(f.project_experiment_dataset_id)
 ][:, {
   'experimentID': f.project_experiment_dataset_id,
@@ -207,11 +308,14 @@ labinfoDT = experimentDT[
   'sequencingCenter': f.sequencing_center,
   'sequencer': f.platform_model,
   'seqType': f.library_strategy,
-  'partOfRelease': f.partOfRelease
+  'partOfRelease': f.partOfRelease,
+  'isNewSubject': f.isNewSubject,
+  'isNewSample': f.isNewSample,
+  'isNewExperiment': f.isNewExperiment
 }]
 
 # create files table
-files = experimentDT[:, dt.first(f[:]), dt.by(f.name)][:, {
+filesDT = novelomicsDT[:, dt.first(f[:]), dt.by(f.name)][:, {
   'EGA': f.file_ega_id,
   'name': f.name,
   'md5': f.unencrypted_md5_checksum,
@@ -220,28 +324,52 @@ files = experimentDT[:, dt.first(f[:]), dt.by(f.name)][:, {
   'sampleID': f.sample_id,
   'experimentID': f.project_experiment_dataset_id,
   'partOfRelease': f.partOfRelease,
+  'isNewSubject': f.isNewSubject,
+  'isNewSample': f.isNewSample,
+  'isNewExperiment': f.isNewExperiment
 }]
 
-# files[:, dt.count(), dt.by(f.EGA)][:, :, dt.sort(f.count)]
 
-# are there new subjects? I would expect that all subjects exist in RD3
-labinfoDT['isNewSubject'] = dt.Frame([
-  id not in subjectIDs
-  for id in labinfoDT['subjectID'].to_list()[0]
-])
-
-# are there new samples? I would expect that all samples exist in RD3
-labinfoDT['isNewSample'] = dt.Frame([
-  id not in sampleIDs
-  for id in labinfoDT['sampleID'].to_list()[0]
-])
-
-# are there new experiments? (These should all be true)
-labinfoDT['isNewExperiment'] = dt.Frame([
-  id not in experimentIDs
-  for id in labinfoDT['experimentID'].to_list()[0]
-])
-
+# Check counts
+# Theoretically, there should be no new subjects and samples in this dataset.
+# However, you may run into the situation where there are unknown records. If
+# this happens, check the novelomics shipment staging table to see if all 
+# records where run (i.e., processed == false). If there are any records where
+# processed is false, then run the novelomics subject-sample mapping script.
+# You may also want to check to see if there are any samples that are marked
+# processed, but aren't in RD3. Run the 'optional' step at the top of the script
+# to find missing cases.
+#
+# If there are cases where `isNewExperiment` is false, then you will need
+# to validate those cases.
 labinfoDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
+filesDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
 
-labinfoDT[f.isNewSubject, :]
+#///////////////////////////////////////
+
+# ~ 2b ~ 
+# Import new experiments and files
+# It is apparent that there are duplicate records due to multiple re-imports
+# or other import issues. It is better to identify new records, and import them
+# accordingly.
+
+# import experiments
+newExperiments = labinfoDT[f.isNewExperiment, :]
+newExperiments['dateRecordCreated'] = today()
+newExperiments['recordCreatedBy'] = 'rd3-bot'
+
+rd3_acc.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
+
+
+# import files
+newFiles = filesDT[(f.isNewExperiment) & (f.EGA != None), :]
+newFiles['dateRecordCreated'] = today()
+newFiles['recordCreatedBy'] = 'rd3-bot'
+
+rd3_acc.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
+
+# logout
+rd3_acc.logout()
+rd3_prod.logout()

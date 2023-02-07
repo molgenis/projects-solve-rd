@@ -2,7 +2,7 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2023-02-06
+# MODIFIED: 2023-02-07
 # PURPOSE: Import new novelomics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -207,6 +207,7 @@ ernMappings.update({
   'epicare': 'ern_epicare',
   'ern-epicare': 'ern_epicare',
   'ern-genturis': 'ern_genturis',
+  'genturis': 'ern_genturis',
   'ithaca': 'ern_ithaca',
   'nmd': 'ern_euro_nmd',
   'rita': 'ern_rita',
@@ -218,7 +219,11 @@ ernMappings.update({
 
 # ~ 1c ~
 # Check Organisation mappings
-# Make sure
+# Pull organisations to identify new values. If there are any new organisations,
+# import them into RD3 and rerun step 1c.i. All values should be in RD3 before
+# moving to the next step.
+
+# ~ 1c.i ~
 organisations = dt.Frame(
   rd3_prod.get(
     entity='solverd_info_organisations',
@@ -238,8 +243,21 @@ for value in incomingOrgValues:
   if value not in organisationMappings:
     print(f"Value '{value}' not in Organistion mappings")
 
-# if there are new values enter them here
-# organisationMappings.update({ ... })
+# ~ 1c.ii ~
+# find organisations to import
+newOrganisations = dt.Frame({'organisation': incomingOrgValues})
+newOrganisations['isNew'] = dt.Frame([
+  value not in organisationMappings.keys()
+  for value in newOrganisations['organisation'].to_list()[0]
+])
+
+newOrganisations = newOrganisations[f.isNew,'organisation']
+newOrganisations[['value', 'description']] = newOrganisations['organisation']
+del newOrganisations['organisation']
+
+# import new organisations and rerun organisation mapping step
+rd3_acc.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
+rd3_prod.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
 
 #///////////////////////////////////////
 
@@ -272,6 +290,7 @@ for value in incomingTissueTypes:
     
 tissueTypeMappings.update({
   'blood': 'Whole Blood',
+  'cell pellet': 'Cells',
   'ffpe': 'Tumor',
   'fetus': 'Foetus',
   'heart': 'Heart',
@@ -570,6 +589,9 @@ shipmentDT.names = {
 # may skip to the next section. :-)
 samplesToValidate = shipmentDT[(f.isNewSubject==False) & (f.isNewSample==False),:]
 
+if samplesToValidate.nrows == 0:
+  print('Nothing to validate :-)')
+
 # identify records that need to be validated
 samplesToCompare = samplesDT[
   functools.reduce(
@@ -829,7 +851,6 @@ rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
 
 
 #///////////////////////////////////////
-
 
 rd3_acc.logout()
 rd3_prod.logout()

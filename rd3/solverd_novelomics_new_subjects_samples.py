@@ -98,12 +98,17 @@ subjects = flattenDataset(rawsubjects, columnPatterns="id")
 subjectsDT = dt.Frame(subjects)
 existingSubjectIDs = subjectsDT['subjectID'].to_list()[0]
 
-rawsamples = rd3_prod.get('solverd_samples', batch_size=10000)
+# get existing samples
+rawsamples = rd3_prod.get(
+  entity='solverd_samples',
+  attributes='sampleID,partOfRelease',
+  batch_size=10000
+)
 samples = flattenDataset(rawsamples, columnPatterns="subjectID|id|value")
 samplesDT = dt.Frame(samples)
 existingSampleIDs = samplesDT['sampleID'].to_list()[0]
 
-# pull shipment metadata
+# get new shipment metadata
 shipmentDT = dt.Frame(
   rd3_prod.get(
     'rd3_portal_novelomics_shipment',
@@ -112,6 +117,29 @@ shipmentDT = dt.Frame(
 )
 
 del shipmentDT['_href']
+
+# ~ OPTIONAL ~
+# alternatively pull everything to figure out if anything is missing
+# shipmentDT = dt.Frame(rd3_prod.get('rd3_portal_novelomics_shipment'))
+# del shipmentDT['_href']
+
+# shipmentDT['participant_subject'] = dt.Frame([
+#   value.strip().upper() for value in shipmentDT['participant_subject'].to_list()[0]
+# ])
+
+# shipmentDT['isNewSubject'] = dt.Frame([
+#   id not in existingSubjectIDs
+#   for id in shipmentDT['participant_subject'].to_list()[0]
+# ])
+
+# shipmentDT['isNewSample'] = dt.Frame([
+#   id not in existingSampleIDs
+#   for id in shipmentDT['sample_id'].to_list()[0]
+# ])
+
+# shipmentDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample)]
+# shipmentDT=shipmentDT[(f.isNewSubject) | (f.isNewSample), :]
+
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -209,10 +237,13 @@ ernMappings.update({
   'ern-genturis': 'ern_genturis',
   'genturis': 'ern_genturis',
   'ithaca': 'ern_ithaca',
+  'ern-ithaca': 'ern_ithaca',
   'nmd': 'ern_euro_nmd',
+  'ern-nmd': 'ern_euro_nmd',
   'rita': 'ern_rita',
   'ern-rita': 'ern_rita',
   'rnd': 'ern_rnd',
+  'udn-spain': 'udn_spain'
 })
 
 #///////////////////////////////////////
@@ -245,19 +276,19 @@ for value in incomingOrgValues:
 
 # ~ 1c.ii ~
 # find organisations to import
-newOrganisations = dt.Frame({'organisation': incomingOrgValues})
-newOrganisations['isNew'] = dt.Frame([
-  value not in organisationMappings.keys()
-  for value in newOrganisations['organisation'].to_list()[0]
-])
+# newOrganisations = dt.Frame({'organisation': incomingOrgValues})
+# newOrganisations['isNew'] = dt.Frame([
+#   value not in organisationMappings.keys()
+#   for value in newOrganisations['organisation'].to_list()[0]
+# ])
 
-newOrganisations = newOrganisations[f.isNew,'organisation']
-newOrganisations[['value', 'description']] = newOrganisations['organisation']
-del newOrganisations['organisation']
+# newOrganisations = newOrganisations[f.isNew,'organisation']
+# newOrganisations[['value', 'description']] = newOrganisations['organisation']
+# del newOrganisations['organisation']
 
 # import new organisations and rerun organisation mapping step
-rd3_acc.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
-rd3_prod.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
+# rd3_acc.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
+# rd3_prod.importDatatableAsCsv('solverd_info_organisations', newOrganisations)
 
 #///////////////////////////////////////
 
@@ -282,7 +313,7 @@ tissueTypeMappings = toKeyPairs(
 )
 
 # check incoming data, update mappings (if applicable), and rerun
-incomingTissueTypes = dt.unique(shipmentDT['tissue_type']).to_list()[0]
+incomingTissueTypes = dt.unique(shipmentDT[f.tissue_type != None, 'tissue_type']).to_list()[0]
 incomingTissueTypes.sort(key=str.lower)
 for value in incomingTissueTypes:
   if value.lower() not in tissueTypeMappings:
@@ -349,7 +380,7 @@ materialTypeMappings = toKeyPairs(
 )
 
 # check incoming data, update mappings (if applicable), and rerun
-incomingMaterialTypes = dt.unique(shipmentDT['sample_type']).to_list()[0]
+incomingMaterialTypes = dt.unique(shipmentDT[f.sample_type!=None,'sample_type']).to_list()[0]
 for value in incomingMaterialTypes:
   if value.lower() not in materialTypeMappings:
     print(f"Value '{value}' does not exist in material type mappings")
@@ -399,12 +430,13 @@ for value in incomingPathologicalStateValues:
 
 # make sure all P numbers are uppercase (we've had some lowercase values in the past)
 shipmentDT['participant_subject'] = dt.Frame([
-  value.strip().upper() for value in shipmentDT['participant_subject'].to_list()[0]
+  value.strip().upper()
+  for value in shipmentDT['participant_subject'].to_list()[0]
 ])
 
 # transform incoming analysis so that it can be mapped to a release
 shipmentDT['type_of_analysis'] = dt.Frame([
-  value.strip().lower().replace('-','')
+  value.strip().lower().replace('-','') if value else value
   for value in shipmentDT['type_of_analysis'].to_list()[0]
 ])
 
@@ -418,8 +450,23 @@ shipmentDT['ERN'] = dt.Frame([
   for value in shipmentDT['ERN'].to_list()[0]
 ])
 
+# clean organisation
 shipmentDT['organisation'] = dt.Frame([
-  recodeValue(mappings=organisationMappings, value=value.lower(), label='Organistion')
+  value.strip().lower() if value else value
+  for value in shipmentDT['organisation'].to_list()[0]
+])
+
+shipmentDT['organisation'] = dt.Frame([
+  re.sub(r'\s+', '-', value) if value else value
+  for value in shipmentDT['organisation'].to_list()[0]
+])
+
+shipmentDT['organisation'] = dt.Frame([
+  recodeValue(
+    mappings=organisationMappings,
+    value=value.strip().lower(),
+    label='Organistion'
+  )
   for value in shipmentDT['organisation'].to_list()[0]
 ])
 

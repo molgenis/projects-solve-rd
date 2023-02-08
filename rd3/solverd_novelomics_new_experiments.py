@@ -26,8 +26,6 @@ from rd3.utils.utils import (
   flattenDataset
 )
 
-
-
 def today():
   return datetime.now().strftime('%Y-%m-%d')
 
@@ -99,6 +97,7 @@ experimentIDs = experimentsDT['experimentID'].to_list()[0]
 # of a new or existing release. As of now, all shipment mantifests will
 # contain new "releases" or updates to an existing one. It isn't necessary to 
 # indicate patches for novel omics releases when importing new sample data.
+
 releaseinfo = dt.Frame(
   rd3_prod.get(
     entity='solverd_info_datareleases',
@@ -173,11 +172,11 @@ if incomingSeqTypes[f.isNewMapping,:].nrows:
 
 
 # import new seqTypes
-newSeqTypes = incomingSeqTypes[
-  f.isNewMapping, f[:].remove(f.isNewMapping)
-][:, {'id': f.library_strategy, 'label': f.library_strategy}]
-rd3_acc.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
-rd3_prod.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
+# newSeqTypes = incomingSeqTypes[
+#   f.isNewMapping, f[:].remove(f.isNewMapping)
+# ][:, {'id': f.library_strategy, 'label': f.library_strategy}]
+# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
+# rd3_prod.importDatatableAsCsv(pkg_entity='solverd_lookups_seqType', data=newSeqTypes)
 
 
 # ~ 1c ~
@@ -194,7 +193,7 @@ incomingFileTypes['isNewMapping'] = dt.Frame([
 if incomingFileTypes[f.isNewMapping,:].nrows:
   print('New file formats to import')
 
-newFileTypes = incomingFileTypes[f.isNewMapping,:]
+# newFileTypes = incomingFileTypes[f.isNewMapping,:]
 
 
 #///////////////////////////////////////
@@ -254,12 +253,6 @@ novelomicsDT['library_strategy'] = dt.Frame([
 novelomicsDT['name'] = dt.Frame([
   '/'.join(d) for d in novelomicsDT[:, (f.file_path,f.file_name)].to_tuples()
 ])
-
-# ~ 1b.vii ~
-# recode file types
-# novelomicsDT['file_type'] = dt.Frame([
-  
-# ])
 
 
 #///////////////////////////////////////////////////////////////////////////////
@@ -329,7 +322,6 @@ filesDT = novelomicsDT[:, dt.first(f[:]), dt.by(f.name)][:, {
   'isNewExperiment': f.isNewExperiment
 }]
 
-
 # Check counts
 # Theoretically, there should be no new subjects and samples in this dataset.
 # However, you may run into the situation where there are unknown records. If
@@ -363,7 +355,7 @@ rd3_prod.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
 
 
 # import files
-newFiles = filesDT[(f.isNewExperiment) & (f.EGA != None), :]
+newFiles = filesDT[(f.EGA != None), :]
 newFiles['dateRecordCreated'] = today()
 newFiles['recordCreatedBy'] = 'rd3-bot'
 

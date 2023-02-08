@@ -34,6 +34,9 @@ filename = f"rd3.{rd3.version}"
 rd3.write(name=filename, outDir="dist")
 rd3.write_schema(path="model/schemas/rd3.md")
 
+
+#///////////////////////////////////////
+
 # ~ 1 ~
 # Build Secondary Data Models
 
@@ -47,3 +50,20 @@ portal = Convert(files = [
 portal.convert()
 portal.compileSemanticTags()
 portal.write(name="rd3_portal", outDir="dist")
+
+#///////////////////////////////////////
+
+# ~ 2 ~
+# Create Cluster Folder
+
+cluster = Convert(files=['model/base_rd3_cluster.yaml', 'model/rd3_cluster_results.yaml'])
+cluster.convert()
+cluster.write('rd3_cluster', outDir="dist")
+
+
+portalcluster = Convert(files=[
+  'model/base_rd3_portal.yaml',
+  'model/rd3_portal_cluster.yaml'
+])
+portalcluster.convert()
+portalcluster.write('rd3_portal_cluster', outDir='dist')

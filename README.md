@@ -7,7 +7,7 @@ The purpose of the RD3 database is to track and find samples processed by [Centr
 - The Solve-RD project site: [http://solve-rd.eu](http://solve-rd.eu)
 - RD3 Data Model repository: [https://github.com/molgenis/RD3_database](https://github.com/molgenis/RD3_database)
 
-If you would like to view the data model of RD3, please see the data model schema here: 
+If you would like to view the data model of RD3, please see the data model schema here: [https://github.com/molgenis/molgenis-solve-rd/blob/main/model/schemas/rd3.md](https://github.com/molgenis/molgenis-solve-rd/blob/main/model/schemas/rd3.md).
 
 ## What's in this repository?
 

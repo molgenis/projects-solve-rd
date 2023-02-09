@@ -2,7 +2,7 @@
 #' FILE: rd3_views_overview.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-05-16
-#' MODIFIED: 2022-11-08
+#' MODIFIED: 2023-02-09
 #' PURPOSE: generate dataset for rd3_overview
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -16,7 +16,7 @@ load_dotenv()
 sys.path.append(environ['SYS_PATH'])
 
 from rd3.api.molgenis2 import Molgenis
-from rd3.utils.utils import statusMsg
+from rd3.utils.utils import statusMsg, flattenDataset
 from datatable import dt, f, as_type
 import re
 
@@ -49,92 +49,28 @@ def uniqueValuesById(data, groupby, column, dropDuplicates=True, keyGroupBy=True
 # ~ 0 ~
 # Fetch RD3 Data
 
-statusMsg('Connecting to RD3....')
-# rd3=Molgenis(environ['MOLGENIS_ACC_HOST'])
-# rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
+if environ['JOB_ENV'] == 'PROD':
+  statusMsg('Connecting to RD3-PROD....')
+  rd3=Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+  rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
+else:
+  statusMsg('Connecting to RD3-ACC....')
+  rd3=Molgenis(environ['MOLGENIS_ACC_HOST'])
+  rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+
 
 # ~ 0a ~
 # Pull All Subject Metadata
 statusMsg('Pulling subject metadata....')
-rawsubjects = rd3.get(
-  'solverd_subjects',
-  batch_size=10000,
-  attributes=','.join([
-    'subjectID', 'sex1', 'fid', 'mid', 'pid', 'clinical_status', 'solved',
-    'disease', 'phenotype', 'hasNotPhenotype',
-    'organisation', 'ERN', 'partOfRelease'
-  ])
-)
 
-# flatten ref objects in dataset
-for row in rawsubjects:
-  # flatten sex1
-  if 'sex1' in row:
-    if row['sex1'] is not None:
-      row['sex1'] = row['sex1']['id']
-    else:
-      row['sex1'] = None
-      
-  # flatten mid
-  if 'mid' in row:
-    if row['mid'] is not None:
-      row['mid'] = row['mid']['subjectID']
-    else:
-      row['mid'] = None
+columns=','.join([
+  'subjectID', 'sex1', 'fid', 'mid', 'pid', 'clinical_status', 'solved',
+  'disease', 'phenotype', 'hasNotPhenotype', 'organisation', 'ERN', 'partOfRelease'
+])
 
-  # flatten paternal ID
-  if 'pid' in row:
-    if row['pid'] is not None:
-      row['pid'] = row['pid']['subjectID']
-    else:
-      row['pid'] = None
-
-  # flatten phenotype
-  if 'phenotype' in row:
-    if not bool(row['phenotype']):
-      row['phenotype'] = None
-    elif not isinstance(row['phenotype'], str):
-      row['phenotype'] = ','.join([ r['id'] for r in row['phenotype'] ])
-    else:
-      row['phenotype'] = row['phenotype']
-    
-  # flatten hasNotPhentype
-  if 'hasNotPhenotype' in row:
-    if not bool(row['hasNotPhenotype']):
-      row['hasNotPhenotype'] = None
-    elif not (isinstance(row['hasNotPhenotype'], str)):
-      row['hasNotPhenotype'] = ','.join([ r['id'] for r in row['hasNotPhenotype'] ])
-    else:
-      row['hasNotPhenotype'] = row['hasNotPhenotype']
-
-  # flatten disease codes
-  if 'disease' in row:
-    if bool(row['disease']):
-      row['disease'] = ','.join([ nestedrow['id'] for nestedrow in row['disease'] ])
-    else:
-      row['disease'] = None
-
-  # flatten organisations
-  if 'organisation' in row:
-    if bool(row['organisation']):
-      row['organisation'] = ','.join([ r['value'] for r in row['organisation'] ])
-    else:
-      row['organisation'] = None
-
-  # flatten ERNs
-  if 'ERN' in row:
-    if bool(row['ERN']):
-      row['ERN'] = ','.join([ r['id'] for r in row['ERN'] ])
-    else:
-      row['ERN'] = None
-      
-  # collapse release rows
-  row['partOfRelease'] = ','.join([ r['id'] for r in row['partOfRelease'] ])
-
-subjects=dt.Frame(rawsubjects)
-del subjects['_href']
+rawsubjects = rd3.get('solverd_subjects',attributes=columns,batch_size=10000)
+subjectsflattened = flattenDataset(rawsubjects, columnPatterns='subjectID|id|value')
+subjects=dt.Frame(subjectsflattened)
 
 #///////////////////////////////////////
 
@@ -148,12 +84,9 @@ rawsamples = rd3.get(
   q = 'retracted==N'
 )
 
-# prep sample metadata
-for row in rawsamples:
-  row['belongsToSubject']=row.get('belongsToSubject',{}).get('subjectID')
+samplesflattened = flattenDataset(rawsamples,columnPatterns='subjectID')
+samples = dt.Frame(samplesflattened)
 
-samples=dt.Frame(rawsamples)
-del samples['_href']
 
 # summarize sampleIDs by subjectID
 statusMsg('Summarising sample metadata by subject....')
@@ -194,12 +127,8 @@ rawexperiments = rd3.get(
   q='retracted==N'
 )
 
-# prep experiment data
-for row in rawexperiments:
-  row['sampleID']=row.get('sampleID',{})[0].get('sampleID')
-
+experimentsflattened = flattenDataset(rawexperiments,columnPatterns='sampleID')
 experiments=dt.Frame(rawexperiments)
-del experiments['_href']
 
 # join subject ID
 statusMsg('Joining experiment data with samples....')
@@ -238,13 +167,11 @@ subjects = subjects[:, :, dt.join(experimentsBySubject)]
 # Add File query
 # Since the files table is quite large and it takes a while to pull the data,
 # it is better to make a query URL that redirects to files tables.
-# subjects['files'] = dt.Frame([
-#    	f"?entity=solverd_files&hideselect=true&filter=(subjectID%3Dq%3D{id})"
-#     for id in subjects['subjectID'].to_list()[0]
-# ])
-
-statusMsg('Init file columns (always none; for now)')
-subjects['files'] = None
+statusMsg('Create redirect for file')
+subjects['files'] = dt.Frame([
+   	f"?entity=solverd_files&hideselect=true&filter=(subjectID%3Dq%3D{id})"
+    for id in subjects['subjectID'].to_list()[0]
+])
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -271,28 +198,3 @@ subjects[
 # import
 statusMsg('Importing overview dataset into RD3.....')
 rd3.importDatatableAsCsv('solverd_overview', data = subjects)
-
-# fileTypeQuery="typeFile=in=(bai,bam,bed,cram,fastq,vcf)" # remove json and ped for now
-# rawfiles=rd3.get(
-#   'solverd_files',
-#   attributes='EGA,sampleID,experimentID,subjectID'
-# )
-
-# for row in rawfiles:
-#   if row.get('samples'):
-#     row['samples']=row.get('samples')[0].get('id')
-#   else:
-#     row['samples']=None
-
-#   if row.get('subjectID'):
-#     row['subjectID'] = row.get('subjectID')[0].get('id')
-#   else:
-#     row['subjectID'] = None
-    
-#   if row.get('typeFile'):
-#     row['typeFile']=row.get('typeFile',{}).get('identifier')
-#   else:
-#     row['typeFile']=None
-
-# files=dt.Frame(rawfiles)
-# del files['_href']

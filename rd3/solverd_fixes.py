@@ -9,9 +9,9 @@
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.utils import dtFrameToRecords
-# from rd3.api.molgenis import Molgenis
-from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import dtFrameToRecords,flattenDataset
+from rd3.api.molgenis import Molgenis
+# from rd3.api.molgenis2 import Molgenis
 from dotenv import load_dotenv
 from datatable import dt, f
 from os import environ
@@ -153,6 +153,47 @@ shipmentDT['processed'] = True
 
 rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
 rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
+
+#///////////////////////////////////////////////////////////////////////////////
+
+# ~ 3 ~
+# Change a release of a specific type
+
+# ~ 3a ~
+# Fix Subjects
+rawsubjects = rd3_acc.get(
+  entity='solverd_subjects',
+  q='partOfRelease==novelrnaseq_original',
+  attributes='subjectID,partOfRelease',
+  batch_size=1000
+)
+
+subjects = flattenDataset(rawsubjects,columnPatterns='subjectID|id|value')
+for row in subjects:
+  row['partOfRelease'] = row['partOfRelease'].replace('novelrnaseq_','novelsrrnaseq_')
+del row
+
+rd3_acc.updateColumn('solverd_subjects', attr='partOfRelease', data=subjects)
+rd3_prod.updateColumn('solverd_subjects', attr='partOfRelease', data=subjects)
+
+rd3_acc.updateColumn('solverd_subjectinfo', attr='partOfRelease', data=subjects)
+rd3_prod.updateColumn('solverd_subjectinfo', attr='partOfRelease', data=subjects)
+
+# ~ 3b ~
+# Fix samples
+rawsamples = rd3_acc.get(
+  entity='solverd_samples',
+  q='partOfRelease==novelrnaseq_original',
+  attributes='sampleID,partOfRelease',
+  batch_size=1000
+)
+
+samples = flattenDataset(rawsamples,columnPatterns='subjectID|id|value')
+for row in samples:
+  row['partOfRelease'] = row['partOfRelease'].replace('novelrnaseq_','novelsrrnaseq_')
+
+rd3_acc.updateColumn('solverd_samples',attr='partOfRelease',data=samples)
+rd3_prod.updateColumn('solverd_samples',attr='partOfRelease',data=samples)
 
 #///////////////////////////////////////////////////////////////////////////////
 

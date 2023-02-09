@@ -167,10 +167,24 @@ subjects = subjects[:, :, dt.join(experimentsBySubject)]
 # Add File query
 # Since the files table is quite large and it takes a while to pull the data,
 # it is better to make a query URL that redirects to files tables.
-statusMsg('Create redirect for file')
+
+# get file metadata -- subjects only
+statusMsg('Getting file metadata.....')
+rawfiles = rd3.get(
+  entity='solverd_files',
+  attributes='subjectID',
+  batch_size=10000
+)
+
+files = dt.Frame(flattenDataset(rawfiles,columnPatterns="subjectID"))
+files = dt.unique(files[f.subjectID!=None,'subjectID'])
+fileSubjectIDs =files['subjectID'].to_list()[0]
+
+statusMsg('Create redirect for files table....')
 subjects['files'] = dt.Frame([
-   	f"?entity=solverd_files&hideselect=true&filter=(subjectID%3Dq%3D{id})"
-    for id in subjects['subjectID'].to_list()[0]
+  f'?entity=solverd_files&hideselect=true&mod=data&filter=subjectID=={id}'
+  if id in fileSubjectIDs else None
+  for id in subjects['subjectID'].to_list()[0]
 ])
 
 #///////////////////////////////////////////////////////////////////////////////

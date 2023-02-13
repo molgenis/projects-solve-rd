@@ -17,6 +17,7 @@ sys.path.append(environ['SYS_PATH'])
 
 from datatable import dt, f
 from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import statusMsg
 from tqdm import tqdm
 import json
 
@@ -41,12 +42,16 @@ def initSubJson(index, id, group, table, tableAttr):
     'href': url
   }
 
-# connect to database
-# rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-# rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
-rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+# connect to database
+if environ['JOB_ENV']=='PROD':
+  statusMsg('Connecting to RD3-PROD')
+  rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+  rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+else:
+  statusMsg('Connecting to RD3-ACC')
+  rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
+  rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -107,11 +112,13 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # Get Data
 
 # pull all available subjects
+statusMsg('Retrieving subject metadata...')
 subjects = dt.Frame(
   rd3.get('solverd_subjects', attributes = 'subjectID,fid', batch_size=10000)
 )
 
 # get sample metadata
+statusMsg('Retrieving sample metadata...')
 solverdSamples = rd3.get(
   'solverd_samples',
   attributes='sampleID,belongsToSubject',
@@ -126,6 +133,7 @@ for row in solverdSamples:
       
 
 # get experiment metadata
+statusMsg('Retrieving experiment metadata...')
 solverdExperiments = rd3.get(
   'solverd_labinfo',
   attributes="experimentID,sampleID",
@@ -157,12 +165,13 @@ del experiments['_href']
 # Data will be joined in a few steps. It is easier to start with the experiments
 # dataset, as this gives us a large number of samples and experiments to work with.
 # Then, bind samples and subjects that aren't in the dataset.
+statusMsg('Creating tree object....')
+
 
 # ~ 1b.i ~
 # Merge subjectIDs with experiments using the samples datatable
+statusMsg('Joining samples and experiment metadata...')
 samples.key = 'sampleID'
-experiments.key = 'sampleID'
-
 summarizedDT = experiments[:, :, dt.join(samples)][
   f.belongsToSubject!=None, (f.belongsToSubject, f.sampleID, f.experimentID)
 ][:, :, dt.sort(f.belongsToSubject)]
@@ -170,6 +179,7 @@ summarizedDT = experiments[:, :, dt.join(samples)][
 
 # ~ 1b.ii ~
 # identify samples that are not yet in treedata
+statusMsg('Identifying samples that are not present....')
 sampleIDs = summarizedDT['sampleID'].to_list()[0]
 samples['missing'] = dt.Frame([
   id not in sampleIDs
@@ -184,6 +194,7 @@ summarizedDT = dt.rbind(
 
 # ~1b.iii ~
 # merge family IDs
+statusMsg('Merging family IDs....')
 subjectFamilyIDs = subjects[:, (f.subjectID, f.fid)][f.fid != None, :]
 subjectFamilyIDs.names = {'subjectID': 'belongsToSubject' }
 subjectFamilyIDs.key = 'belongsToSubject'
@@ -192,6 +203,7 @@ summarizedDT = summarizedDT[:, :, dt.join(subjectFamilyIDs)]
 
 # ~ 1b.iv ~
 # identify subjects that are not yet in the treedata
+statusMsg('Identifying and joining subjects not in treedata....')
 summarizedSubjectIDs = summarizedDT['belongsToSubject'].to_list()[0]
 subjects['missing'] = dt.Frame([
   value not in summarizedSubjectIDs
@@ -207,12 +219,14 @@ summarizedDT = dt.rbind(
 )
 
 # sort data
+statusMsg('Sorting dataset....')
 summarizedDT = summarizedDT[
   :, :, dt.sort(f.belongsToSubject, f.sampleID, f.experimentID)
 ]
    
 # ~ 1b.v ~ 
 # Compile JSON
+statusMsg('Compiling JSON object....')
 treeDataSubjects = dt.unique(summarizedDT['belongsToSubject']).to_list()[0]
 treedata = dt.Frame([{'id': '', 'belongsToSubject': '', 'fid': '', 'json': ''}])
 
@@ -263,17 +277,19 @@ for (index, id) in enumerate(tqdm(treeDataSubjects)):
   treedata = dt.rbind(treedata, newRow, force=True)
 
 # prepare data
+statusMsg('Renaming columns....')
 treedata.names = {
   'belongsToSubject': 'subjectID',
   'fid': 'familyID'
 }
 
+statusMsg('Removing null records....')
 treedata = treedata[f.id != '', :]
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~
 # Import Data
-
+statusMsg('Importing into RD3....')
 # rd3.delete('rd3stats_treedata')
 rd3.importDatatableAsCsv('rd3stats_treedata', treedata)

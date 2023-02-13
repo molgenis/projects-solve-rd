@@ -1,12 +1,12 @@
 # Solve-RD Workshop on RD3
 
-Date: 14 February 2023 @ 14:00
+**Date**: 14 February 2023 @ 14:00
 
 ## Get Started
 
 The following examples are python reproductions of the examples presented in the RD3 workshop. These examples require information on table identifiers, internal column names, and specific lookup values. Each example will provide this information along with the code. There are more tables and columns available in the database. For more information, have a look at the [RD3 Schema](https://github.com/molgenis/molgenis-solve-rd/blob/main/model/schemas/rd3.md).
 
-> **Note**: You will need an API account to work with RD3. Please follow the procedures outlined in the workshop slides to request an account.
+> **Note**: You will need an separate account to work with the RD3 API. Please follow the procedures outlined in the workshop slides to request an account.
 
 ### Installing the molgenis client
 
@@ -161,15 +161,15 @@ subjectIDs = ','.join([row['subjectID'] for row in subjects])
 # filter. In the samples table, the reference to subject can be found in the
 # column `belongsToSubject`
 
+subjectQuery=f"belongsToSubject=in=({subjectIDs})"
 releaseQuery="partOfRelease=in=(novelsrrnaseq_original,novelsrwgs_original)"
-subjectQuery="belongsToSubject=in=({subjectIDs})"
-query = f"({releaseQuery};{subjectQuery})"
+query = f"({subjectQuery};{releaseQuery})"
 
-samples = rd3.get(entity='solver_samples', q=query, batch_size=1000)
+samples = rd3.get(entity='solverd_samples', q=query, batch_size=1000)
 
 ```
 
-### 4. How do I find subjects with SR-RNAseq and WES/WGS data?
+### 4 and 5. How do I find subjects with SR-RNAseq and WES/WGS data? Are there any files available?
 
 In this example, we would like to find subjects have SR-RNAseq metadata and WES or WGS metadata. This information is stored in the subjects table. WES and WGS metadata is part of the main Solve-RD data freezes. Since there are a number of data freezes and updates, we will retrieve this information via the API and extract the IDs programmatically.
 
@@ -200,44 +200,22 @@ for row in releases:
 # Create an 'AND' search for subjects that have SR-RNAseq metadata and
 # WES or WGS metadata
 
-query=f"(partOfRelease=={srRnaSeqId};partOfRelease=({','.join(releaseIDs)}))"
+query=f"(partOfRelease=={srRnaSeqId};partOfRelease=in=({','.join(releaseIDs)}))"
 
 subjects = rd3.get(entity='solverd_subjects', q=query, batch_size=1000)
-```
 
-### 5. How do I find files for subjects with SR-WGS and SR-RNAseq data?
-
-```py
-import molgenis.client as molgenis
-
-rd3 = molgenis.Session('https://solve-rd.gcc.rug.nl/api/')
-rd3.login(username='...', password='...')
-
-# ~ 1 ~
-# Find Subjects
-# Query the subjects table. Since we only need the subject identifiers, we will
-# use the `attributes` parameter to select the subject ID column.
-subjects = rd3.get(
-  entity='solverd_subjects',
-  q='(partOfRelease==novelsrwgs_original;partOfRelease==novelsrrnaseq_original)',
-  attributes='subjectID',
-  batch_size=1000
-)
-
-# extract subject IDs and format as a comma-separated string for the API request
-subjectIDs = ','.join([row['subjectID'] for row in subjects])
-
-# ~ 2 ~
+# ~ 3 ~
 # Retrieve files
 # Using the subjectIDs extracted in step 1 and the release IDs, create a new
 # filter. In the files table, the reference to subject can be found in the
 # column `subjectID`
 
+subjectQuery=f"subjectID=in=({subjectIDs})"
 releaseQuery="partOfRelease=in=(novelsrrnaseq_original,novelsrwgs_original)"
-subjectQuery="subjectID=in=({subjectIDs})"
-query = f"({releaseQuery};{subjectQuery})"
+query = f"({subjectQuery};{releaseQuery})"
 
 files = rd3.get(entity='solverd_files', q=query, batch_size=10000)
+
 ```
 
 ## Further Information

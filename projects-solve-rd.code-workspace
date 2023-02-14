@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "path" : "."
+    }
+  ],
+  "settings" : {
+    "markdownlint.config": {
+      "MD041": false
+    },
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.defaultInterpreterPath": "venv/bin/python"
+  }
+}

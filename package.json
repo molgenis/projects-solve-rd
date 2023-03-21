@@ -8,7 +8,8 @@
     "set-prod": "mcmd config set host https://solve-rd.gcc.rug.nl/",
     "zip": "zip templates/rd3_novelomics_templates.zip templates/*.csv",
     "build": "python3 model/build.py",
-    "build:templates": "python3 rd3/solverd_make_templates.py"
+    "build:templates": "python3 rd3/solverd_make_templates.py",
+    "pip:freeze": "rm requirements.txt && pip freeze >> requirements.txt"
   },
   "repository": {
     "type": "git",

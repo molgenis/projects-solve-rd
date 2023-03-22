@@ -131,14 +131,13 @@ portal_data = rd3.get(
   entity = 'rd3_portal_recontact_solved',
   # q='process_status=="N"',
   batch_size=10000,
-  num=1000
+  # num=1000
 )
 
-solveRdSubjects = rd3.get(
-  entity = 'solverd_subjects',
-  # q = "retracted!='Y'",
-  # q = "(retracted=='N',retracted=='')",
-  batch_size = 10000
+solveRdSubjects=rd3.get(
+  entity='solverd_subjects',
+  q="retracted!='Y'",
+  batch_size=1000
 )
 
 subjects = flattenDataset(data=solveRdSubjects, columnPatterns='subjectID|id|value')

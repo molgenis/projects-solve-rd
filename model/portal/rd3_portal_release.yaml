@@ -148,3 +148,8 @@ entities:
     label: All patches
     description: Staging table for all patches
     extends: rd3_portal_release_attrTmplate
+  
+  - name: new
+    label: New Metadata
+    description: New metadata that was found in the "All patches" table
+    extends: rd3_portal_release_attrTmplate

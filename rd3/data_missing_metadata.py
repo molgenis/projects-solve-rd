@@ -11,7 +11,7 @@
 
 from rd3.api.molgenis2 import Molgenis
 from dotenv import load_dotenv
-from datatable import dt, f
+from datatable import dt, f, fread
 from os import environ
 load_dotenv()
 
@@ -97,5 +97,8 @@ allDT[f.isNewSample, :]
 allDT[f.isNewExperiment,:]
 
 newDT = allDT[(f.isNewSubject) | (f.isNewSample) | (f.isNewExperiment), :]
+
+newDT = fread('~/Desktop/rd3_portal_release_new.csv')
+rd3.delete('rd3_portal_release_new')
 
 rd3.importDatatableAsCsv(pkg_entity='rd3_portal_release_new', data=newDT)

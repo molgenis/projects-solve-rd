@@ -4,24 +4,19 @@
 #' CREATED: 2021-09-23
 #' MODIFIED: 2023-03-23
 #' PURPOSE: Process new RD3 releases
-#' STATUS: working
-#' PACKAGES: datatable
+#' STATUS: stable
+#' PACKAGES: **see below**
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////
 
 from rd3.api.molgenis2 import Molgenis
-from rd3.utils.utils import recodeValue, dtFrameToRecords, statusMsg, toKeyPairs
-from datatable import dt, f
+from rd3.utils.utils import recodeValue, statusMsg, toKeyPairs
+from datatable import dt, f, as_type
+from datetime import datetime
 
 # SET RELEASE INFORMATRION
 portalTable = 'rd3_portal_release_new' # portal table ID
-patchinfo = {
-  # 'name': 'freeze3',                   # name of the RD3 Release
-  'id': 'freeze1_original,freeze2_original,freeze3_original',            # ID labels `<name>_original`
-  # 'type': 'freeze',                    # 'freeze' or 'patch'
-  # 'date': '2022-05-09',                # Date of release, yyyy-mm-dd
-  # 'description': 'Data Freeze 3'       # a nice description
-}
+newRd3Release = ''
 
 # for local dev use only
 from dotenv import load_dotenv
@@ -135,6 +130,8 @@ libraryTypeMappings.update({
   'genomics': 'Genomic'
 })
 
+#///////////////////////////////////////
+
 # ~ 0e ~
 # Create Sequencer Type Mappings
 seqTypeMappings=toKeyPairs(
@@ -153,6 +150,28 @@ seqTypeMappings.update({
   'WGS': 'WGS',
 })
 
+#///////////////////////////////////////
+
+# ~ 0f ~
+# Create release mappings
+
+rd3Releases = dt.Frame(rd3.get('solverd_info_datareleases',attributes='id'))['id']
+releaseMappings = toKeyPairs(
+  data=rd3Releases[:, {'from': f.id, 'to': f.id}].to_pandas().to_dict('records'),
+  keyAttr='from',
+  valueAttr='to'
+)
+
+releaseMappings.update({
+  'NovelWGS_03': 'novelwgs_original',
+  'NovelWGS_05': 'novelwgs_original',
+  'NovelWGS_06': 'novelwgs_original',
+  'SolveDF2': 'freeze1_original',
+  'SolveDF3': 'freeze3_original',
+  'SolveDF3 MEDPERCAN_05': 'freeze3_original',
+})
+
+
 #//////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
@@ -166,8 +185,11 @@ del release['_href']
 
 # set primary release attributes so that it is easier to select columns later
 # on in the script
-# TODO: UPDATE THIS
-release['partOfRelease'] = patchinfo['id']
+# release['partOfRelease'] = patchinfo['id']
+release['partOfRelease'] = dt.Frame([
+  recodeValue(mappings = releaseMappings, value = value, label='Releases')
+  for value in release['solverd_release'].to_list()[0]
+])
 
 release['sampleID'] = dt.Frame([
   f"VS{value}"
@@ -290,6 +312,25 @@ subjects['solved'] = dt.Frame([
   for value in subjects['solved'].to_list()[0]
 ])
 
+# ~~~ OPTIONAL ~~~
+# MAKE SURE SUBJECTS ARE NEW!!!!
+subjectIDs = dt.unique(
+  dt.Frame(
+    rd3.get('solverd_subjects', attributes='subjectID',batch_size=10000)
+  )['subjectID']
+).to_list()[0]
+
+subjects['isNew'] = dt.Frame([
+  value not in subjectIDs
+  for value in subjects['subjectID'].to_list()[0]
+])
+
+subjects[:, dt.count(), dt.by(f.isNew)]
+subjects = subjects[f.isNew,:]
+
+# ~~~~~~~~~~~~~~~
+
+subjects[:, dt.update(solved=as_type(f.solved,str))]
 
 # ~ b ~
 # Create rd3_<release>_subjectinfo
@@ -333,7 +374,7 @@ labinfo = release[
     'library': f.labinfo_library,
     # 'sequencer': f.labinfo_sequencer, # if available
     'seqType': f.labinfo_seqType,
-    'partOfRelease': patchinfo['id']
+    'partOfRelease': f.partOfRelease
   }
 ]
 
@@ -341,6 +382,12 @@ labinfo = release[
 labinfo['libraryType'] = dt.Frame([
   recodeValue(mappings=libraryTypeMappings, value=value, label='libraryType')
   for value in labinfo['libraryType'].to_list()[0]
+])
+
+# recode library
+labinfo['library'] = dt.Frame([
+  '1' if value == 'True' else value
+  for value in labinfo['library'].to_list()[0]
 ])
 
 # recode labinfo
@@ -354,17 +401,31 @@ labinfo['seqType'] = dt.Frame([
 # ~ 3 ~
 # Import Data
 
-# prep data for import into RD3
-rd3_subjects = dtFrameToRecords(data=subjects)
-rd3_subjectInfo = dtFrameToRecords(data=subjectInfo)
-rd3_samples = dtFrameToRecords(data=samples)
-rd3_labinfo = dtFrameToRecords(data=labinfo)
+date = datetime.now().strftime('%Y-%m-%d')
+createdBy = 'rd3-bot'
+comment = 'added retrospectively'
+
+subjects['dateRecordCreated'] = date
+subjects['recordCreatedBy'] = createdBy
+subjects['comments'] = comment
+
+subjectInfo['dateRecordCreated'] = date
+subjectInfo['recordCreatedBy'] = createdBy
+subjectInfo['comments'] = comment
+
+samples['dateRecordCreated'] = date
+samples['recordCreatedBy'] = createdBy
+samples['comments'] = comment
+
+labinfo['dateRecordCreated'] = date
+labinfo['recordCreatedBy'] = createdBy
+labinfo['comments'] = comment
 
 # import data
-rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data=rd3_subjects)
-rd3.importDatatableAsCsv(pkg_entity='solverd_subjectinfo', data=rd3_subjectInfo)
-rd3.importDatatableAsCsv(pkg_entity='solverd_samples', data=rd3_samples)
-rd3.importDatatableAsCsv(pkg_entity='solverd_labinfo', data=rd3_labinfo)
+rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data=subjects)
+rd3.importDatatableAsCsv(pkg_entity='solverd_subjectinfo', data=subjectInfo)
+rd3.importDatatableAsCsv(pkg_entity='solverd_samples', data=samples)
+rd3.importDatatableAsCsv(pkg_entity='solverd_labinfo', data=labinfo)
 
 # update portal
 release['processed'] = True

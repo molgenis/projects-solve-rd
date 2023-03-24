@@ -113,7 +113,7 @@ class Molgenis(molgenis.Session):
       self.__dfToCsv__(filepath, data)
       with open(path.abspath(filepath), 'r') as file:
         response = self._session.post(
-          url=self.fileImportApi,
+          url = self.fileImportEndpoint,
           headers = self._headers.token_header,
           files={'file': file},
           params = {'action': 'add_update_existing', 'metadataAction': 'ignore'}

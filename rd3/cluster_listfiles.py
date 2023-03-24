@@ -24,8 +24,8 @@ load_dotenv()
 host=os.environ['MOLGENIS_ACC_HOST']
 rd3 = Molgenis(url=host)
 rd3.login(
-    username=os.environ['MOLGENIS_ACC_USR'],
-    password=os.environ['MOLGENIS_ACC_PWD']
+    username=os.environ['MOLGENIS_PROD_USR'],
+    password=os.environ['MOLGENIS_PROD_PWD']
 )
 
 

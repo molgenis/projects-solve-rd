@@ -5,6 +5,7 @@ node_modules
 
 # python
 __pycache__/
+__init__.pyc
 venv
 
 # R files

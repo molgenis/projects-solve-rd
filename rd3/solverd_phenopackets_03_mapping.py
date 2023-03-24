@@ -38,8 +38,8 @@ rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # Get input datasets
 
 # get subjects
-# rawsubjects = rd3_prod.get('solverd_subjects', batch_size=10000)
-rawsubjects = rd3_acc.get('solverd_subjects', batch_size=10000)
+rawsubjects = rd3_prod.get('solverd_subjects', batch_size=10000)
+# rawsubjects = rd3_acc.get('solverd_subjects', batch_size=10000)
 subjects= flattenDataset(rawsubjects, columnPatterns='subjectID|id|value')
 subjectsDT = dt.Frame(subjects)
 subjectsDT[:, dt.update(clinical_status=as_type(f.clinical_status, 'str'))]
@@ -47,8 +47,8 @@ subjectsIDs = subjectsDT['subjectID'].to_list()[0]
 
 
 # get subjectinfo
-# rawsubjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=10000)
-rawsubjectinfo = rd3_acc.get('solverd_subjectinfo', batch_size=10000)
+rawsubjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=10000)
+# rawsubjectinfo = rd3_acc.get('solverd_subjectinfo', batch_size=10000)
 subjectinfo = flattenDataset(rawsubjectinfo, columnPatterns='subjectID|id|value')
 subjectinfoDT = dt.Frame(subjectinfo)
 subjectinfoDT[:, dt.update(dateOfBirth=as_type(f.dateOfBirth,str))]

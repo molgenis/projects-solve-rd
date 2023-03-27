@@ -2,7 +2,7 @@
 #' FILE: rd3_data_phenopacket_processing.py
 #' AUTHOR: David Ruvolo
 #' CREATED: 2022-08-02
-#' MODIFIED: 2023-02-08
+#' MODIFIED: 2023-03-27
 #' PURPOSE: process new phenopacket data
 #' STATUS: stable
 #' PACKAGES: **see below**
@@ -38,8 +38,8 @@ rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # Get input datasets
 
 # get subjects
-rawsubjects = rd3_prod.get('solverd_subjects', batch_size=10000)
-# rawsubjects = rd3_acc.get('solverd_subjects', batch_size=10000)
+rawsubjects = rd3_prod.get('solverd_subjects', batch_size=1000)
+# rawsubjects = rd3_acc.get('solverd_subjects', batch_size=1000)
 subjects= flattenDataset(rawsubjects, columnPatterns='subjectID|id|value')
 subjectsDT = dt.Frame(subjects)
 subjectsDT[:, dt.update(clinical_status=as_type(f.clinical_status, 'str'))]
@@ -47,15 +47,16 @@ subjectsIDs = subjectsDT['subjectID'].to_list()[0]
 
 
 # get subjectinfo
-rawsubjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=10000)
-# rawsubjectinfo = rd3_acc.get('solverd_subjectinfo', batch_size=10000)
+rawsubjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=1000)
+# rawsubjectinfo = rd3_acc.get('solverd_subjectinfo', batch_size=1000)
 subjectinfo = flattenDataset(rawsubjectinfo, columnPatterns='subjectID|id|value')
 subjectinfoDT = dt.Frame(subjectinfo)
 subjectinfoDT[:, dt.update(dateOfBirth=as_type(f.dateOfBirth,str))]
 
 
 # get new phenopackets
-phenopacketsDT = dt.Frame(rd3_prod.get('rd3_portal_cluster_phenopacket',batch_size=10000))
+rawPhenopacketsDT = dt.Frame(rd3_prod.get('rd3_portal_cluster_phenopacket',batch_size=1000))
+phenopacketsDT = rawPhenopacketsDT.copy()
 phenopacketsDT.names = {
   'dateofBirth': 'dateOfBirth',
   'phenopacketsID': 'mostRecentPhenopacketFile',
@@ -77,10 +78,10 @@ phenopacketsDT['subjectExists'] = dt.Frame([
 # get counts, create a subset of missing subjects for later use
 phenopacketsDT[:, dt.count(), dt.by(f.subjectExists)]
 unknownSubjects = phenopacketsDT[f.subjectExists==False,:]
+unknownSubjects.to_csv(f"data/rd3_unknown_subjects_{timestamp()}.csv")
 
 # remove unknown subjects for now
 phenopacketsDT = phenopacketsDT[f.subjectExists, :]
-
 
 
 # make sure dateOfBirth is renamed and formatted correctly
@@ -166,90 +167,28 @@ for id in tqdm(phenopacketIDs):
   subjectinfoDT[f.subjectID==id, 'dateRecordUpdated'] = timestamp()
   subjectinfoDT[f.subjectID==id, 'wasUpdatedBy'] = 'rd3-bot'
 
+#///////////////////////////////////////
+
+# ~ 2 ~
+# Update processed status and import datasets
+
+# update processed data
+rawPhenopacketsDT['processed'] = 'true'
+if unknownSubjects:
+  for id in unknownSubjects['mostRecentPhenopacketFile'].to_list()[0]:
+    rawPhenopacketsDT[f.phenopacketsID==id,'processed'] = 'false'
+# rawPhenopacketsDT[:, dt.count(),dt.by(f.processed)]
 
 # import
 rd3_acc.importDatatableAsCsv('solverd_subjects', subjectsDT)
 rd3_acc.importDatatableAsCsv('solverd_subjectinfo', subjectinfoDT)
+rd3_acc.importDatatableAsCsv('rd3_portal_cluster_phenopacket', rawPhenopacketsDT)
+
 
 rd3_prod.importDatatableAsCsv('solverd_subjects', subjectsDT)
 rd3_prod.importDatatableAsCsv('solverd_subjectinfo', subjectinfoDT)
+rd3_prod.importDatatableAsCsv('rd3_portal_cluster_phenopacket', rawPhenopacketsDT)
 
 # logout
 rd3_acc.logout()
 rd3_prod.logout()
-
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 999 ~
-# Misc
-
-# collapse everything
-# for row in subjects:
-#   del row['_href']
-#   del row['includedInStudies']
-#   del row['includedInCohorts']
-#   del row['includedInDatasets'] 
-#   del row['variant']
-#   if row.get('sex1'):
-#     row['sex1'] = row['sex1']['id']
-  
-#   if row.get('mid'):
-#     row['mid'] = row['mid']['subjectID']
-  
-#   if row.get('pid'):
-#     row['pid'] = row['pid']['subjectID']
-  
-#   if bool(row.get('disease')):
-#     row['disease'] = ','.join([ d['id'] for d in row['disease'] ])
-#   else:
-#     row['disease'] = None
-    
-#   if bool(row.get('phenotype')):
-#     row['phenotype'] = ','.join([ d['id'] for d in row['phenotype'] ])
-#   else:
-#     row['phenotype'] = None
-  
-#   if bool(row.get('hasNotPhenotype')):
-#     row['hasNotPhenotype'] = ','.join([ d['id'] for d in row['hasNotPhenotype'] ])
-#   else:
-#     row['hasNotPhenotype'] = None
-  
-#   if row.get('partOfRelease'):
-#     row['partOfRelease'] = ','.join([ d['id'] for d in row['partOfRelease'] ])
-    
-#   if bool(row.get('ERN')):
-#     row['ERN'] = ','.join([ d['id'] for d in row['ERN'] ])
-#   else:
-#     row['ERN'] = None
-    
-#   if bool(row.get('organisation')):
-#     row['organisation'] = ','.join([ d['value'] for d in row['organisation'] ])
-#   else:
-#     row['organisation'] = None
-  
-#   if row.get('recontact'):
-#     row['recontact'] = row['recontact']['id']
-  
-#   if row.get('retracted'):
-#     row['retracted'] = row['retracted']['id']
-  
-#   if row.get('recordCreatedBy'):
-#     row['recordCreatedBy'] = row['recordCreatedBy']['id']
-    
-#   if row.get('wasUpdatedBy'):
-#     row['wasUpdatedBy'] = row['wasUpdatedBy']['id']
-
-# for row in subjectinfo:
-#   del row['_href']
-  
-#   if bool(row.get('ageOfOnset')):
-#     row['ageOfOnset'] = row['ageOfOnset']['id']
-  
-#   if row.get('partOfRelease'):
-#     row['partOfRelease'] = ','.join([ d['id'] for d in row['partOfRelease'] ])
-
-#   if row.get('recordCreatedBy'):
-#     row['recordCreatedBy'] = row['recordCreatedBy']['id']
-    
-#   if row.get('wasUpdatedBy'):
-#     row['wasUpdatedBy'] = row['wasUpdatedBy']['id']

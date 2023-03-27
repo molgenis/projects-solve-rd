@@ -27,7 +27,7 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 allDT = dt.Frame(
   rd3.get(
     entity='rd3_portal_release_patches',
-    batch_size=10000
+    batch_size=1000
   )
 )
 
@@ -38,7 +38,7 @@ subjectsDT = dt.Frame(
   rd3.get(
     entity='solverd_subjects',
     attributes='subjectID',
-    batch_size=10000
+    batch_size=1000
   )
 )['subjectID']
 
@@ -47,7 +47,7 @@ samplesDT = dt.Frame(
   rd3.get(
     entity='solverd_samples',
     attributes='sampleID',
-    batch_size=10000
+    batch_size=1000
   )
 )['sampleID']
 
@@ -99,6 +99,6 @@ allDT[f.isNewExperiment,:]
 newDT = allDT[(f.isNewSubject) | (f.isNewSample) | (f.isNewExperiment), :]
 
 newDT = fread('~/Desktop/rd3_portal_release_new.csv')
-rd3.delete('rd3_portal_release_new')
+# rd3.delete('rd3_portal_release_new')
 
 rd3.importDatatableAsCsv(pkg_entity='rd3_portal_release_new', data=newDT)

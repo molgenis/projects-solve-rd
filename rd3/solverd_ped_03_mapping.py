@@ -2,14 +2,14 @@
 # FILE: rd3_ped_03_mapping.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-21
-# MODIFIED: 2022-02-02
+# MODIFIED: 2023-03-27
 # PURPOSE: Map PED data into RD3
 # STATUS: stable
 # PACKAGES: dotenv, datatable, os, rd3.utils, rd3.api
-# COMMENTS: 
+# COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
-from rd3.utils.utils import dtFrameToRecords, timestamp
+from rd3.utils.utils import timestamp, flattenDataset
 from rd3.api.molgenis2 import Molgenis
 from datatable import dt, f, as_type
 from dotenv import load_dotenv
@@ -61,80 +61,43 @@ rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # get new ped data
-pedDT = dt.Frame(rd3_acc.get('rd3_portal_cluster_ped', batch_size=10000))
+rawPedDT = dt.Frame(rd3_acc.get('rd3_portal_cluster_ped', batch_size=1000))
+pedDT = rawPedDT.copy()
 del pedDT['_href']
 
 # get subjects
-subjects = rd3_prod.get('solverd_subjects', batch_size=10000)
-
-# collapse everything
-for row in subjects:
-  del row['_href']
-  del row['includedInStudies']
-  del row['includedInCohorts']
-  del row['includedInDatasets'] 
-  del row['variant']
-  if row.get('sex1'):
-    row['sex1'] = row['sex1']['id']
-  
-  if row.get('mid'):
-    row['mid'] = row['mid']['subjectID']
-  
-  if row.get('pid'):
-    row['pid'] = row['pid']['subjectID']
-  
-  if bool(row.get('disease')):
-    row['disease'] = ','.join([ d['id'] for d in row['disease'] ])
-  else:
-    row['disease'] = None
-    
-  if bool(row.get('phenotype')):
-    row['phenotype'] = ','.join([ d['id'] for d in row['phenotype'] ])
-  else:
-    row['phenotype'] = None
-  
-  if bool(row.get('hasNotPhenotype')):
-    row['hasNotPhenotype'] = ','.join([ d['id'] for d in row['hasNotPhenotype'] ])
-  else:
-    row['hasNotPhenotype'] = None
-  
-  if row.get('partOfRelease'):
-    row['partOfRelease'] = ','.join([ d['id'] for d in row['partOfRelease'] ])
-    
-  if bool(row.get('ERN')):
-    row['ERN'] = ','.join([ d['id'] for d in row['ERN'] ])
-  else:
-    row['ERN'] = None
-    
-  if bool(row.get('organisation')):
-    row['organisation'] = ','.join([ d['value'] for d in row['organisation'] ])
-  else:
-    row['organisation'] = None
-  
-  if row.get('recontact'):
-    row['recontact'] = row['recontact']['id']
-  
-  if row.get('retracted'):
-    row['retracted'] = row['retracted']['id']
-  
-  if row.get('recordCreatedBy'):
-    row['recordCreatedBy'] = row['recordCreatedBy']['id']
-    
-  if row.get('wasUpdatedBy'):
-    row['wasUpdatedBy'] = row['wasUpdatedBy']['id']
-
-
+rawsubjects = rd3_prod.get('solverd_subjects', batch_size=1000)
+# rawsubjects = rd3_acc.get('solverd_subjects', batch_size=1000)
+subjects= flattenDataset(rawsubjects, columnPatterns='subjectID|id|value')
 subjectsDT = dt.Frame(subjects)
 subjectsDT[:, dt.update(clinical_status=as_type(f.clinical_status, 'str'))]
+subjectIDs = subjectsDT['subjectID'].to_list()[0]
+
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
-# Apply pre-import transformations
+# Prep PED data 
 
-# rename releases column to RD3 terminology
-# pedDT.names = {'releasesWhereSubjectExists': 'partOfRelease'}
+# ~ 1a ~
+# make sure all subjects exist
+pedDT['subjectExists'] = dt.Frame([
+  id in subjectIDs for id in pedDT['subjectID'].to_list()[0]
+])
 
+# get counts and create a subset of missing subjects for verification
+pedDT[:, dt.count(), dt.by(f.subjectExists)]
+unknownSubjects = pedDT[f.subjectExists==False,:]
+if unknownSubjects.nrows > 0:
+  print('Warning: Unknown subjects detected. Saving data to file....')
+  unknownSubjects.to_csv(f"data/rd3_ped_unknown_subjects_{timestamp()}.csv")
+
+  # remove unknown subjects from processing
+  pedDT = pedDT[f.subjectExists, :]
+
+#///////////////////////////////////////
+
+# ~ 1b ~
 # change clinical_status to string
 pedDT['clinical_status'] = as_type(pedDT['clinical_status'], dt.Type.str32)
 pedDT['clinical_status'] = dt.Frame([
@@ -142,24 +105,14 @@ pedDT['clinical_status'] = dt.Frame([
   for value in pedDT['clinical_status'].to_list()[0]
 ])
 
-# make sure the 'clusterRelease' is in the 'partOfRelease' column
-# pedDT['partOfRelease'] = dt.Frame([
-#   f"{row[0]},{row[1]}" if row[1] not in row[0] else row[0]
-#   for row in pedDT[:, ['partOfRelease', 'clusterRelease']].to_tuples()
-# ])
-
-# pedDT['partOfRelease'] = dt.Frame([
-#   uniqueStringValues(value) if value else value
-#   for value in pedDT['partOfRelease'].to_list()[0]
-# ])
-
 # check for duplicate rows
 pedDT.nrows
-dt.unique(pedDT['id']).nrows == pedDT.nrows
-# pedDT[:, dt.first(f[:]), dt.by(f.id)].nrows
-# pedDT[:, dt.first(f[:]), dt.by(f.id)].nrows == pedDT.nrows
-# pedDT = pedDT[:, dt.first(f[:]), dt.by(f.subjectID)]
-# dt.unique(pedDT['id']).nrows == pedDT.nrows
+if dt.unique(pedDT['id']).nrows != pedDT.nrows:
+  print('Warning: There are duplicate rows....')
+  # pedDT[:, dt.first(f[:]), dt.by(f.id)].nrows
+  # pedDT[:, dt.first(f[:]), dt.by(f.id)].nrows == pedDT.nrows
+  # pedDT = pedDT[:, dt.first(f[:]), dt.by(f.subjectID)]
+  # dt.unique(pedDT['id']).nrows == pedDT.nrows
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -205,10 +158,26 @@ for id in tqdm(pedIDs):
     f.subjectID == id, 'clinical_status'
   ] = newSubjectPedData['clinical_status'].to_list()[0]
 
+#///////////////////////////////////////////////////////////////////////////////
+
+
+# ~ 2 ~
+# Import data and update portal status
+
+# update processed data
+rawPedDT['processed'] = 'true'
+if unknownSubjects.nrows > 0:
+  print('Setting processed status for unknown subjects')
+  for id in unknownSubjects['most'].to_list()[0]:
+    rawPedDT[f.id ==id,'processed'] = 'false'
+
 # import
 rd3_acc.importDatatableAsCsv(pkg_entity='solverd_subjects', data = subjectsDT)
+rd3_acc.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_ped', data=rawPedDT)
+
 rd3_prod.importDatatableAsCsv(pkg_entity='solverd_subjects', data = subjectsDT)
-     
+rd3_prod.importDatatableAsCsv(pkg_entity='rd3_portal_cluster_ped', data=rawPedDT)
+
 # disconnect
 rd3_acc.logout()
 rd3_prod.logout()

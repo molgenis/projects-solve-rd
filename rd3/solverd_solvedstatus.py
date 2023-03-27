@@ -2,9 +2,9 @@
 # FILE: solverd_solvedstatus.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-03-20
-# MODIFIED: 2023-03-20
+# MODIFIED: 2023-03-27
 # PURPOSE: update solved status metadata in RD3
-# STATUS: in.progress
+# STATUS: stable
 # PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
@@ -110,37 +110,39 @@ def flattenDataset(data, columnPatterns=None):
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~
-# Connect to RD3 and Retrieve data
+# Retrieve metadata
 print2('Connecting to RD3 and retrieving data....')
 
 # for local dev
-from dotenv import load_dotenv
-from os import environ
-load_dotenv()
-
-rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+# from dotenv import load_dotenv
+# from os import environ
+# load_dotenv()
+# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # when deployed
-# rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
+rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
 
 # ~ 0b ~
 # Retrieve data and flatten to data table objects
 # get data from the portal and freezes
 portal_data = rd3.get(
   entity = 'rd3_portal_recontact_solved',
-  # q='process_status=="N"',
-  batch_size=10000,
-  # num=1000
+  q='process_status=="N"',
+  batch_size=1000
 )
 
+# Retrieve subject metadata to determine if a status has changed
 solveRdSubjects=rd3.get(
   entity='solverd_subjects',
   q="retracted!='Y'",
   batch_size=1000
 )
 
-subjects = flattenDataset(data=solveRdSubjects, columnPatterns='subjectID|id|value')
+subjects = flattenDataset(
+  data=solveRdSubjects,
+  columnPatterns='subjectID|id|value'
+)
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +151,7 @@ subjects = flattenDataset(data=solveRdSubjects, columnPatterns='subjectID|id|val
 # Store current solved status metadata (i.e., contact, recontact and solved status)
 # Create a new object that will be used for comparison with incoming portal
 # information
-print2('Processing subject information and storing current solved status metadata...')
+print2('Processing subject information & storing current solved status metadata...')
 
 subject = {}
 no_solved_update = 0
@@ -175,7 +177,7 @@ for row in subjects:
 
   if row['subjectID'] not in subjects:
     subject[row['subjectID']]={
-      'id': [row['subjectID']],
+      'id': row['subjectID'],
       'solved': row['solved'] if 'solved' in row else None,
       'date_solved': date_solved,
       'recontact': recontact,
@@ -230,64 +232,66 @@ for row in portal_data:
   solvedNew = None
   
   # make sure subject exists
-  # status = True if row['subject'] in subjects else False
-  # if status:
-  ids = subject[row['subject']]['id']
-  
-  # set solved status
-  if row['solved'] == 'solved':
-    solved = True
-  elif row['solved'] == 'unsolved':
-    solved = False
-  elif row['solved'] == 'nA':
-    solved = None
-  else:
-    raise SystemExit(f"Unknown Portal solved status {row['solved']} for {row['subject']}")
-  
-  # if the case is unsolved, did it change from solved?
-  if subject[row['subject']]['solved'] != solved:
-    print2(
-      f"\tSolved Status differs for {row['subject']} old {subject[row['subject']]['solved']} new {row['solved']}"
-    )
+  status = row['subject'] in subject
+  if status:
+    id = subject[row['subject']]['id']
     
-    if subject[row['subject']]['update_solved_status'] == 'Y':
-      if not subject[row['subject']]['solved']:
-        solvedNew = solved
-        dateNew = row['date_solved']
-        remarkNew = None
-      else:
-        print2(f"\tSolved status changed from solved to unsolved for {row['subject']}")
-        solvedNew = solved
-        dateNew = None
-        remarkNew = f"Solved status changed from solved to unsolved on {row['date_solved']}"
+    # set solved status
+    if row['solved'] == 'solved':
+      solved = True
+    elif row['solved'] == 'unsolved':
+      solved = False
+    elif row['solved'] == 'nA':
+      solved = None
     else:
-      ptlRemark = 'New solved status, but not updated!'
-      ptlStatus='D'
-
-  # update recontact information            
-  if 'recontact' in row:
-    if subject[row['subject']]['recontact'] == 'U':
-      recontactNew = row['recontact']
-    elif subject[row['subject']]['recontact'] != row['recontact']:
-      print2(
-        f"\tNew recontact info for {row['subject']} old {subject[row['subject']]['recontact']} new {row['recontact']}"
+      raise SystemExit(
+        f"Unknown Portal solved status {row['solved']} for {row['subject']}"
       )
-      recontactNew = row['recontact']
-
-  # update contact information
-  if 'contact' in row:
-    if subject[row['subject']]['contact'] == 'missing':
-      contactNew = row['contact']
-    elif subject[row['subject']]['contact'] != row['contact']:
-      print2(
-        f"\tNew contact info for {row['subject']} old {subject[row['subject']]['contact']} new {row['contact']}"
-      )
-      contactNew = row['contact']
-
-  # if contact, recontact, or solved status is present, update portal history 
-  if contactNew != None or recontactNew != None or solvedNew != None:
-    for id in ids:
+    
+    # if the case is unsolved, did it change from solved?
+    if subject[row['subject']]['solved'] != solved:
+      # print2(
+      #   f"\tSolved Status differs for {row['subject']} old {subject[row['subject']]['solved']} new {row['solved']}"
+      # )
       
+      if subject[row['subject']]['update_solved_status'] == 'Y':
+        if not subject[row['subject']]['solved']:
+          solvedNew = solved
+          dateNew = row['date_solved']
+          remarkNew = None
+        else:
+          # print2(
+          #   f"\tSolved status changed from solved to unsolved for {row['subject']}"
+          # )
+          solvedNew = solved
+          dateNew = None
+          remarkNew = f"Solved status changed from solved to unsolved on {row['date_solved']}"
+      else:
+        ptlRemark = 'New solved status, but not updated!'
+        ptlStatus='D'
+
+    # update recontact information            
+    if 'recontact' in row:
+      if subject[row['subject']]['recontact'] == 'U':
+        recontactNew = row['recontact']
+      elif subject[row['subject']]['recontact'] != row['recontact']:
+        # print2(
+        #   f"\tNew recontact info for {row['subject']} old {subject[row['subject']]['recontact']} new {row['recontact']}"
+        # )
+        recontactNew = row['recontact']
+
+    # update contact information
+    if 'contact' in row:
+      if subject[row['subject']]['contact'] == 'missing':
+        contactNew = row['contact']
+      elif subject[row['subject']]['contact'] != row['contact']:
+        # print2(
+        #   f"\tNew contact info for {row['subject']} old {subject[row['subject']]['contact']} new {row['contact']}"
+        # )
+        contactNew = row['contact']
+
+    # if contact, recontact, or solved status is present, update portal history 
+    if contactNew != None or recontactNew != None or solvedNew != None:
       # if there is new contact information, set the history accordingly
       if contactNew != None:
         if ptlRemark == None:
@@ -300,26 +304,27 @@ for row in portal_data:
         # add record to portal updates dataset
         if {'id': id, 'contact': contactNew} not in updateContact:
           updateContact.append({'id': id, 'contact': contactNew})
-        else:
-          print2(
-            f"\tDuplicate portal record for subject {id} with contact {contactNew}"
-          )
+        # else:
+        #   print2(
+        #     f"\tDuplicate portal record for subject {id} with contact {contactNew}"
+        #   )
 
       # set portal history for new recontact information
       if recontactNew != None:
-          if ptlRemark == None:
-            ptlRemark='Recontact info updated'
-          else:
-            ptlRemark = ptlRemark + ' and recontact info updated'
-          
-          ptlStatus='P'
+        if ptlRemark == None:
+          ptlRemark='Recontact info updated'
+        else:
+          ptlRemark = ptlRemark + ' and recontact info updated'
+        
+        ptlStatus='P'
 
-          if {'id': id, 'recontact': recontactNew} not in updateRecontact:
-            updateRecontact.append({'id': id, 'recontact': recontactNew})
-          else:
-            print2(
-              f"\tDuplicate portal record for subject {id} with recontact {recontactNew}"
-            )
+        
+        if {'id': id, 'recontact': recontactNew} not in updateRecontact:
+          updateRecontact.append({'id': id, 'recontact': recontactNew})
+        # else:
+        #   print2(
+        #     f"\tDuplicate portal record for subject {id} with recontact {recontactNew}"
+        #   )
 
       # set portal history for new solved statuses
       if solvedNew != None:
@@ -334,31 +339,32 @@ for row in portal_data:
           updateSolved.append({'id': id, 'solved': solvedNew})
           updateDate.append({'id': id, 'date_solved': dateNew})
           updateRemark.append({'id': id, 'remarks': remarkNew})
-        else:
-          print2(
-            f"\tDuplicate portal record for subject {id} with solved {solvedNew}"
-          )
-  
-  # add history to portal table
-  if ptlRemark != None:
-    updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
-    updatePtlRemark.append({'id': row['id'], 'remark': ptlRemark})
-    updatePtlStatus.append({'id': row['id'], 'process_status': ptlStatus})
-  else:
-    updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
-    updatePtlRemark.append({'id': row['id'], 'remark': 'No new information'})
-    updatePtlStatus.append({'id': row['id'], 'process_status': 'P'})
-
+        # else:
+        #   print2(
+        #     f"\tDuplicate portal record for subject {id} with solved {solvedNew}"
+        #   )
+    
+    # add history to portal table
+    if ptlRemark != None:
+      updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
+      updatePtlRemark.append({'id': row['id'], 'remark': ptlRemark})
+      updatePtlStatus.append({'id': row['id'], 'process_status': ptlStatus})
+    else:
+      updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
+      updatePtlRemark.append({'id': row['id'], 'remark': 'No new information'})
+      updatePtlStatus.append({'id': row['id'], 'process_status': 'P'})
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~
 # Merge portal update datasets
+#
 # NOTE: this above steps are from scripts that I inherited and I'm not sure how to
 # properly update these steps without losing important information and checks so
 # that I can use the File Import API. Instead, merge all `updatePlt*` objects and
 # create a new datatable object that can be imported into the portal and the
 # subjects table.
+#
 
 print2('Creating datasets for import via File API...')
 
@@ -400,7 +406,7 @@ subjectsDT = dt.Frame([
 # dataset is not missing. Otherwise, return the existing value
 for column in ['contact', 'recontact', 'solved','date_solved', 'remarks']:
   print2(f"\t\tMerging data into solverd_subjects manually for {column}....")
-  if column in subjectUpdates.names:
+  if (column in subjectUpdates.names) and (column in subjectsDT.names):
     subjectsDT[column] = dt.Frame([
       subjectUpdates[f.id == row[0], column].to_list()[0][0]
       if subjectUpdates[f.id == row[0], column].to_list()[0][0] != None
@@ -450,12 +456,17 @@ portalDT = dt.Frame(portalDT)
 # dataset is not missing. Otherwise, return the existing value
 for column in ['history','process_status','remark']:
   print2(f"Manually updating data for column {column} in main portal_status dataset")
-  portalDT[column] = dt.Frame([
-    portalUpdates[f.id == row[0], column].to_list()[0][0]
-    if portalUpdates[f.id == row[0], column].to_list()[0][0] != None
-    else row[1]
-    for row in portalDT[:, ['id', column]].to_tuples()
-  ])
+  if (column in portalUpdates.names):
+
+    if column not in portalDT.names:
+      portalDT[column] = None
+    
+    portalDT[column] = dt.Frame([
+      portalUpdates[f.id == row[0], column].to_list()[0][0]
+      if portalUpdates[f.id == row[0], column].to_list()[0][0] != None
+      else row[1]
+      for row in portalDT[:, ['id', column]].to_tuples()
+    ])
 
 #///////////////////////////////////////////////////////////////////////////////
 

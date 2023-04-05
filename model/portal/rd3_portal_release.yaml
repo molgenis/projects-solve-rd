@@ -2,7 +2,7 @@
 # NAME: base_rd3_freeze.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2021-09-21
-# MODIFIED: 2022-05-07
+# MODIFIED: 2023-04-05
 # PURPOSE: Base EMX structure for RD3 Releases (Freeze 1, 2, 3, etc.)
 # COMMENTS:
 # The table `rd3_portal_freeze` is a staging table for new RD3 releases. Data
@@ -26,8 +26,8 @@ name: rd3_portal_release
 label: Releases
 description: Intermediate tables for RD3 releases
 parent: rd3_portal
-version: 1.2.0
-date: 2023-01-25
+version: 1.3.0
+date: 2023-04-05
 
 # Defaults:
 # Set default attribute options. By default, all rows are given an auto ID
@@ -125,6 +125,72 @@ entities:
         dataType: bool
         defaultValue: false
         
+  - name: exprTemplate
+    abstract: true
+    description: template for experiments
+    attributes:
+      - name: file_path
+      - name: file_name
+      - name: unencrypted_md5_checksum
+      - name: encrypted_md5_checksum
+      - name: file_type
+      - name: file_size
+      - name: file_group_id
+      - name: batch_id
+      - name: project_experiment_dataset_id
+      - name: sample_id
+      - name: sample_links
+      - name: gender
+      - name: subject_id
+      - name: phenotype
+      - name: subject_links
+      - name: sequencing_center
+      - name: platform_brand
+      - name: platform_model
+      - name: library_source
+      - name: library_selection
+      - name: library_strategy
+      - name: library_layout
+      - name: paired_nominal_length
+      - name: paired_nominal_sdev
+      - name: experiment_links
+      - name: analysis_center
+      - name: analysis_type
+      - name: sequencing_type
+      - name: reference_genome
+      - name: linked_object
+      - name: platform
+      - name: program
+      - name: imputation
+      - name: analysis_links
+      - name: experiment_type
+      - name: tissue_type
+      - name: sample_type
+      - name: sub_project_name
+      - name: project_batch_id
+      - name: file_ega_id
+      - name: run_ega_id
+      - name: experiment_ega_id
+      - name: sample_ega_id
+      
+       # record metadata attributes (for internal use only)
+      - name: date_created
+        description: Date the data was uploaded into RD3
+        dataType: datetime
+        auto: true
+
+      - name: processed
+        description: indication if the the record has been processed into an RD3 release
+        dataType: bool
+        defaultValue: false
+
+      - name: molgenis_id
+        description: an internal, auto generated identifier
+        dataType: string
+        idAttribute: true
+        auto: true
+        nillable: false
+        
   #////////////////////////////////////
   
   # Define tables for new releases below
@@ -153,3 +219,8 @@ entities:
     label: New Metadata
     description: New metadata that was found in the "All patches" table
     extends: rd3_portal_release_attrTmplate
+    
+  - name: experiments
+    label: Experiments
+    description: Staging table for experiment metadata
+    extends: rd3_portal_release_exprTemplate

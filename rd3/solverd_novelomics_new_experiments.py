@@ -2,41 +2,37 @@
 # FILE: solverd_novelomics_new_experiments.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-02-07
-# MODIFIED: 2023-02-07
+# MODIFIED: 2023-04-05
 # PURPOSE: process and import new experiment metadata
 # STATUS: in.progress
 # PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
-from datatable import dt, f, first, as_type
 from rd3.api.molgenis2 import Molgenis
 from dotenv import load_dotenv
-from datetime import datetime
+from datatable import dt, f
 from os import environ
-from tqdm import tqdm
-import functools
-import operator
-import re
+# from tqdm import tqdm
+# import functools
+# import operator
+# import re
 from rd3.utils.utils import (
   dtFrameToRecords,
   timestamp,
   toKeyPairs,
   recodeValue,
-  flattenDataset
+  flattenDataset,
+  timestamp
 )
-
-def today():
-  return datetime.now().strftime('%Y-%m-%d')
-
 
 # init connection to RD3
 load_dotenv()
 rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
-rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+# rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
+# rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -71,15 +67,16 @@ experiments = flattenDataset(rawexperiments, columnPatterns="sampleID|id")
 experimentsDT = dt.Frame(experiments)
 
 # get new experiment metadata
-novelomicsDT = dt.Frame(
+novelomicsraw = dt.Frame(
   rd3_prod.get(
     entity='rd3_portal_novelomics_experiment',
-    q="processed==false"
+    q="processed==false",
+    batch_size=10000
   )
 )
 
+novelomicsDT = novelomicsraw.copy()
 del novelomicsDT['_href']
-# novelomicsDT.to_csv('data/rd3_portal_novelomics_experiment.csv')
 
 # extract identifiers
 subjectIDs = subjectsDT['subjectID'].to_list()[0]
@@ -150,15 +147,15 @@ if releases[f.isNewRelease, :].nrows > 0:
 
 # ~ 1b ~
 # Define new library_strategy (seqType) mappings
-seqTypes = dt.Frame(
-  rd3_prod.get(entity='solverd_lookups_seqType')
-)[:, (f.id, f.label)]
+seqTypes = dt.Frame(rd3_prod.get('solverd_lookups_seqType'))[:, (f.id, f.label)]
 
 seqTypesMappings = toKeyPairs(
   data = dtFrameToRecords(seqTypes),
   keyAttr='id',
   valueAttr='id'
 )
+
+seqTypesMappings.update({'Bisulfite-Seq': 'RRBS'})
 
 # check for new values
 incomingSeqTypes = dt.unique(novelomicsDT['library_strategy'])
@@ -194,7 +191,6 @@ if incomingFileTypes[f.isNewMapping,:].nrows:
   print('New file formats to import')
 
 # newFileTypes = incomingFileTypes[f.isNewMapping,:]
-
 
 #///////////////////////////////////////
 
@@ -251,9 +247,9 @@ novelomicsDT['library_strategy'] = dt.Frame([
 # ~ 1b.vi ~
 # create full path column (concat path and name)
 novelomicsDT['name'] = dt.Frame([
-  '/'.join(d) for d in novelomicsDT[:, (f.file_path,f.file_name)].to_tuples()
+  '/'.join(list(filter(None, row)))
+  for row in novelomicsDT[:, (f.file_path,f.file_name)].to_tuples()
 ])
-
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +280,10 @@ novelomicsDT['isNewExperiment'] = dt.Frame([
   id not in experimentIDs
   for id in novelomicsDT['project_experiment_dataset_id'].to_list()[0]
 ])
+
+# novelomicsDT[:, dt.count(), dt.by(f.isNewSubject)]
+# novelomicsDT[:, dt.count(), dt.by(f.isNewSample)]
+# novelomicsDT[:, dt.count(), dt.by(f.isNewExperiment)]
 
 #///////////////////////////////////////
 
@@ -337,31 +337,53 @@ filesDT = novelomicsDT[:, dt.first(f[:]), dt.by(f.name)][:, {
 labinfoDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
 filesDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
 
-#///////////////////////////////////////
+#///////////////////////////////////////////////////////////////////////////////
 
-# ~ 2b ~ 
-# Import new experiments and files
+# ~ 3 ~ 
+# Create and import new metadata
 # It is apparent that there are duplicate records due to multiple re-imports
 # or other import issues. It is better to identify new records, and import them
 # accordingly.
 
-# import experiments
+# ~ 3a ~
+# Create experiments and files datasets
+
 newExperiments = labinfoDT[f.isNewExperiment, :]
-newExperiments['dateRecordCreated'] = today()
+newExperiments['dateRecordCreated'] = timestamp()
 newExperiments['recordCreatedBy'] = 'rd3-bot'
 
-rd3_acc.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
-rd3_prod.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
-
-
-# import files
 newFiles = filesDT[(f.EGA != None), :]
-newFiles['dateRecordCreated'] = today()
+newFiles['dateRecordCreated'] = timestamp()
 newFiles['recordCreatedBy'] = 'rd3-bot'
 
-rd3_acc.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
+# ~ 3b ~
+# Update Portal Status
+experimentIDs = labinfoDT['experimentID'].to_list()[0]
+novelomicsraw['processed'] = dt.Frame([
+  id in experimentIDs
+  for id in novelomicsraw['project_experiment_dataset_id'].to_list()[0]
+])
+
+fileIDs = filesDT[f.EGA!=None, 'EGA'].to_list()[0]
+novelomicsraw['processed'] = dt.Frame([
+  value in fileIDs
+  for value in novelomicsraw['file_ega_id'].to_list()[0]
+])
+
+novelomicsraw[:, dt.count(), dt.by(f.processed)]
+
+# ~ 3b ~
+# Import
+rd3_prod.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
 rd3_prod.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
+rd3_prod.importDatatableAsCsv(
+  pkg_entity='rd3_portal_novelomics_experiment',
+  data = novelomicsraw
+)
+
+# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
+# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
 
 # logout
-rd3_acc.logout()
+# rd3_acc.logout()
 rd3_prod.logout()

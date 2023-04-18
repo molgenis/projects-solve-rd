@@ -21,23 +21,6 @@ load_dotenv()
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-# get subjects info
-subjects = rd3.get('solverd_subjects', batch_size=10000)
-subjectsDT = flattenDataset(data=subjects,columnPatterns='subjectID|id|value')
-subjectsDT = dt.Frame(subjectsDT)
-
-subjectIDs = subjectsDT['subjectID'].to_list()[0]
-
-# import reference dataset
-releaseDT = fread('data/gpap_solverd_experiments_subprojects_20230323.csv')
-
-releaseDT.names = {
-  'RDConnect ID': 'sampleID',
-  'Subproject': 'release',
-  'Participant ID': 'subjectID',
-  'EGA ID': 'egaID'
-}
-
 def recodeRelease(value):
   match = re.search(r'^(SolveDF[0-9]|NovelWGS)', value)
   if match:
@@ -48,10 +31,25 @@ def recodeRelease(value):
       return 'novelwgs_original'
   return None
 
+#///////////////////////////////////////////////////////////////////////////////
+
+# get subjects info
+subjects = rd3.get('solverd_subjects', batch_size=10000)
+subjectsDT = flattenDataset(data=subjects,columnPatterns='subjectID|id|value')
+subjectsDT = dt.Frame(subjectsDT)
+
+subjectIDs = subjectsDT['subjectID'].to_list()[0]
+
+# import reference dataset
+# releaseDT = fread('data/gpap_solverd_experiments_subprojects_20230323.csv')
+releaseDT = dt.Frame(rd3.get('rd3_portal_gpap', batch_size=10000))
+del releaseDT['_href']
+
+
 # recode releases
 releaseDT['partOfRelease'] = dt.Frame([
   recodeRelease(value) if value is not None else value 
-  for value in releaseDT['release'].to_list()[0]
+  for value in releaseDT['subproject'].to_list()[0]
 ])
 
 # init status column
@@ -59,17 +57,17 @@ releaseDT['shouldUpdate'] = None
 # del releaseDT['shouldUpdate']
 
 # check to see if all SolveRD subjects are missing the 'official' release info
-releaseSubjectIDs = releaseDT['subjectID'].to_list()[0]
+releaseSubjectIDs = releaseDT['participantID'].to_list()[0]
 
 for id in releaseSubjectIDs:
   if id in subjectIDs:
-    officialRelease = releaseDT[f.subjectID==id,'partOfRelease'].to_list()[0][0]
+    officialRelease = releaseDT[f.participantID==id,'partOfRelease'].to_list()[0][0]
     existingRelease = subjectsDT[f.subjectID==id,'partOfRelease'].to_list()[0][0]
     if bool(officialRelease) and bool(existingRelease):
-      releaseDT[f.subjectID==id,'shouldUpdate'] = officialRelease not in existingRelease
+      releaseDT[f.participantID==id,'shouldUpdate'] = officialRelease not in existingRelease
   else:
     print(f"Warning: subjectID '{id}' does not exist in RD3")
-    releaseDT[f.subjectID==id,'isUnknown'] = True
+    releaseDT[f.participantID==id,'isUnknown'] = True
 
 
 # review mappings

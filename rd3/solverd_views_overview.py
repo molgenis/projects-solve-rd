@@ -173,7 +173,7 @@ statusMsg('Getting file metadata.....')
 rawfiles = rd3.get(
   entity='solverd_files',
   attributes='subjectID',
-  batch_size=10000
+  batch_size=1000
 )
 
 files = dt.Frame(flattenDataset(rawfiles,columnPatterns="subjectID"))

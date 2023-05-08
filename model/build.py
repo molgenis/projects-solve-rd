@@ -9,7 +9,7 @@
 # COMMENTS: saves using version number. Use mcmd import -p <path> --as rd3
 #///////////////////////////////////////////////////////////////////////////////
 
-from yamlemxconvert import Convert
+from yamlemxconvert import Convert, convert2
 
 # ~ 0 ~
 # Compile RD3 data model
@@ -33,6 +33,36 @@ for row in rd3.attributes:
 filename = f"rd3.{rd3.version}"
 rd3.write(name=filename, outDir="dist")
 rd3.write_schema(path="model/schemas/rd3.md")
+
+
+# OPTIONAL: convert to EMX2
+
+files = [
+  'model/rd3/rd3.yaml',
+  'model/rd3/rd3_info.yaml',
+  'model/rd3/rd3_lookups.yaml',
+]
+
+model = []
+
+for file in files:
+  emx2 = convert2.Convert2(file=file)
+  emx2.convert()
+  data = emx2.model['molgenis']  
+  for row in data:
+    
+    # pull URL from EMX1-YAML tags
+    if bool(row['semantics']):
+      row['semantics'] = row['semantics'].split(' ')[1]
+    
+    # recode ref types to ontology type
+    if row['columnType'] in ['ref_array', 'ref']:
+      row['columnType'] = row['columnType'].replace('ref','ontology')
+  model.extend(data)
+
+emx2.model['molgenis'] = model
+
+emx2.write(name='rd3_emx2', format="xlsx", outDir='dist')
 
 
 #///////////////////////////////////////

@@ -1,5 +1,5 @@
 
-from rd3.api.emx2.emx2 import Molgenis as emx2
+from emx2.api import Molgenis as emx2
 from os import environ
 from dotenv import load_dotenv
 import pandas as pd

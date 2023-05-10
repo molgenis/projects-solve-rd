@@ -10,7 +10,7 @@
 #///////////////////////////////////////////////////////////////////////////////
 
 from rd3.api.molgenis2 import Molgenis
-from rd3.api.emx2 import Molgenis as EMX2
+from rd3.api.emx2.emx2 import Molgenis as EMX2
 from dotenv import load_dotenv
 from datatable import dt, f, as_type
 from os import environ,path
@@ -30,7 +30,7 @@ rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
 
 emx2 = EMX2(environ['MOLGENIS_EMX2_HOST'])
-emx2.login(environ['MOLGENIS_EMX2_USR'],environ['MOLGENIS_EMX2_PWD'])
+emx2.signin(environ['MOLGENIS_EMX2_USR'],environ['MOLGENIS_EMX2_PWD'])
 
 #///////////////////////////////////////////////////////////////////////////////
 

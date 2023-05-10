@@ -16,3 +16,6 @@ data
 apps/app-get-started/dist
 
 downloads
+
+# excel
+~$*.xlsx

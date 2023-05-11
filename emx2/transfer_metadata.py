@@ -133,7 +133,7 @@ hpo = emx2.query(
     }
   }
   """  
-)['Phenotype']
+).json().get('data',{}).get('Phenotype')
 
 hpoMappings = {}
 for entry in hpo:
@@ -174,15 +174,15 @@ disease = emx2.query(
   query="""{
     Disease {
       name
-      label
+      code
     }
   }
   """
-)['Disease']
+).json().get('data', {}).get('Disease')
 
 diseaseMappings={}
 for entry in disease:
-  diseaseMappings[entry['name']] = entry['label']
+  diseaseMappings[entry['code']] = entry['name']
   
 
 subjectsDT['disease'] = dt.Frame([
@@ -198,8 +198,16 @@ overviewDT['disease'] = dt.Frame([
 #///////////////////////////////////////
 
 # ~ 3 ~
-# Import data
+# Save data
 
+# update names
+subjectsDT.names = {
+  'fid': 'familyID',
+  'pid': 'paternalID',
+  'mid': 'maternalID'
+}
+
+# save
 to_csv('emx2/data/subjects.csv',subjectsDT)
 to_csv('emx2/data/subjectinfo.csv', subjectInfoDT)
 to_csv('emx2/data/samples.csv', samplesDT)

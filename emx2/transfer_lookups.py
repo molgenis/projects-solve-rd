@@ -218,17 +218,15 @@ for value in organisations['code'].to_list()[0]:
   if bool(response.json().get('aliases')):
     organisations[f.code==value,'definition'] = ','.join(response.json().get('aliases'))
     
-    
-# pull organistaions from RD3
-orgs=dt.Frame(rd3.get('solverd_info_organisations'))[:, {
+
+# get organisations specific to RD3
+organisations2 = dt.Frame(rd3.get('solverd_info_organisations'))[:, {
   'name': f.value,
   'label': f.value,
   'codesystem': f.codesystem,
   'code': f.code,
   'ontolotgyTermURI': f.iri
 }]
-
-organisations = dt.rbind(organisations, orgs)
 
 #///////////////////////////////////////
 
@@ -358,7 +356,7 @@ sex.to_csv('emx2/ontologies/sex.csv')
 tissue.to_csv('emx2/ontologies/tissuetype.csv')
 
 # project-specific data
-organisations.to_csv('emx2/data/organisations.csv')
+organisations2.to_csv('emx2/data/organisations_2.csv')
 persons.to_csv('emx2/data/persons.csv')
 datareleasesDT.to_csv('emx2/data/datareleases.csv')
-library.to_Csv('emx2/data/library.csv')
+library.to_csv('emx2/data/library.csv')

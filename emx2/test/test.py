@@ -38,6 +38,7 @@ data =[
 # import
 emx2.add(database='BirdDataAU', table='Species', data=data)
 
+
 # add columns
 for row in data:
   row['count'] = random.randrange(100, 1000)
@@ -47,19 +48,25 @@ for row in data:
 # update
 emx2.update(database='BirdDataAU', table='Species', data=data)
 
+
+# get columns to pass into query
+columns = [
+  column['name']
+  for column in emx2.getSchema(database='BirdDataAU', table='species')['columns']
+  if column['name'] != 'reportingLocation'
+]
+
 # find data
-emx2.query(
+export = emx2.query(
   database="BirdDataAU",
   query="""{
       Species(filter: {commonName: {like: "test"}}) {
-        commonName
-        count
-        reportingRate
+        columns
       }
     }
-  """
+  """.replace('columns', '\n      '.join(columns))
 ).json()['data']['Species']
-
+export 
 
 # delete records
 emx2.delete(database='BirdDataAU', table='Species', data=data)

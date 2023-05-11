@@ -4,7 +4,7 @@
 #' CREATED: 2022-02-09
 #' MODIFIED: 2023-05-11
 #' PURPOSE: EMX2 API py client
-#' STATUS: in.progress
+#' STATUS: stable
 #' PACKAGES: requests
 #' COMMENTS: NA
 #'////////////////////////////////////////////////////////////////////////////

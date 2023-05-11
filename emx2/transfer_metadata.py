@@ -2,7 +2,7 @@
 # FILE: transfer_metadata.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-05-09
-# MODIFIED: 2023-05-10
+# MODIFIED: 2023-05-11
 # PURPOSE: import files and data into emx2 instance
 # STATUS: stable
 # PACKAGES: **See below**
@@ -13,7 +13,7 @@ from emx2.api.emx2 import Molgenis as EMX2
 from emx2.utils import to_csv, recodeCommaStrings
 from rd3.utils.utils import flattenDataset, recodeValue
 from rd3.api.molgenis2 import Molgenis
-from datatable import dt, f
+from datatable import dt, f, as_type
 from dotenv import load_dotenv
 from os import environ
 load_dotenv()
@@ -48,6 +48,8 @@ subjectsQuery = ','.join([
 
 subjectInfo = rd3.get(entity='solverd_subjectinfo',q=subjectsQuery)
 subjectInfoDT = dt.Frame(flattenDataset(subjectInfo,'subjectID|id'))
+
+subjectInfoDT[:, dt.update(dateOfBirth=as_type(f.dateOfBirth,dt.Type.str32))]
 
 # ~ 2b.ii ~
 # pull samples metadata

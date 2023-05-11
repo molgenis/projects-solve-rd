@@ -1,34 +1,22 @@
 #///////////////////////////////////////////////////////////////////////////////
-# FILE: emx2_setup.py
+# FILE: transfer_metadata.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-05-09
-# MODIFIED: 2023-05-09
+# MODIFIED: 2023-05-10
 # PURPOSE: import files and data into emx2 instance
-# STATUS: in.progress
+# STATUS: stable
 # PACKAGES: **See below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
+from emx2.api.emx2 import Molgenis as EMX2
+from emx2.utils import to_csv, recodeCommaStrings
 from rd3.utils.utils import flattenDataset, recodeValue
-from rd3.api.emx2.emx2 import Molgenis as EMX2
 from rd3.api.molgenis2 import Molgenis
-from datatable import dt, f, as_type
-from os import environ, path,listdir
+from datatable import dt, f
 from dotenv import load_dotenv
-from csv import QUOTE_ALL
-from tqdm import tqdm
+from os import environ
 load_dotenv()
-
-def toTextCsv(data):
-  return data.to_pandas().to_csv(index=False,encoding='UTF-8',quoting=QUOTE_ALL)
-
-def recodeCommaStrings(mappings,value):
-  codes = value.split(',')
-  terms = []
-  for code in codes:
-    value = recodeValue(mappings, code,'HPO')
-    terms.append(value)
-  return ','.join(terms)
 
 
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
@@ -40,71 +28,10 @@ emx2.signin(environ['MOLGENIS_EMX2_USR'],environ['MOLGENIS_EMX2_PWD'])
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
-# Import Lookup Files
-
-filesToIgnore=['rd3_emx2.xlsx','SEMANTICS.csv','~$rd3_emx2.xlsx']
-files = [f"emx2/{f}" for f in listdir('emx2/') if f not in filesToIgnore]
-
-for file in tqdm(files):
-  emx2.importCsvFile(
-    database='RD3',
-    table=path.basename(file).split('.')[0],
-    file=file
-  )
-
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 2 ~
-# Pull data from RD3
-
-# ~ 2a ~
-# Pull solve-rd lookups
-
-# organisations
-organisations=dt.Frame(rd3.get('solverd_info_organisations'))[:, {
-  'name': f.value,
-  'label': f.value,
-  'codesystem': f.codesystem,
-  'code': f.code,
-  'ontolotgyTermURI': f.iri
-}]
-
-emx2.importData(database='RD3', table='organisations',data=toTextCsv(organisations))
-
-# persons
-persons = dt.Frame(
-  flattenDataset(
-    data=rd3.get('solverd_info_persons'),
-    columnPatterns='value'
-  )
-)
-persons.names = {'id': 'name'}
-
-emx2.importData(database='RD3',table='persons',data=toTextCsv(persons))
-
-
-# datareleases
-datareleases = rd3.get('solverd_info_datareleases')
-datareleasesDT = dt.Frame(flattenDataset(datareleases,'id'))
-datareleasesDT.names = {'name': 'label', 'id': 'name'}
-
-emx2.importData(database='RD3',table='datareleases',data=toTextCsv(datareleasesDT))
-
-# library information
-library = dt.Frame(rd3.get('solverd_lookups_library'))[:, {
-  'name': f.id,
-  'libraryLayoutId': f.libraryLayoutId
-}]
-
-emx2.importData(database='RD3', table='library',data=toTextCsv(library))
-
-#///////////////////////////////////////
-
-# ~ 2b ~
 # Pull RD3 metadata
 
 # create a subset of RD3 using the familyID of subjects with 3 or more samples
-overview = rd3.get('solverd_overview',q='numberOfSamples=ge=3',num=1)
+overview = rd3.get('solverd_overview',q='numberOfSamples=ge=3',num=10)
 overviewDT = dt.Frame(flattenDataset(overview,'id|subjectID|experimentID|value|sampleID'))
 ids = overviewDT['fid'].to_list()[0]
 
@@ -195,15 +122,17 @@ overviewDT['ERN'] = dt.Frame([
 
 # ~ 2d ~
 # Recode phenotypes
-
-query="""{
-  Phenotype {
-    name
-    code
+hpo = emx2.query(
+  database='RD3',
+  query="""{
+    Phenotype {
+      name
+      code
+    }
   }
-}
-"""
-hpo = emx2.query(database='RD3', query=query)['Phenotype']
+  """  
+)['Phenotype']
+
 hpoMappings = {}
 for entry in hpo:
   hpoMappings[entry['code']] = entry['name'] 
@@ -269,8 +198,11 @@ overviewDT['disease'] = dt.Frame([
 # ~ 3 ~
 # Import data
 
-subjects_str = toTextCsv(subjectsDT)
-subjectinfo_str = toTextCsv(subjectInfoDT)
+to_csv('emx2/data/subjects.csv',subjectsDT)
+to_csv('emx2/data/subjectinfo.csv', subjectInfoDT)
+to_csv('emx2/data/samples.csv', samplesDT)
+to_csv('emx2/data/labinfo.csv', labinfoDT)
+to_csv('emx2/data/files.csv', filesDT)
+to_csv('emx2/data/overview.csv', overviewDT)
 
-emx2.importData(database='RD3',table='subjects', data=subjects_str)
-emx2.importData(database='RD3',table='subjectinfo', data=subjectinfo_str)
+rd3.logout()

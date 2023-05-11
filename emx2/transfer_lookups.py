@@ -1,30 +1,22 @@
 #///////////////////////////////////////////////////////////////////////////////
-# FILE: emx2.py
+# FILE: transfer_lookups.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-05-08
-# MODIFIED: 2023-05-08
-# PURPOSE: set up EMX2 instance
-# STATUS: in.progress
+# MODIFIED: 2023-05-10
+# PURPOSE: pull lookup tables from EMX2 and save to csv
+# STATUS: stable
 # PACKAGES: **see below**
 # COMMENTS: NA
 #///////////////////////////////////////////////////////////////////////////////
 
+from emx2.api.emx2 import Molgenis as EMX2
 from rd3.api.molgenis2 import Molgenis
-from rd3.api.emx2.emx2 import Molgenis as EMX2
-from dotenv import load_dotenv
+from rd3.utils.utils import flattenDataset
 from datatable import dt, f, as_type
+from dotenv import load_dotenv
 from os import environ,path
 import requests
-import csv
 load_dotenv()
-
-def toTextCsv(data):
-  return data.to_pandas() \
-    .to_csv(
-      index=False,
-      encoding='utf-8',
-      quoting=csv.QUOTE_ALL
-    )
 
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
@@ -36,7 +28,6 @@ emx2.signin(environ['MOLGENIS_EMX2_USR'],environ['MOLGENIS_EMX2_PWD'])
 
 # ~ 1 ~
 # Transfer Lookup tables
-
 
 # ~ 1a ~
 # transfer: solverd::anatomicallocation --> RD3::anatomicallocation
@@ -56,13 +47,6 @@ anatomicallocation = dt.Frame(
 anatomicallocation[:, dt.update(name=as_type(f.name,int))]
 anatomicallocation=anatomicallocation[:, :, dt.sort(f.name)]
 anatomicallocation[:, dt.update(name=as_type(f.name,str))]
-
-
-emx2.importData(
-  database='RD3',
-  table='anatomicallocation',
-  data=toTextCsv(data=anatomicallocation)
-)
 
 #///////////////////////////////////////
 
@@ -86,13 +70,6 @@ datauseconditions['definition'] = dt.Frame([
   for value in datauseconditions['definition'].to_list()[0]
 ])
 
-
-emx2.importData(
-  database='RD3',
-  table='datauseconditions',
-  data=toTextCsv(data=datauseconditions)
-)
-
 #///////////////////////////////////////
 
 # ~ 1c ~
@@ -107,7 +84,7 @@ for row in diseases:
     row['parentId'] = None
 
 diseasesDT = dt.Frame(diseases)[:, {
-  'name': f.id,
+  'name': f.label,
   'label': f.label,
   'codesystem': f.ontology,
   'code': f.id,
@@ -147,19 +124,6 @@ diseasesDT['ontologyTermURI'] =dt.Frame([
 # string
 del diseasesDT['parent']
 
-# import in two steps: first all terms and then the parent IDs
-emx2.importData(
-  database='RD3',
-  table='disease',
-  data=toTextCsv(data=diseasesDT)
-)
-
-# emx2.importData(
-#   database='RD3',
-#   table='disease',
-#   data=toTextCsv(data=diseasesDT)
-# )
-
 #///////////////////////////////////////
 
 # ~ 1d ~
@@ -174,14 +138,6 @@ formats = dt.Frame(rd3.get('solverd_lookups_typeFile'))[:, {
   'ontologyTermURI': f.iri
 }]
 
-emx2.importData(
-  database='RD3',
-  table='fileformat',
-  data=toTextCsv(data=formats)
-)
-
-
-#///////////////////////////////////////
 
 # ~ 1e ~
 # transfer: solverd_lookups::libraryType --> RD3:: librarytype
@@ -190,14 +146,6 @@ library = dt.Frame(rd3.get('solverd_lookups_libraryType'))[:, {
   'name': f.id
 }]
 
-emx2.importData(
-  database='RD3',
-  table='librarytype',
-  data=toTextCsv(data=library)
-)
-
-
-#///////////////////////////////////////
 
 # ~ 1f ~
 # transer: solverd_lookups::materialType --> RD3::materialtype
@@ -210,13 +158,6 @@ material = dt.Frame(rd3.get('solverd_lookups_materialType'))[:, {
   'ontologyTermURI': f.uri
 }]
 
-emx2.importData(
-  database='RD3',
-  table='materialtype',
-  data=toTextCsv(data=material)
-)
-
-#///////////////////////////////////////
 
 # ~ 1g ~
 # transfer: solverd::noyesunknown --> RD3::noyesunknown
@@ -228,12 +169,6 @@ noyesunknown = dt.Frame(rd3.get('solverd_lookups_noyesunknown'))[:,{
   'ontologyTermURI': f.iri,
   'definition': f.description
 }]
-
-emx2.importData(
-  database='RD3',
-  table='noyesunknown',
-  data=toTextCsv(data=noyesunknown)
-)
 
 
 #///////////////////////////////////////
@@ -282,12 +217,18 @@ for value in organisations['code'].to_list()[0]:
   response = requests.get(f"https://api.ror.org/organizations/{value}")
   if bool(response.json().get('aliases')):
     organisations[f.code==value,'definition'] = ','.join(response.json().get('aliases'))
+    
+    
+# pull organistaions from RD3
+orgs=dt.Frame(rd3.get('solverd_info_organisations'))[:, {
+  'name': f.value,
+  'label': f.value,
+  'codesystem': f.codesystem,
+  'code': f.code,
+  'ontolotgyTermURI': f.iri
+}]
 
-emx2.importData(
-  database='RD3',
-  table='organisations',
-  data=toTextCsv(data=organisations)
-)
+organisations = dt.rbind(organisations, orgs)
 
 #///////////////////////////////////////
 
@@ -302,12 +243,6 @@ pathology = dt.Frame(rd3.get('solverd_lookups_pathologicalstate'))[:,{
   'codesystem': f.codesystem,
   'ontologyTermURI': f.iri
 }]
-
-emx2.importData(
-  database='RD3',
-  table='pathologicalstate',
-  data=toTextCsv(data=pathology)
-)
 
 #///////////////////////////////////////
 
@@ -335,12 +270,6 @@ for column in phenotype.names:
     for value in phenotype[column].to_list()[0]
   ])
 
-emx2.importData(
-  database='RD3',
-  table='phenotype',
-  data=toTextCsv(data=phenotype)
-)
-
 #///////////////////////////////////////
 
 # ~ 1K ~
@@ -357,8 +286,6 @@ for column in seqtype.names:
     for value in seqtype[column].to_list()[0]
   ])
 
-emx2.importData(database='RD3',table='seqtype',data=toTextCsv(seqtype))
-
 #///////////////////////////////////////
 
 # ~ 1L ~
@@ -370,8 +297,6 @@ sex = dt.Frame(rd3.get('solverd_lookups_sex'))[:, {
   'definition': f.description
 }]
 
-emx2.importData(database='RD3', table='sex', data=toTextCsv(sex))
-
 #///////////////////////////////////////
 
 # ~ 1M ~
@@ -381,7 +306,36 @@ tissue = dt.Frame(rd3.get('solverd_lookups_tissueType'))[:, {
   'name': f.id
 }]
 
-emx2.importData(database='RD3',table='tissuetype',data=toTextCsv(tissue))
+
+#///////////////////////////////////////
+
+# ~ 1N ~
+# Pull Persons
+persons = dt.Frame(
+  flattenDataset(
+    data=rd3.get('solverd_info_persons'),
+    columnPatterns='value'
+  )
+)
+persons.names = {'id': 'name'}
+
+
+#///////////////////////////////////////
+
+# ~ 1O ~
+# Pull datareleases
+datareleases = rd3.get('solverd_info_datareleases')
+datareleasesDT = dt.Frame(flattenDataset(datareleases,'id'))
+datareleasesDT.names = {'name': 'label', 'id': 'name'}
+
+#///////////////////////////////////////
+
+# ~ 1P ~
+# Pull library information
+library = dt.Frame(rd3.get('solverd_lookups_library'))[:, {
+  'name': f.id,
+  'libraryLayoutId': f.libraryLayoutId
+}]
 
 
 #///////////////////////////////////////////////////////////////////////////////
@@ -389,16 +343,22 @@ emx2.importData(database='RD3',table='tissuetype',data=toTextCsv(tissue))
 # ~ 2 ~
 # Save all files
 
-anatomicallocation.to_csv('emx2/anatomicallocation.csv')
-datauseconditions.to_csv('emx2/datauseconditions.csv')
-diseasesDT.to_csv('emx2/disease.csv')
-formats.to_csv('emx2/fileformat.csv')
-library.to_csv('emx2/librarytype.csv')
-material.to_csv('emx2/materialtype.csv')
-noyesunknown.to_csv('emx2/noyesunknown.csv')
-organisations.to_csv('emx2/organisations.csv')
-pathology.to_csv('emx2/pathologicalstate.csv')
-phenotype.to_csv('emx2/phenotype.csv')
-seqtype.to_csv('emx2/seqtype.csv')
-sex.to_csv('emx2/sex.csv')
-tissue.to_csv('emx2/tissuetype.csv')
+anatomicallocation.to_csv('emx2/ontologies/anatomicallocation.csv')
+datauseconditions.to_csv('emx2/ontologies/datauseconditions.csv')
+diseasesDT.to_csv('emx2/ontologies/disease.csv')
+formats.to_csv('emx2/ontologies/fileformat.csv')
+library.to_csv('emx2/ontologies/librarytype.csv')
+material.to_csv('emx2/ontologies/materialtype.csv')
+noyesunknown.to_csv('emx2/ontologies/noyesunknown.csv')
+organisations.to_csv('emx2/ontologies/organisations.csv')
+pathology.to_csv('emx2/ontologies/pathologicalstate.csv')
+phenotype.to_csv('emx2/ontologies/phenotype.csv')
+seqtype.to_csv('emx2/ontologies/seqtype.csv')
+sex.to_csv('emx2/ontologies/sex.csv')
+tissue.to_csv('emx2/ontologies/tissuetype.csv')
+
+# project-specific data
+organisations.to_csv('emx2/data/organisations.csv')
+persons.to_csv('emx2/data/persons.csv')
+datareleasesDT.to_csv('emx2/data/datareleases.csv')
+library.to_Csv('emx2/data/library.csv')

@@ -232,7 +232,7 @@ class Molgenis:
     
     if response.status_code == 200:
       print2.alert_success(
-        'Import data into',
+        'Imported data into',
         print2.text_value(f"{database}::{table}")
       )
     
@@ -274,7 +274,7 @@ class Molgenis:
     
     if response.status_code == 200:
       print2.alert_success(
-        'Import data into',
+        'Imported data into',
         print2.text_value(f"{database}::{table}")
       )
 

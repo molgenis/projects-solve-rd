@@ -47,7 +47,18 @@ for row in data:
 # update
 emx2.update(database='BirdDataAU', table='Species', data=data)
 
-# pull query
+# find data
+emx2.query(
+  database="BirdDataAU",
+  query="""{
+      Species(filter: {commonName: {like: "test"}}) {
+        commonName
+        count
+        reportingRate
+      }
+    }
+  """
+).json()['data']['Species']
 
 
 # delete records

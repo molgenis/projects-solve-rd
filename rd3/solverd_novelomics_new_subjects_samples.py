@@ -2,7 +2,7 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2023-02-07
+# MODIFIED: 2023-06-02
 # PURPOSE: Import new novelomics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -135,6 +135,9 @@ releases = dt.unique(shipmentDT['type_of_analysis'])[:, {
   'date': timestamp()
 }]
 
+# only do this once
+# releases[f.id=='RNA-seq','id'] = 'SR-RNAseq'
+
 # format IDs
 releases['id'] = dt.Frame([
   f"novel{value.strip().lower().replace('-','')}_original"
@@ -167,6 +170,7 @@ if releases[f.isNewRelease, :].nrows > 0:
   print('There are new releases to import!!!!')
   # newPatches = patches[f.isNewRelease,f[:].remove(f.isNewRelease)]
   # rd3.importDatatableAsCsv('rd3_patch', newPatches)
+
 
 #///////////////////////////////////////
 
@@ -300,26 +304,29 @@ tissueTypeMappings.update({
 # ~ 1e ~
 # Create anatomical location mappings
 
-# As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
-# to a more specific term
-anatomicalLocationMappings = {
-  'chest skin': '74160004', # Skin of Chest
-  'skin scalp': '43067004', # Skin of Scalp
-  'right retro auricular skin': '244080005', # Entire skin of postauricular region
-  'skin': '314818000', # Skin Tissue
-}
+if 'anatomical_location' in shipmentDT.names:
+  print('Checking anatomical location mappings....')
+  
+  # As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
+  # to a more specific term
+  anatomicalLocationMappings = {
+    'chest skin': '74160004', # Skin of Chest
+    'skin scalp': '43067004', # Skin of Scalp
+    'right retro auricular skin': '244080005', # Entire skin of postauricular region
+    'skin': '314818000', # Skin Tissue
+  }
 
-# check incoming data, update mappings (if applicable), and rerun
-incomingAnatomicalValues = dt.unique(
-  shipmentDT[f.anatomical_location != None, 'anatomical_location']
-).to_list()[0]
+  # check incoming data, update mappings (if applicable), and rerun
+  incomingAnatomicalValues = dt.unique(
+    shipmentDT[f.anatomical_location != None, 'anatomical_location']
+  ).to_list()[0]
 
-for value in incomingAnatomicalValues:
-  if value.lower() not in anatomicalLocationMappings:
-    print(f"Value '{value}' not in anatomical location mappings")
+  for value in incomingAnatomicalValues:
+    if value.lower() not in anatomicalLocationMappings:
+      print(f"Value '{value}' not in anatomical location mappings")
 
-# if there are mappings, update here. 
-# anatomicalLocationMappings.update({ ... })
+  # if there are mappings, update here. 
+  # anatomicalLocationMappings.update({ ... })
 
 #///////////////////////////////////////
 
@@ -376,16 +383,17 @@ pathologicalStateMappings = toKeyPairs(
 )
 
 # check incoming data, update mappings (if applicable), and rerun
-incomingPathologicalStateValues = dt.unique(
-  shipmentDT[f.pathological_state!=None, 'pathological_state']
-).to_list()[0]
+if 'pathological_state' in shipmentDT.names:
+  incomingPathologicalStateValues = dt.unique(
+    shipmentDT[f.pathological_state!=None, 'pathological_state']
+  ).to_list()[0]
 
-for value in incomingPathologicalStateValues:
-  if value.lower() not in pathologicalStateMappings:
-    print(f"Value '{value}' does not exist in pathological state mappings")
+  for value in incomingPathologicalStateValues:
+    if value.lower() not in pathologicalStateMappings:
+      print(f"Value '{value}' does not exist in pathological state mappings")
 
-# if there are any values, enter them below ->
-# pathologicalStateMappings.update({ ... })
+  # if there are any values, enter them below ->
+  # pathologicalStateMappings.update({ ... })
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -853,7 +861,7 @@ rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
 
 # update prod
 portalUpdate = dt.Frame(
-  rd3_acc.get(
+  rd3_prod.get(
     entity='rd3_portal_novelomics_shipment',
     q='processed==false')
 )

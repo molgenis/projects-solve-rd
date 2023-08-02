@@ -2,7 +2,7 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2023-06-02
+# MODIFIED: 2023-08-02
 # PURPOSE: Import new novelomics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -168,8 +168,9 @@ releaseIDs = toKeyPairs(
 # If there are new releases, import them 
 if releases[f.isNewRelease, :].nrows > 0:
   print('There are new releases to import!!!!')
-  # newPatches = patches[f.isNewRelease,f[:].remove(f.isNewRelease)]
-  # rd3.importDatatableAsCsv('rd3_patch', newPatches)
+  # newPatches = releases[f.isNewRelease,f[:].remove(f.isNewRelease)]
+  # newPatches['createdBy'] = 'rd3-bot'
+  # rd3_prod.importDatatableAsCsv('solverd_info_datareleases', newPatches)
 
 
 #///////////////////////////////////////
@@ -203,13 +204,14 @@ ernMappings.update({
   'epicare': 'ern_epicare',
   'ern-epicare': 'ern_epicare',
   'ern-genturis': 'ern_genturis',
-  'genturis': 'ern_genturis',
-  'ithaca': 'ern_ithaca',
   'ern-ithaca': 'ern_ithaca',
-  'nmd': 'ern_euro_nmd',
   'ern-nmd': 'ern_euro_nmd',
-  'rita': 'ern_rita',
+  'genturis': 'ern_genturis',
   'ern-rita': 'ern_rita',
+  'ern-rnd': 'ern_rnd',
+  'ithaca': 'ern_ithaca',
+  'nmd': 'ern_euro_nmd',
+  'rita': 'ern_rita',
   'rnd': 'ern_rnd',
   'udn-spain': 'udn_spain'
 })
@@ -290,11 +292,11 @@ for value in incomingTissueTypes:
 tissueTypeMappings.update({
   'blood': 'Whole Blood',
   'cell pellet': 'Cells',
-  'ffpe': 'Tumor',
+  'fibroblasts': 'Cells - Cultured fibroblasts',
   'fetus': 'Foetus',
+  'ffpe': 'Tumor',
   'heart': 'Heart',
   'muscle': 'Muscle - Skeletal',
-  'fibroblasts': 'Cells - Cultured fibroblasts',
   'pbmc': 'Peripheral Blood Mononuclear Cells',
   'whole blood': 'Whole Blood'
 })
@@ -357,8 +359,8 @@ for value in incomingMaterialTypes:
     print(f"Value '{value}' does not exist in material type mappings")
 
 materialTypeMappings.update({
-  'total rna': 'RNA',
-  'ffpe': 'TISSUE (FFPE)'
+  'ffpe': 'TISSUE (FFPE)',
+  'total rna': 'RNA'
 })
 
 #///////////////////////////////////////
@@ -443,14 +445,15 @@ shipmentDT['organisation'] = dt.Frame([
 ])
 
 # recode anatomical location (if available)
-shipmentDT['anatomical_location'] = dt.Frame([
-  recodeValue(
-    mappings = anatomicalLocationMappings,
-    value = value.lower(),
-    label = 'anatomical locations'
-  ) if value else value
-  for value in shipmentDT['anatomical_location'].to_list()[0]
-])
+if 'anatomical_location' in shipmentDT.names:
+  shipmentDT['anatomical_location'] = dt.Frame([
+    recodeValue(
+      mappings = anatomicalLocationMappings,
+      value = value.lower(),
+      label = 'anatomical locations'
+    ) if value else value
+    for value in shipmentDT['anatomical_location'].to_list()[0]
+  ])
 
 # recode sample types (i.e., materialType)
 shipmentDT['sample_type'] = dt.Frame([
@@ -467,12 +470,13 @@ shipmentDT['sample_type'] = dt.Frame([
 ])
 
 # update sample types for DEEP-WES samples
-shipmentDT['sample_type'] = dt.Frame([
-  'TISSUE (FFPE)'
-  if row[1].lower().strip() == 'tumor' and row[2].lower().strip() == 'tissue (ffpe)'
-  else row[0]
-  for row in shipmentDT[:, (f.sample_type, f.tissue_type, f.extracted_protocol)].to_tuples()
-])
+if 'extracted_protocol' in shipmentDT.names:
+  shipmentDT['sample_type'] = dt.Frame([
+    'TISSUE (FFPE)'
+    if row[1].lower().strip() == 'tumor' and row[2].lower().strip() == 'tissue (ffpe)'
+    else row[0]
+    for row in shipmentDT[:, (f.sample_type, f.tissue_type, f.extracted_protocol)].to_tuples()
+  ])
 
 # recode tissue types
 shipmentDT['tissue_type'] = dt.Frame([
@@ -481,13 +485,14 @@ shipmentDT['tissue_type'] = dt.Frame([
 ])
 
 # extract values inside parenthesis
-shipmentDT['extracted_protocol'] = dt.Frame([
-  # getWrappedValues(row[0]) if '(' in row[0] else row[1]
-  # for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()
-  
-  getWrappedValues(value) if value and '(' in value else value
-  for value in shipmentDT[:, (f.extracted_protocol)].to_list()[0]
-])
+if 'extracted_protocol' in shipmentDT.names:
+  shipmentDT['extracted_protocol'] = dt.Frame([
+    # getWrappedValues(row[0]) if '(' in row[0] else row[1]
+    # for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()
+    
+    getWrappedValues(value) if value and '(' in value else value
+    for value in shipmentDT[:, (f.extracted_protocol)].to_list()[0]
+  ])
 
 # add alternative identifier if not present
 if 'alternative_sample_identifier' not in shipmentDT.names:
@@ -705,16 +710,16 @@ newSubjects = shipmentDT[
 ][:, first(f[:]), dt.by(f.subjectID)]
 
 # import into solverd_subjects
-rd3_acc.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
+# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
 rd3_prod.importDatatableAsCsv(pkg_entity='solverd_subjects', data = newSubjects)
 
 # import into solverd_subjectinfo
-rd3_acc.importDatatableAsCsv(
-  pkg_entity='solverd_subjectinfo',
-  data = newSubjects[
-    :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
-  ]
-)
+# rd3_acc.importDatatableAsCsv(
+#   pkg_entity='solverd_subjectinfo',
+#   data = newSubjects[
+#     :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
+#   ]
+# )
 
 rd3_prod.importDatatableAsCsv(
   pkg_entity='solverd_subjectinfo',
@@ -746,7 +751,7 @@ newSamples = shipmentDT[
 
 newSamples.names = {'subjectID': 'belongsToSubject'}
 
-rd3_acc.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
+# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
 rd3_prod.importDatatableAsCsv(pkg_entity='solverd_samples', data = newSamples)
 
 # ~ 2b ~
@@ -773,11 +778,11 @@ updateExistingSubjects = dtFrameToRecords(
 )
 
 # update in subjects
-rd3_acc.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
+# rd3_acc.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
 rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
 
 # update in subject info
-rd3_acc.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
+# rd3_acc.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
 rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
 
 
@@ -839,34 +844,50 @@ portalRecordsToUpdate = portalRecordsToUpdate[:, :, dt.join(molgenisIDs)]
 portalRecordsToUpdate['processed'] = True
 portalRecordsToUpdate[:, dt.update(processed = as_type(f.processed, str))]
 
-rd3_acc.batchUpdate(
+# rd3_acc.batchUpdate(
+#   pkg_entity='rd3_portal_novelomics_shipment',
+#   column = 'processed',
+#   data = dtFrameToRecords(portalRecordsToUpdate[:, (f.molgenis_id, f.processed)])
+# )
+
+rd3_prod.batchUpdate(
   pkg_entity='rd3_portal_novelomics_shipment',
   column = 'processed',
   data = dtFrameToRecords(portalRecordsToUpdate[:, (f.molgenis_id, f.processed)])
 )
 
 
+# review cases that haven't been processed:
+# Periodically, there may be a few cases that weren't marked as processed and weren't
+# flagged for review. It is likely that there is additional information regarding this
+# subject or sample that isn't a red flag. Make sure these cases are reviewed before
+# exiting the script.
+if shipmentDT[f.processed==False,:].nrows > 0:
+  print('Warning: there are cases need to be reviewed!!!!')
+  shipmentDT[f.processed==False,:]
+
+
 #///////////////////////////////////////
 
 # Alternatively, update all records. If you use this method, make sure you
 # pull the data from each instance
-portalUpdate = dt.Frame(
-  rd3_acc.get(
-    entity='rd3_portal_novelomics_shipment',
-    q='processed==false')
-)
-portalUpdate['processed'] = 'true'
+# portalUpdate = dt.Frame(
+#   rd3_acc.get(
+#     entity='rd3_portal_novelomics_shipment',
+#     q='processed==false')
+# )
+# portalUpdate['processed'] = 'true'
 
-rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
+# rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
 
 # update prod
-portalUpdate = dt.Frame(
-  rd3_prod.get(
-    entity='rd3_portal_novelomics_shipment',
-    q='processed==false')
-)
-portalUpdate['processed'] = 'true'
-rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
+# portalUpdate = dt.Frame(
+#   rd3_prod.get(
+#     entity='rd3_portal_novelomics_shipment',
+#     q='processed==false')
+# )
+# portalUpdate['processed'] = 'true'
+# rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipmentDT)
 
 
 #///////////////////////////////////////

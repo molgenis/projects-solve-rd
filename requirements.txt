@@ -6,7 +6,7 @@ chardet==5.1.0
 charset-normalizer==2.0.12
 colorama==0.4.6
 colorclass==2.2.2
-cryptography==41.0.2
+cryptography==41.0.3
 datatable @ git+https://github.com/h2oai/datatable@323b185db6b5313fe3b6793124f97388eae4db87
 Deprecated==1.2.14
 distlib==0.3.6

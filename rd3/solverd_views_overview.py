@@ -68,7 +68,7 @@ columns=','.join([
   'disease', 'phenotype', 'hasNotPhenotype', 'organisation', 'ERN', 'partOfRelease'
 ])
 
-rawsubjects = rd3.get('solverd_subjects',attributes=columns,batch_size=10000)
+rawsubjects = rd3.get('solverd_subjects',attributes=columns,batch_size=1000)
 subjectsflattened = flattenDataset(rawsubjects, columnPatterns='subjectID|id|value')
 subjects=dt.Frame(subjectsflattened)
 

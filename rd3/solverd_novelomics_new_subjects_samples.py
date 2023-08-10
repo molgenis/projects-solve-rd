@@ -2,7 +2,7 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2023-08-02
+# MODIFIED: 2023-08-10
 # PURPOSE: Import new novelomics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -641,8 +641,8 @@ potentialConflictColumns = [
 # for these cases, confirm that the incoming value does not exist for this
 # record (in the string). If it does not, join the two strings.
 existingSamplesThatCanBeUpdated = []
-nonConflictColumns =[ 
-  'batchNumber',
+nonConflictColumns =[
+  'batch',
   'alternativeSampleIdentifiers',
   'partOfRelease'
 ]
@@ -667,9 +667,9 @@ for id in tqdm(samplesToValidate['sampleID'].to_list()[0]):
     if (column in incomingSample) and (column in existingSample):
       if incomingSample[column] not in existingSample[column]:
         newRow = {'sampleID': id, 'subjectID': incomingSample['subjectID'] }
-        newRow[column] =  ','.join(
-          list(set([existingSample[column], incomingSample[column]]))
-        )
+        currentSampleValues = existingSample[column].split(',')
+        currentSampleValues.append(incomingSample[column])
+        newRow[column] =  ','.join(list(set(currentSampleValues)))
         existingSamplesThatCanBeUpdated.append(newRow)
 
 numIssues=len(incomingSamplesWithConflicts)
@@ -837,6 +837,7 @@ molgenisIDs = shipmentDT[
   (f.sampleID, f.molgenis_id)
 ]
 
+# join data
 molgenisIDs.key = 'sampleID'
 portalRecordsToUpdate.key = 'sampleID'
 portalRecordsToUpdate = portalRecordsToUpdate[:, :, dt.join(molgenisIDs)]
@@ -856,15 +857,22 @@ rd3_prod.batchUpdate(
   data = dtFrameToRecords(portalRecordsToUpdate[:, (f.molgenis_id, f.processed)])
 )
 
+# update portal information
+for rowID in portalRecordsToUpdate['molgenis_id'].to_list()[0]:
+  shipmentDT[f.molgenis_id==rowID,'processed'] = True
 
 # review cases that haven't been processed:
 # Periodically, there may be a few cases that weren't marked as processed and weren't
 # flagged for review. It is likely that there is additional information regarding this
 # subject or sample that isn't a red flag. Make sure these cases are reviewed before
 # exiting the script.
+# Variables that will likely throw a message are:
+#   alternativelIdentifier
+#   batch
 if shipmentDT[f.processed==False,:].nrows > 0:
   print('Warning: there are cases need to be reviewed!!!!')
   shipmentDT[f.processed==False,:]
+  # shipmentDT[f.processed==False,'processed'] = True
 
 
 #///////////////////////////////////////

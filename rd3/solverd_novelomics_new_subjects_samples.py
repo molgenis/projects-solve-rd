@@ -824,7 +824,8 @@ for column in existingSamplesThatCanBeUpdated.names:
 # Create a list of all molgenis IDs where 
 
 portalRecordsToUpdate = dt.Frame(
-  existingSamplesThatCanBeUpdated['sampleID'].to_list()[0] + newSamples['sampleID'].to_list()[0]
+  existingSamplesThatCanBeUpdated['sampleID'].to_list()[0] + \
+    newSamples['sampleID'].to_list()[0]
 )
 portalRecordsToUpdate.names = {'C0': 'sampleID'}
 
@@ -880,13 +881,14 @@ if shipmentDT[f.processed==False,:].nrows > 0:
 # Alternatively, update all records. If you use this method, make sure you
 # pull the data from each instance
 # portalUpdate = dt.Frame(
-#   rd3_acc.get(
+#   rd3_prod.get(
 #     entity='rd3_portal_novelomics_shipment',
-#     q='processed==false')
+#     q='processed==false'
+#   )
 # )
 # portalUpdate['processed'] = 'true'
 
-# rd3_acc.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
+# rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
 
 # update prod
 # portalUpdate = dt.Frame(

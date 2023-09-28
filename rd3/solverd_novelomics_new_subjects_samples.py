@@ -2,7 +2,7 @@
 # FILE: solverd_novelomics_processing.py
 # AUTHOR: David Ruvolo
 # CREATED: 2022-11-15
-# MODIFIED: 2023-08-10
+# MODIFIED: 2023-09-28
 # PURPOSE: Import new novelomics data
 # STATUS: stable
 # PACKAGES: **see below**
@@ -27,25 +27,25 @@ from rd3.utils.utils import (
 )
 
 def getWrappedValues(value):
-  """Get Wrapped Values
-  In a string, extract the value between two parentheses.
-  @param value a string that may or may not contain parentheses
-  @return string or none
-  """
-  search = re.search(r'([\(].*?[\)])', value)
-  if search:
-    match=search.group()
-    return re.sub(r'[\(\)]', '', match)
-  else:
-    return None
-    
+    """Get Wrapped Values
+    In a string, extract the value between two parentheses.
+    @param value a string that may or may not contain parentheses
+    @return string or none
+    """
+    search = re.search(r'([\(].*?[\)])', value)
+    if search:
+        match=search.group()
+        return re.sub(r'[\(\)]', '', match)
+    else:
+        return None
+
 # init connection to RD3
 load_dotenv()
 rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
-rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+# rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
+# rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +65,7 @@ existingSubjectIDs = subjectsDT['subjectID'].to_list()[0]
 # get existing samples
 rawsamples = rd3_prod.get(
   entity='solverd_samples',
-  attributes='sampleID,partOfRelease',
+  attributes='sampleID,batch,partOfRelease',
   batch_size=10000
 )
 samples = flattenDataset(rawsamples, columnPatterns="subjectID|id|value")
@@ -73,13 +73,13 @@ samplesDT = dt.Frame(samples)
 existingSampleIDs = samplesDT['sampleID'].to_list()[0]
 
 # get new shipment metadata
-shipmentDT = dt.Frame(
-  rd3_prod.get(
-    'rd3_portal_novelomics_shipment',
-    q="processed==false"
-  )
-)
+min_date="2023-09-26"
+max_date="2023-09-26"
+# query=f"(date_created=ge={min_date}T00:00:00%2B0200;date_created=le={max_date}T23:00:00%2B0200)"
+query=f"(date_created=ge={min_date}T00:00:00%2B0200;date_created=le={max_date}T23:00:00%2B0200;type_of_analysis=q=LR-WGS)"
+# query="processed=false"
 
+shipmentDT = dt.Frame(rd3_prod.get('rd3_portal_novelomics_shipment', q=query))
 del shipmentDT['_href']
 
 # ~ OPTIONAL ~
@@ -164,18 +164,18 @@ releaseIDs = toKeyPairs(
   keyAttr = 'typeOfAnalysis',
   valueAttr = 'id'
 )
- 
+
 # If there are new releases, import them 
 if releases[f.isNewRelease, :].nrows > 0:
-  print('There are new releases to import!!!!')
-  # newPatches = releases[f.isNewRelease,f[:].remove(f.isNewRelease)]
-  # newPatches['createdBy'] = 'rd3-bot'
-  # rd3_prod.importDatatableAsCsv('solverd_info_datareleases', newPatches)
+    print('There are new releases to import!!!!')
+    # newPatches = releases[f.isNewRelease,f[:].remove(f.isNewRelease)]
+    # newPatches['createdBy'] = 'rd3-bot'
+    # rd3_prod.importDatatableAsCsv('solverd_info_datareleases', newPatches)
 
 
 #///////////////////////////////////////
 
-# ~ 1b ~ 
+# ~ 1b ~
 # Check ERNs and recode into RD3 terminology
 # Make sure all unique incoming ERN values are mapped to an official ERN code
 # in RD3.
@@ -195,8 +195,8 @@ ernMappings = toKeyPairs(
 # check incoming data, update mappings (if applicable), and rerun
 incomingErnValues = dt.unique(shipmentDT['ERN']).to_list()[0]
 for value in incomingErnValues:
-  if value.lower() not in ernMappings:
-    print(f'Value "{value}" not in ERN mapping dataset')
+    if value.lower() not in ernMappings:
+        print(f'Value "{value}" not in ERN mapping dataset')
 
 # update mappings and rerun previous incomingErnValues check until
 # all mappings are resolved
@@ -241,8 +241,8 @@ organisationMappings = toKeyPairs(
 # check incoming data, update mappings (if applicable), and rerun
 incomingOrgValues = dt.unique(shipmentDT['organisation']).to_list()[0]
 for value in incomingOrgValues:
-  if value not in organisationMappings:
-    print(f"Value '{value}' not in Organistion mappings")
+    if value not in organisationMappings:
+        print(f"Value '{value}' not in Organistion mappings")
 
 # ~ 1c.ii ~
 # find organisations to import
@@ -286,9 +286,9 @@ tissueTypeMappings = toKeyPairs(
 incomingTissueTypes = dt.unique(shipmentDT[f.tissue_type != None, 'tissue_type']).to_list()[0]
 incomingTissueTypes.sort(key=str.lower)
 for value in incomingTissueTypes:
-  if value.lower() not in tissueTypeMappings:
-    print(f"Value '{value}' not in tissue type mappings")
-    
+    if value.lower() not in tissueTypeMappings:
+        print(f"Value '{value}' not in tissue type mappings")
+
 tissueTypeMappings.update({
   'blood': 'Whole Blood',
   'cell pellet': 'Cells',
@@ -307,28 +307,28 @@ tissueTypeMappings.update({
 # Create anatomical location mappings
 
 if 'anatomical_location' in shipmentDT.names:
-  print('Checking anatomical location mappings....')
-  
-  # As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
-  # to a more specific term
-  anatomicalLocationMappings = {
-    'chest skin': '74160004', # Skin of Chest
-    'skin scalp': '43067004', # Skin of Scalp
-    'right retro auricular skin': '244080005', # Entire skin of postauricular region
-    'skin': '314818000', # Skin Tissue
-  }
+    print('Checking anatomical location mappings....')
 
-  # check incoming data, update mappings (if applicable), and rerun
-  incomingAnatomicalValues = dt.unique(
-    shipmentDT[f.anatomical_location != None, 'anatomical_location']
-  ).to_list()[0]
+    # As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
+    # to a more specific term
+    anatomicalLocationMappings = {
+      'chest skin': '74160004', # Skin of Chest
+      'skin scalp': '43067004', # Skin of Scalp
+      'right retro auricular skin': '244080005', # Entire skin of postauricular region
+      'skin': '314818000', # Skin Tissue
+    }
 
-  for value in incomingAnatomicalValues:
-    if value.lower() not in anatomicalLocationMappings:
-      print(f"Value '{value}' not in anatomical location mappings")
+    # check incoming data, update mappings (if applicable), and rerun
+    incomingAnatomicalValues = dt.unique(
+      shipmentDT[f.anatomical_location != None, 'anatomical_location']
+    ).to_list()[0]
 
-  # if there are mappings, update here. 
-  # anatomicalLocationMappings.update({ ... })
+    for value in incomingAnatomicalValues:
+        if value.lower() not in anatomicalLocationMappings:
+            print(f"Value '{value}' not in anatomical location mappings")
+
+    # if there are mappings, update here.
+    # anatomicalLocationMappings.update({ ... })
 
 #///////////////////////////////////////
 
@@ -355,8 +355,8 @@ materialTypeMappings = toKeyPairs(
 # check incoming data, update mappings (if applicable), and rerun
 incomingMaterialTypes = dt.unique(shipmentDT[f.sample_type!=None,'sample_type']).to_list()[0]
 for value in incomingMaterialTypes:
-  if value.lower() not in materialTypeMappings:
-    print(f"Value '{value}' does not exist in material type mappings")
+    if value.lower() not in materialTypeMappings:
+        print(f"Value '{value}' does not exist in material type mappings")
 
 materialTypeMappings.update({
   'ffpe': 'TISSUE (FFPE)',
@@ -386,13 +386,13 @@ pathologicalStateMappings = toKeyPairs(
 
 # check incoming data, update mappings (if applicable), and rerun
 if 'pathological_state' in shipmentDT.names:
-  incomingPathologicalStateValues = dt.unique(
-    shipmentDT[f.pathological_state!=None, 'pathological_state']
-  ).to_list()[0]
+    incomingPathologicalStateValues = dt.unique(
+      shipmentDT[f.pathological_state!=None, 'pathological_state']
+    ).to_list()[0]
 
-  for value in incomingPathologicalStateValues:
-    if value.lower() not in pathologicalStateMappings:
-      print(f"Value '{value}' does not exist in pathological state mappings")
+    for value in incomingPathologicalStateValues:
+        if value.lower() not in pathologicalStateMappings:
+            print(f"Value '{value}' does not exist in pathological state mappings")
 
   # if there are any values, enter them below ->
   # pathologicalStateMappings.update({ ... })
@@ -446,14 +446,14 @@ shipmentDT['organisation'] = dt.Frame([
 
 # recode anatomical location (if available)
 if 'anatomical_location' in shipmentDT.names:
-  shipmentDT['anatomical_location'] = dt.Frame([
-    recodeValue(
-      mappings = anatomicalLocationMappings,
-      value = value.lower(),
-      label = 'anatomical locations'
-    ) if value else value
-    for value in shipmentDT['anatomical_location'].to_list()[0]
-  ])
+    shipmentDT['anatomical_location'] = dt.Frame([
+      recodeValue(
+        mappings = anatomicalLocationMappings,
+        value = value.lower(),
+        label = 'anatomical locations'
+      ) if value else value
+      for value in shipmentDT['anatomical_location'].to_list()[0]
+    ])
 
 # recode sample types (i.e., materialType)
 shipmentDT['sample_type'] = dt.Frame([
@@ -471,12 +471,12 @@ shipmentDT['sample_type'] = dt.Frame([
 
 # update sample types for DEEP-WES samples
 if 'extracted_protocol' in shipmentDT.names:
-  shipmentDT['sample_type'] = dt.Frame([
-    'TISSUE (FFPE)'
-    if row[1].lower().strip() == 'tumor' and row[2].lower().strip() == 'tissue (ffpe)'
-    else row[0]
-    for row in shipmentDT[:, (f.sample_type, f.tissue_type, f.extracted_protocol)].to_tuples()
-  ])
+    shipmentDT['sample_type'] = dt.Frame([
+      'TISSUE (FFPE)'
+      if row[1].lower().strip() == 'tumor' and row[2].lower().strip() == 'tissue (ffpe)'
+      else row[0]
+      for row in shipmentDT[:, (f.sample_type, f.tissue_type, f.extracted_protocol)].to_tuples()
+    ])
 
 # recode tissue types
 shipmentDT['tissue_type'] = dt.Frame([
@@ -486,38 +486,38 @@ shipmentDT['tissue_type'] = dt.Frame([
 
 # extract values inside parenthesis
 if 'extracted_protocol' in shipmentDT.names:
-  shipmentDT['extracted_protocol'] = dt.Frame([
-    # getWrappedValues(row[0]) if '(' in row[0] else row[1]
-    # for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()
-    
-    getWrappedValues(value) if value and '(' in value else value
-    for value in shipmentDT[:, (f.extracted_protocol)].to_list()[0]
-  ])
+    shipmentDT['extracted_protocol'] = dt.Frame([
+      # getWrappedValues(row[0]) if '(' in row[0] else row[1]
+      # for row in shipmentDT[:, (f.tissue_type, f.extracted_protocol)].to_tuples()    
+      getWrappedValues(value) if value and '(' in value else value
+      for value in shipmentDT[:, (f.extracted_protocol)].to_list()[0]
+    ])
 
 # add alternative identifier if not present
 if 'alternative_sample_identifier' not in shipmentDT.names:
-  shipmentDT['alternative_sample_identifier']=None
+    shipmentDT['alternative_sample_identifier']=None
 
 if 'pathological_state' in shipmentDT.names:
-  shipmentDT['pathological_state'] = dt.Frame([
-    recodeValue(
-      mappings = pathologicalStateMappings,
-      value = value.lower().strip(),
-      label = 'Pathological State'
-    )
-    if value else None
-    for value in shipmentDT['pathological_state'].to_list()[0]
-  ])
+    shipmentDT['pathological_state'] = dt.Frame([
+      recodeValue(
+        mappings = pathologicalStateMappings,
+        value = value.lower().strip(),
+        label = 'Pathological State'
+      )
+      if value else None
+      for value in shipmentDT['pathological_state'].to_list()[0]
+    ])
 else:
-  shipmentDT['pathological_state'] = None
+    shipmentDT['pathological_state'] = None
+
 
 if 'tumor_cell_fraction' in shipmentDT.names:
-  shipmentDT['tumor_cell_fraction'] = dt.Frame([
-    None if value == 'UK' else value
-    for value in shipmentDT['tumor_cell_fraction'].to_list()[0]
-  ])
+    shipmentDT['tumor_cell_fraction'] = dt.Frame([
+      None if value == 'UK' else value
+      for value in shipmentDT['tumor_cell_fraction'].to_list()[0]
+    ])
 else:
-  shipmentDT['tumor_cell_fraction'] = None
+    shipmentDT['tumor_cell_fraction'] = None
 
 #///////////////////////////////////////
 
@@ -569,11 +569,12 @@ reduceToExistingSamples = functools.reduce(
 
 samplesToUpdate = shipmentDT[reduceToExistingSamples, :]
 shipmentDT['isNewSample'] = dt.Frame([
-  id not in samplesToUpdate['sample_id'].to_list()[0]
+  # id not in samplesToUpdate['sample_id'].to_list()[0]
+  id not in existingSampleIDs
   for id in shipmentDT['sample_id'].to_list()[0]
 ])
 
-shipmentDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample)]
+# shipmentDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample)]
 # shipmentDT[(f.isNewSubject==False) & (f.isNewSample ==False),:]
 
 # ~ 1g ~
@@ -614,15 +615,14 @@ shipmentDT.names = {
 samplesToValidate = shipmentDT[(f.isNewSubject==False) & (f.isNewSample==False),:]
 
 if samplesToValidate.nrows == 0:
-  print('Nothing to validate :-)')
+    print('Nothing to validate :-)')
 
 # identify records that need to be validated
 samplesToCompare = samplesDT[
   functools.reduce(
     operator.or_,
     (f.sampleID == value for value in samplesToValidate['sampleID'].to_list()[0])
-  ),
-  :
+  ), :
 ]
 
 # define object that will store all conflicting data
@@ -648,29 +648,29 @@ nonConflictColumns =[
 ]
 
 for id in tqdm(samplesToValidate['sampleID'].to_list()[0]):
-  incomingSample = dtFrameToRecords(samplesToValidate[f.sampleID==id, :])[0]
-  existingSample = dtFrameToRecords(samplesToCompare[f.sampleID==id, :])[0]
+    incomingSample = dtFrameToRecords(samplesToValidate[f.sampleID==id, :])[0]
+    existingSample = dtFrameToRecords(samplesDT[f.sampleID==id, :])[0]
 
-  # identify records that require manually verification
-  for column in potentialConflictColumns:
-    if (column in incomingSample) and (column in existingSample):
-      if incomingSample[column] != existingSample[column]:
-        print(f"Incoming sample {id} has conflicting {column} values")
-        incomingSamplesWithConflicts.append({
-          'incomingValue': incomingSample[column],
-          'existingValue': existingSample[column],
-          'message': f"values in {column} do not match"
-        })
+    # identify records that require manually verification
+    # for column in potentialConflictColumns:
+    #   if (column in incomingSample) and (column in existingSample):
+    #     if incomingSample[column] != existingSample[column]:
+    #       print(f"Incoming sample {id} has conflicting {column} values")
+    #       incomingSamplesWithConflicts.append({
+    #         'incomingValue': incomingSample[column],
+    #         'existingValue': existingSample[column],
+    #         'message': f"values in {column} do not match"
+    #       })
   
-  # identify columns that can automatically imported
-  for column in nonConflictColumns:
-    if (column in incomingSample) and (column in existingSample):
-      if incomingSample[column] not in existingSample[column]:
-        newRow = {'sampleID': id, 'subjectID': incomingSample['subjectID'] }
-        currentSampleValues = existingSample[column].split(',')
-        currentSampleValues.append(incomingSample[column])
-        newRow[column] =  ','.join(list(set(currentSampleValues)))
-        existingSamplesThatCanBeUpdated.append(newRow)
+    # identify columns that can automatically imported
+    for column in nonConflictColumns:
+        if (column in incomingSample) and (column in existingSample):
+            if incomingSample[column] not in existingSample[column]:
+                newRow = {'sampleID': id, 'subjectID': incomingSample['subjectID'] }
+                currentSampleValues = existingSample[column].split(',')
+                currentSampleValues.append(incomingSample[column])
+                newRow[column] =  ','.join(list(set(currentSampleValues)))
+                existingSamplesThatCanBeUpdated.append(newRow)
 
 numIssues=len(incomingSamplesWithConflicts)
 numUpdates = len(existingSamplesThatCanBeUpdated)
@@ -761,17 +761,17 @@ existingSubjects = shipmentDT[f.isNewSubject==False,:]
 
 # Is the current analysis associated with this participant?
 for id in existingSubjects['subjectID'].to_list()[0]:
-  subjectReleases = subjectsDT[f.subjectID==id,(f.partOfRelease)].to_list()[0][0]
-  newRelease = recodeValue(
-    mappings=releaseIDs,
-    value=existingSubjects[f.subjectID==id,'type_of_analysis'].to_list()[0][0]
-  )
-  
-  if newRelease not in subjectReleases:
-    print('Updating releases....')
-    subjectReleases = f"{subjectReleases},{newRelease}"
-    subjectsDT[f.subjectID==id,(f.partOfRelease)] = subjectReleases
-    subjectsDT[f.subjectID==id,'updatedRecord'] = True
+    subjectReleases = subjectsDT[f.subjectID==id,(f.partOfRelease)].to_list()[0][0]
+    newRelease = recodeValue(
+      mappings=releaseIDs,
+      value=existingSubjects[f.subjectID==id,'type_of_analysis'].to_list()[0][0]
+    )
+
+    if newRelease not in subjectReleases:
+        print('Updating releases....')
+        subjectReleases = f"{subjectReleases},{newRelease}"
+        subjectsDT[f.subjectID==id,(f.partOfRelease)] = subjectReleases
+        subjectsDT[f.subjectID==id,'updatedRecord'] = True
 
 updateExistingSubjects = dtFrameToRecords(
   data = subjectsDT[f.updatedRecord, (f.subjectID, f.partOfRelease)]
@@ -783,7 +783,7 @@ rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
 
 # update in subject info
 # rd3_acc.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
-rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
+rd3_prod.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
 
 
 # ~ 2c ~
@@ -793,29 +793,47 @@ rd3_prod.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
 
 existingSamplesThatCanBeUpdated = dt.Frame(existingSamplesThatCanBeUpdated)
 
-# records to update in subjects
-for column in existingSamplesThatCanBeUpdated.names:
-  if column in ['partOfRelease']:
-    print(f"Updating column {column}....")
-    rd3_prod.batchUpdate(
-      pkg_entity='solverd_subjects',
-      column = column,
-      data = dtFrameToRecords(
-        data = existingSamplesThatCanBeUpdated[:, ['subjectID', column]]
-      )
+# update partOfRelease
+rd3_prod.batchUpdate(
+    pkg_entity='solverd_samples',
+    column = 'partOfRelease',
+    data = dtFrameToRecords(
+        existingSamplesThatCanBeUpdated[f.partOfRelease != None, (f.sampleID, f.partOfRelease)]
     )
+)
 
-# records to update in samples
-for column in existingSamplesThatCanBeUpdated.names:
-  if column in nonConflictColumns:
-    print(f"Updating column {column}....")
-    rd3_prod.batchUpdate(
-      pkg_entity='solverd_samples',
-      column=column,
-      data=dtFrameToRecords(
-        data = existingSamplesThatCanBeUpdated[:, ['sampleID', column]]
-      )
+rd3_prod.batchUpdate(
+    pkg_entity='solverd_samples',
+    column='batch',
+    data = dtFrameToRecords(
+        existingSamplesThatCanBeUpdated[f.batch!=None, (f.sampleID,f.batch)]
     )
+)
+
+
+# records to update in subjects
+# for column in existingSamplesThatCanBeUpdated.names:
+#     if column in ['partOfRelease']:
+#         print(f"Updating column {column}....")
+#         rd3_prod.batchUpdate(
+#           pkg_entity='solverd_subjects',
+#           column = column,
+#           data = dtFrameToRecords(
+#             data = existingSamplesThatCanBeUpdated[:, ['subjectID', column]]
+#           )
+#         )
+
+# # records to update in samples
+# for column in existingSamplesThatCanBeUpdated.names:
+#     if column in nonConflictColumns:
+#         print(f"Updating column {column}....")
+#         rd3_prod.batchUpdate(
+#           pkg_entity='solverd_samples',
+#           column=column,
+#           data=dtFrameToRecords(
+#             data = existingSamplesThatCanBeUpdated[:, ['sampleID', column]]
+#           )
+#         )
 
 #///////////////////////////////////////
 
@@ -860,7 +878,7 @@ rd3_prod.batchUpdate(
 
 # update portal information
 for rowID in portalRecordsToUpdate['molgenis_id'].to_list()[0]:
-  shipmentDT[f.molgenis_id==rowID,'processed'] = True
+    shipmentDT[f.molgenis_id==rowID,'processed'] = True
 
 # review cases that haven't been processed:
 # Periodically, there may be a few cases that weren't marked as processed and weren't
@@ -871,9 +889,9 @@ for rowID in portalRecordsToUpdate['molgenis_id'].to_list()[0]:
 #   alternativelIdentifier
 #   batch
 if shipmentDT[f.processed==False,:].nrows > 0:
-  print('Warning: there are cases need to be reviewed!!!!')
-  shipmentDT[f.processed==False,:]
-  # shipmentDT[f.processed==False,'processed'] = True
+    print('Warning: there are cases need to be reviewed!!!!')
+    # shipmentDT[f.processed==False,:]
+    # shipmentDT[f.processed==False,'processed'] = True
 
 
 #///////////////////////////////////////
@@ -902,5 +920,4 @@ if shipmentDT[f.processed==False,:].nrows > 0:
 
 #///////////////////////////////////////
 
-rd3_acc.logout()
 rd3_prod.logout()

@@ -2,7 +2,7 @@
 # FILE: solverd_solvedstatus.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-03-20
-# MODIFIED: 2023-04-04
+# MODIFIED: 2023-12-13
 # PURPOSE: update solved status metadata in RD3
 # STATUS: stable
 # PACKAGES: **see below**
@@ -20,13 +20,22 @@ import csv
 import re
 
 def now(tz='Europe/Amsterdam'):
+  """Get the current time based on current time zone
+  
+  :param tz: region to present time in
+  :type tz: str
+  
+  :returns: string containing the current time formatted as HH:MM:SS
+  :rtype: str
+  
+  """
   return datetime.datetime.now(tz=pytz.timezone(tz)).strftime('%H:%M:%S.%f')[:-3]
 
 def print2(*args):
-  """Status Message
-  Print a log-style message, e.g., "[16:50:12.245] Hello world!"
-  @param *args one or more strings containing a message to print
-  @return string
+  """Print one or more strings as console message with a timestamp
+  
+  :param *args: one or more strings containing a message to print
+  :param *args: str
   """
   print(f"[{now()}] {' '.join(map(str, args))}")
 
@@ -39,20 +48,26 @@ class Molgenis(molgenis.Session):
     """To CSV
     Write datatable object as CSV file
 
-    @param path location to save the file
-    @param data datatable object
+    :param path: location to save the file
+    :type path: string
+    
+    :param data: datatable object to save
+    :type: datatable
     """
     data = datatable.to_pandas().replace({np.nan: None})
     data.to_csv(path, index=False, quoting=csv.QUOTE_ALL)
   
   def importDatatableAsCsv(self, pkg_entity: str, data):
-    """Import Datatable As CSV
-    Save a datatable object to as csv file and import into MOLGENIS using the
-    importFile api.
+    """Import datatable object as a CSV file
     
-    @param pkg_entity table identifier in emx format (package_entity)
-    @param data a datatable object
-    @param label a description to print (e.g., table name)
+    :param pkg_entity: table identifier in emx format (package_entity)
+    :param pkg_entity: str
+    
+    :param data: datatable object to import into an EM1 instance
+    :param data: datatable
+    
+    :param label: a description to print (e.g., table name)
+    :type label: str 
     """
     with tempfile.TemporaryDirectory() as tmpdir:
       filepath=f"{tmpdir}/{pkg_entity}.csv"
@@ -71,12 +86,17 @@ class Molgenis(molgenis.Session):
         return response
 
 def flattenDataset(data, columnPatterns=None):
-  """Flatten Dataset
-  Flatten all nested attributes in a recordset based on a specific column names.
+  """Flatten a dataset with nested attributes into a recordset
   
-  @param data a recordset
-  @param column string containing row headers to detect: "subjectID|id|value"
-  @return a new recordset containing flattened data
+  :param data: recordset containing nested attributes
+  :type data: recordset; list of dicts
+  
+  :param column: one or more attribute names used to extract the target value 
+      when there is nested data(e.g., "subjectID|id|value")
+  :type column: string
+  
+  :returns: a new recordset containing flattened data
+  :rtype: recordset
   """
   newData = data
   for row in newData:
@@ -114,14 +134,14 @@ def flattenDataset(data, columnPatterns=None):
 print2('Connecting to RD3 and retrieving data....')
 
 # for local dev
-# from dotenv import load_dotenv
-# from os import environ
-# load_dotenv()
-# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+from dotenv import load_dotenv
+from os import environ
+load_dotenv()
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # when deployed
-rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
+# rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
 
 # ~ 0b ~
 # Retrieve data and flatten to data table objects
@@ -133,7 +153,8 @@ portal_data = rd3.get(
 )
 
 # Retrieve subject metadata to determine if a status has changed
-solveRdSubjects=rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=10000)
+solveRdSubjects=rd3.get('solverd_subjects', q="retracted!='Y'")
+# solveRdSubjects=rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=10000)
 subjects = flattenDataset(
   data=solveRdSubjects,
   columnPatterns='subjectID|id|value'
@@ -375,9 +396,17 @@ if portalIDs:
   print2('\t\tMerging new datasets into one...')
   for obj in [updateContactDT, updateRecontactDT, updateSolvedDT, updateDateDT, updateRemarkDT]:
     if 'id' in obj.names:
-      obj.key = 'id'
-      subjectUpdates = subjectUpdates[:, :, dt.join(obj)]
+      tmpData = obj.copy()
 
+      try:
+        tmpData.key = 'id'
+      except ValueError as err:
+        tmpData = tmpData[:, dt.first(f[:]), dt.by(f.id)]
+        tmpData.key = 'id'
+  
+      subjectUpdates = subjectUpdates[:, :, dt.join(tmpData)]
+      
+      del tmpData
 
   # pull rows to update
   subjectsDT = dt.Frame([

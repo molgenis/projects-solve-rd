@@ -2,7 +2,7 @@
 # FILE: solverd_solvedstatus.py
 # AUTHOR: David Ruvolo
 # CREATED: 2023-03-20
-# MODIFIED: 2023-12-13
+# MODIFIED: 2024-01-11
 # PURPOSE: update solved status metadata in RD3
 # STATUS: stable
 # PACKAGES: **see below**
@@ -85,29 +85,29 @@ class Molgenis(molgenis.Session):
           print2('Imported data into', pkg_entity)
         return response
 
-def flattenDataset(data, columnPatterns=None):
+def flattenDataset(data, nested_cols=None):
   """Flatten a dataset with nested attributes into a recordset
   
   :param data: recordset containing nested attributes
   :type data: recordset; list of dicts
   
-  :param column: one or more attribute names used to extract the target value 
-      when there is nested data(e.g., "subjectID|id|value")
+  :param nested_cols: one or more attribute names used to extract the target
+      value when there is nested data(e.g., "subjectID|id|value")
   :type column: string
   
   :returns: a new recordset containing flattened data
   :rtype: recordset
   """
-  newData = data
-  for row in newData:
+  new_data = data
+  for row in new_data:
     if '_href' in row:
       del row['_href']
     for column in row.keys():
       if isinstance(row[column], dict):
         if bool(row[column]):
-          columnMatch = re.search(columnPatterns, ','.join(row[column].keys()))
-          if bool(columnMatch):
-            row[column] = row[column][columnMatch.group()]
+          column_match = re.search(nested_cols, ','.join(row[column].keys()))
+          if bool(column_match):
+            row[column] = row[column][column_match.group()]
           else:
             print(f'Variable {column} is type "dict", but no target column found')
         else:
@@ -115,18 +115,50 @@ def flattenDataset(data, columnPatterns=None):
       if isinstance(row[column], list):
         if bool(row[column]):
           values = []
-          for nestedrow in row[column]:
-            columnMatch = re.search(columnPatterns, ','.join(nestedrow.keys()))
-            if bool(columnMatch):
-              values.append(nestedrow[columnMatch.group()])
+          for nested_row in row[column]:
+            column_match = re.search(nested_cols, ','.join(nested_row.keys()))
+            if bool(column_match):
+              values.append(nested_row[column_match.group()])
             else:
               print(f'Variable {column} is type "list", but no target column found')
           if bool(values):
             row[column] = ','.join(values)
         else:
           row[column] = None
-  return newData
-      
+  return new_data
+
+def recode_val(val: str=None, map: dict=None, force_quit: bool=False):
+  """Recode a raw value to a 
+  
+  :param val: a single value to recode
+  :type val: str
+  
+  :param map: an object containing one-to-one mappings
+  :type map: dict
+  
+  :param force_quit: if true, errors will quit process. Otherwise, the message
+    will be printed
+  :type force_quit: bool
+  
+  :returns: a new value
+  :rtype: sting
+  """
+  try:
+    return map[val]
+  except KeyError as err:
+    msg=f"Failed to convert {val}"
+    if force_quit:
+      raise KeyError(f"msg\n{err}")
+    else:
+      print(msg)
+      return None
+
+def collapse_remarks(*args):
+  """Reduce multiple strings into a single string and filter NoneTypes"""
+  values = list(args)
+  values_cleaned = list(filter(None,values))
+  return ';'.join(values_cleaned)
+
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~
@@ -146,351 +178,252 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # ~ 0b ~
 # Retrieve data and flatten to data table objects
 # get data from the portal and freezes
-portal_data = rd3.get(
+# ['2023-03-23', '2023-11-07', '2023-11-13', '2023-12-12']
+portal_data_raw = rd3.get(
   entity = 'rd3_portal_recontact_solved',
-  q='process_status=="N"',
+  # q='process_status=="N";(date_solved=ge=2023-03-23;date_solved=le=2023-03-23)',
+  # q='process_status=="N";(date_solved=ge=2023-11-07;date_solved=le=2023-11-07)',
+  # q='process_status=="N";(date_solved=ge=2023-11-13;date_solved=le=2023-11-13)',
+  q='process_status=="N";(date_solved=ge=2023-12-12;date_solved=le=2023-12-12)',
   batch_size=10000
 )
 
-# Retrieve subject metadata to determine if a status has changed
-solveRdSubjects=rd3.get('solverd_subjects', q="retracted!='Y'")
-# solveRdSubjects=rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=10000)
-subjects = flattenDataset(
-  data=solveRdSubjects,
-  columnPatterns='subjectID|id|value'
-)
+portal_data = flattenDataset(portal_data_raw, 'id')
+portal_dt = dt.Frame(portal_data)
+
+# retrive subject metadata and flatten
+# the solved status metadata will be added to the subject dataset,
+# subjects_raw = rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=10000)
+subjects_raw = rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=1000)
+subjects = flattenDataset(subjects_raw,'subjectID|id|value')
+subjects_dt = dt.Frame(subjects)
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
-# Process Freeze Subjects
-# Store current solved status metadata (i.e., contact, recontact and solved status)
-# Create a new object that will be used for comparison with incoming portal
-# information
-print2('Processing subject information & storing current solved status metadata...')
+# Process current subject metadata
+#
+# To determine how to update solved status with incoming metadata, determine
+# which records should be updated. By default, all records should be evaluated.
+# However, there are a few circumstances where records should be ignored. The
+# following steps will identify these cases.
+print2('Processing current subject information...')
 
-subject = {}
-no_solved_update = 0
-for row in subjects:
-  contactInfo = 'missing'
-  date_solved=''
-  recontact = 'U'
-  update_solved_status = 'Y'
-  
-  if 'recontact' in row:
-    recontact = row['recontact']
-  
-  if 'contact' in row:
-    contactInfo = row['contact']
+# by default, set all records to True
+subjects_dt['should_update'] = True
 
-  if 'date_solved' in row:
-    if (
-      (date_solved == '2019-10-01') and 
-      (row.get('remarks') == 'Solved before the initial start of the project')
-    ):
-      update_solved_status = 'N'
-      no_solved_update += 1
+# check to see if record was solved before the start of the project
+subjects_dt['should_update'] = dt.Frame([
+  False
+  if row[1] == '2019-10-01' and
+    row[2] == 'Solved before the initial start of the project'
+  else row[0]
+  for row in subjects_dt[:, ['should_update', 'date_solved', 'remarks']].to_tuples()
+])
 
-  if row['subjectID'] not in subjects:
-    subject[row['subjectID']]={
-      'id': row['subjectID'],
-      'solved': row['solved'] if 'solved' in row else None,
-      'date_solved': date_solved,
-      'recontact': recontact,
-      'contact': contactInfo,
-      'update_solved_status': update_solved_status
-    }
-  else:
-    print2(f"\tID {id} already exists")
-    ids=subject[row['subjectID']]
-    ids.append(row['subjectID'])
-    if row['solved'] != subject[row['subjectID']]['solved']:
-      raise SystemExit('Differences in current solved status in RD3 for '+row['subjectID']+' FIRST CHECK THIS!')
-    if recontact != subject[row['subjectID']]['recontact']:
-      raise SystemExit('Differences in current Recontact Incidental Findings in RD3 for '+row['subjectID']+' FIRST CHECK THIS!')
-    if contactInfo != subject[row['subjectID']]['contact']:
-      raise SystemExit('Differences in current Contact Information in RD3 for '+row['subjectID']+' FIRST CHECK THIS!')
-    subject[row['subjectID']]={
-      'id': ids,
-      'solved': row['solved'],
-      'date_solved': date_solved,
-      'recontact': recontact,
-      'contact': contactInfo,
-      'update_solved_status': update_solved_status
-    }
+# print counts
+should_update_counts = subjects_dt[:, dt.count(), dt.by(f.should_update)]
+print2('Summary of subjects that will be updated:\n\n',
+  '\tAvailable:       ', should_update_counts[f.should_update, 'count'].to_list()[0][0],'\n'
+  '\tUnavailable*:    ', should_update_counts[f.should_update==False,'count'].to_list()[0][0],
+  '\n',
+  '\n',
+  '*Unavailable subjects are subjects that were solved before the start of the project (2019-10-01)'
+)
+
+# compile a list of subject ids that should be updated
+subject_ids = subjects_dt[f.should_update, 'subjectID'].to_list()[0]
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~
-# Process Portal Status
-# Determine if any of the solved status variables have changed
-print2('Processing new portal status data....')
+# Process incoming metadata
 
-# init objects that will be used to store values to update in RD3
-updateContact = []
-updateDate = []
-updatePtlHistory = []
-updatePtlStatus = []
-updatePtlRemark = []
-updateRecontact = []
-updateRemark = []
-updateSolved = []
+print2('Processing incoming metadata...')
 
-# process portal information
-for row in portal_data:
-  history='N'
-  contactNew = None
-  dateNew = None
-  ptlRemark = None
-  ptlStatus = None
-  recontactNew = None
-  remarkNew = None
-  solvedNew = None
-  
-  # make sure subject exists
-  status = row['subject'] in subject
-  if status:
-    id = subject[row['subject']]['id']
-    
-    # set solved status
-    if row['solved'] == 'solved':
-      solved = True
-    elif row['solved'] == 'unsolved':
-      solved = False
-    elif row['solved'] == 'nA':
-      solved = None
-    else:
-      raise SystemExit(
-        f"Unknown Portal solved status {row['solved']} for {row['subject']}"
-      )
-    
-    # if the case is unsolved, did it change from solved?
-    if subject[row['subject']]['solved'] != solved:
-      if subject[row['subject']]['update_solved_status'] == 'Y':
-        if not subject[row['subject']]['solved']:
-          solvedNew = solved
-          dateNew = row['date_solved']
-          remarkNew = None
-        else:
-          solvedNew = solved
-          dateNew = None
-          remarkNew = f"Solved status changed from solved to unsolved on {row['date_solved']}"
-      else:
-        ptlRemark = 'New solved status, but not updated!'
-        ptlStatus='D'
-
-    # update recontact information            
-    if 'recontact' in row:
-      if subject[row['subject']]['recontact'] == 'U':
-        recontactNew = row['recontact']
-      elif subject[row['subject']]['recontact'] != row['recontact']:
-        recontactNew = row['recontact']
-
-    # update contact information
-    if 'contact' in row:
-      if subject[row['subject']]['contact'] == 'missing':
-        contactNew = row['contact']
-      elif subject[row['subject']]['contact'] != row['contact']:
-        contactNew = row['contact']
-
-    # if contact, recontact, or solved status is present, update portal history 
-    if contactNew != None or recontactNew != None or solvedNew != None:
-      
-      # if there is new contact information, set the history accordingly
-      if contactNew != None:
-        if ptlRemark == None:
-          ptlRemark='Contact info updated'
-        else:
-          ptlRemark = ptlRemark +  ' Contact info updated'
-
-        ptlStatus = 'P'
-
-        # add record to portal updates dataset
-        if {'id': id, 'contact': contactNew} not in updateContact:
-          updateContact.append({'id': id, 'contact': contactNew})
-
-      # set portal history for new recontact information
-      if recontactNew != None:
-        if ptlRemark == None:
-          ptlRemark='Recontact info updated'
-        else:
-          ptlRemark = ptlRemark + ' and recontact info updated'
-        
-        ptlStatus='P'
-
-        if {'id': id, 'recontact': recontactNew} not in updateRecontact:
-          updateRecontact.append({'id': id, 'recontact': recontactNew})
-
-      # set portal history for new solved statuses
-      if solvedNew != None:
-        if ptlRemark == None:
-          ptlRemark = 'Solved Status updated'
-        else:
-          ptlRemark = ptlRemark + ' and solved status updated'
-
-        ptlStatus = 'P'
-
-        # add record to portal updates
-        if {'id': id, 'solved': solvedNew} not in updateSolved:
-          updateSolved.append({'id': id, 'solved': solvedNew})
-          updateDate.append({'id': id, 'date_solved': dateNew})
-          updateRemark.append({'id': id, 'remarks': remarkNew})
-    
-    # add history to portal table
-    if ptlRemark != None:
-      updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
-      updatePtlRemark.append({'id': row['id'], 'remark': ptlRemark})
-      updatePtlStatus.append({'id': row['id'], 'process_status': ptlStatus})
-    else:
-      updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
-      updatePtlRemark.append({'id': row['id'], 'remark': 'No new information'})
-      updatePtlStatus.append({'id': row['id'], 'process_status': 'P'})
-  else:
-    print2('Subject not in RD3')
-    updatePtlHistory.append({'id': row['id'], 'history': 'Y'})
-    updatePtlRemark.append({'id': row['id'], 'remark': 'subject not yet in RD3'})
-    updatePtlStatus.append({'id': row['id'], 'process_status': 'N'})
-    
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 3 ~
-# Merge portal update datasets
+# ~ 2a ~
+# Identify unknown subjects
 #
-# NOTE: this above steps are from scripts that I inherited and I'm not sure how to
-# properly update these steps without losing important information and checks so
-# that I can use the File Import API. Instead, merge all `updatePlt*` objects and
-# create a new datatable object that can be imported into the portal and the
-# subjects table.
-#
+# Check to see if there are any unknown identifiers. If there are any cases,
+# compile them into a new list and send to the data management office
 
-print2('Creating datasets for import via File API...')
+portal_dt['is_unknown_subject'] = dt.Frame([
+  value not in subject_ids
+  for value in portal_dt['subject'].to_list()[0]
+])
 
-# ~ 3a ~
-# Create new subject dataset containing information to update
+# portal_dt[:, dt.count(), dt.by(f.is_unknown_subject)]
 
-# to datatable
-print2('\tCreating data for solverd_subjects....')
-updateContactDT = dt.Frame(updateContact)
-updateRecontactDT = dt.Frame(updateRecontact)
-updateSolvedDT = dt.Frame(updateSolved)
-updateDateDT = dt.Frame(updateDate)
-updateRemarkDT = dt.Frame(updateRemark)
+# for any unknown subjects, make sure they are flagged properly
+portal_dt[['history', 'remark', 'process_status']] = dt.Frame([
+  ('Y', 'subject not yet in RD3', 'N')
+  if value is True else (None,None,None)
+  for value in portal_dt['is_unknown_subject'].to_list()[0]
+])
 
-# create a flag that determines if the import step should run
-shouldImportSubjectMetadta = False
-
-
-# pull all IDs to create one dataset to import
-portalIDs = []
-for obj in [updateContactDT, updateRecontactDT, updateSolvedDT, updateDateDT, updateRemarkDT]:
-  if 'id' in obj.names:
-    portalIDs += obj['id'].to_list()[0]
-
-# only run if there are updates
-if portalIDs:
-  shouldImportSubjectMetadta = True
-  subjectUpdates = dt.unique(dt.Frame(id=portalIDs))
-  subjectUpdates.key = 'id'
-
-  # join datasets if they exist
-  print2('\t\tMerging new datasets into one...')
-  for obj in [updateContactDT, updateRecontactDT, updateSolvedDT, updateDateDT, updateRemarkDT]:
-    if 'id' in obj.names:
-      tmpData = obj.copy()
-
-      try:
-        tmpData.key = 'id'
-      except ValueError as err:
-        tmpData = tmpData[:, dt.first(f[:]), dt.by(f.id)]
-        tmpData.key = 'id'
+# warn if there are any unknown subjects
+unknown_count = portal_dt[f.is_unknown_subject, 'subject'].nrows
+if unknown_count > 0:
+  print2(f"Identified unknown subjects (n={unknown_count})", 'Isolating records and importing...')
   
-      subjectUpdates = subjectUpdates[:, :, dt.join(tmpData)]
-      
-      del tmpData
+  # select records where the subject is unknown and import
+  unknown_dt = portal_dt[f.is_unknown_subject, :]
+  rd3.importDatatableAsCsv('rd3_portal_recontact_solved', unknown_dt)
 
-  # pull rows to update
-  subjectsDT = dt.Frame([
-    row for row in subjects if row['subjectID'] in subjectUpdates['id'].to_list()[0]
-  ])
-
-  # to make sure no data is overwritten, merge values one-by-one where the update
-  # dataset is not missing. Otherwise, return the existing value
-  for column in ['contact', 'recontact', 'solved','date_solved', 'remarks']:
-    print2(f"\t\tMerging data into solverd_subjects manually for {column}....")
-    if (column in subjectUpdates.names) and (column in subjectsDT.names):
-      subjectsDT[column] = dt.Frame([
-        subjectUpdates[f.id == row[0], column].to_list()[0][0]
-        if subjectUpdates[f.id == row[0], column].to_list()[0][0] != None
-        else row[1]
-        for row in subjectsDT[:, ['subjectID', column]].to_tuples()
-      ])
-else:
-  print2('No new data to import into RD3. Check comments')
+  # remove unknown subject cases from dataset and determine if script should exit  
+  portal_dt = portal_dt[f.is_unknown_subject==False,:]
+  if not portal_dt.nrows:
+    raise SystemExit('No new records to import as all records contain unknown subject IDs. Please check this.')
 
 #///////////////////////////////////////
 
-# ~ 3b ~
-# Create new portal dataset containing information to update
-print2('\tCreating data for portal table....')
+# ~ 2b ~
+# Process solved status
+#
+# Recode the incoming solved status values and determine if
+# the status has changed
+print2('Processing new solved status data...')
 
-# to data.table
-updatePtlHistoryDT = dt.Frame(updatePtlHistory)
-updatePtlStatusDT = dt.Frame(updatePtlStatus)
-updatePtlRemarkDT = dt.Frame(updatePtlRemark)
+# Recode solved status and check to see if solved status is new
+solved_status_mappings = {
+  'solved': True,
+  'unsolved': False,
+  'nA': None
+}
 
-# pull all IDs to create one dataset
-print2('\t\tCollapsing IDs....')
+# make sure all incoming solved status values are valid. 
+# if not, stop processing data
+official_vals = solved_status_mappings.keys()
+incoming_vals = dt.unique(portal_dt['solved']).to_list()[0]
 
-portalUpdates = []
-for obj in [updatePtlHistoryDT, updatePtlStatusDT, updatePtlRemarkDT]:
-  if 'id' in obj.names:
-    portalUpdates += obj['id'].to_list()[0]
+for val in incoming_vals:
+  if val not in official_vals:
+    raise ValueError(f"Solved status value {val} is not valid")
 
-portalUpdates = dt.unique(dt.Frame(id=portalUpdates))
 
-# join data
-print2('\t\tMerging portal datasets into one....')
-updatePtlHistoryDT.key = 'id'
-updatePtlStatusDT.key = 'id'
-updatePtlRemarkDT.key = 'id'
+# recode solved status
+portal_dt['is_solved'] = dt.Frame([
+  recode_val(val=value, map=solved_status_mappings)
+  for value in portal_dt['solved'].to_list()[0]
+])
 
-portalUpdates = portalUpdates[:, :, dt.join(updatePtlHistoryDT)]
-portalUpdates = portalUpdates[:, :, dt.join(updatePtlStatusDT)]
-portalUpdates = portalUpdates[:, :, dt.join(updatePtlRemarkDT)]
 
-# create portal dataset to import
-portalDT = [
-  row for row in portal_data if row['id'] in portalUpdates['id'].to_list()[0]
-]
-portalDT = flattenDataset(data = portalDT, columnPatterns='id')
-portalDT = dt.Frame(portalDT)
+# set remark value for solved status and flag cases where they should be updated
+default_solved_record = (None, 'Y', 'P', True, False)
+portal_dt[['remark', 'history', 'process_status', 'should_update', 'should_update_solved']] = dt.Frame([
+    (
+      collapse_remarks(row[3], f"Solved status changed from solved to unsolved on {row[2]}"),
+     'Y',
+     'P',
+     True,
+     True
+    )
+    if row[1] in subject_ids and row[0] is True
+    else default_solved_record
+  for row in portal_dt[:, ['is_solved', 'subject', 'date_solved','remark']].to_tuples()
+])
 
-# to make sure no data is overwritten, merge values one-by-one where the update
-# dataset is not missing. Otherwise, return the existing value
-for column in ['history','process_status','remark']:
-  print2(f"Manually updating data for column {column} in main portal_status dataset")
-  if (column in portalUpdates.names):
+#///////////////////////////////////////
 
-    if column not in portalDT.names:
-      portalDT[column] = None
+# ~ 2c ~
+# Process recontact data
+#
+# Recontact information does not need to be cleaned. If the existing value is
+# unknown or the incoming value is different, then replace the value in the
+# subjects table with the incoming value
+print2('Processing recontact data...')
+
+portal_dt[['remark', 'history', 'process_status', 'should_update', 'should_update_recontact']] = dt.Frame([
+  (
+    collapse_remarks(row[2], 'Recontact info updated'),
+    'Y',
+    'P',
+    True,
+    True
+  )
+  if subjects_dt[f.subjectID == row[1], 'recontact'].to_list()[0][0] != row[0]
+  else (row[2], 'Y', 'P', True, False)
+  for row in portal_dt[:, ['recontact', 'subject', 'remark']].to_tuples()
+])
+
+
+#///////////////////////////////////////
+
+# ~ 2d ~
+# Set remark for records that have not changed
+print2('Identifying records that are processed and have no changes...')
+
+portal_dt['should_update_count'] = dt.Frame([
+  sum([int(value) for value in row])
+  for row in portal_dt[:, ['should_update','should_update_recontact','should_update_solved']].to_tuples()
+])
+
+portal_dt['remark'] = dt.Frame([
+  'No new information' if row[0] == 1 else row[1]
+  for row in portal_dt[:, ['should_update_count', 'remark']].to_tuples()
+])
+
+
+#///////////////////////////////////////////////////////////////////////////////
+
+
+# ~ 3 ~
+# Update database with new data
+#
+# Update subject metadata with new contact and recontact information, as well as
+# new solved status information. To reduce import times, indicate which 
+# records should be imported (i.e., changed) and separate
+
+print2('Updating values in subjects table...')
+
+# reduce data to update records only
+update_dt = portal_dt[f.should_update & (f.should_update_recontact | f.should_update_solved), :]
+update_ids = update_dt['subject'].to_list()[0]
+
+print2('Will update records of',len(update_ids),'subjects')
+
+subjects_dt['should_import'] = False
+
+for id in update_ids:
+  row = update_dt[f.subject==id,:]
+  
+  # update solved status
+  if row['should_update_solved'].to_list()[0][0] is True:
+    new_solved_values = list(row[:, ['is_solved', 'date_solved']].to_tuples()[0]) + [True]
+    subjects_dt[f.subjectID==id, ['solved', 'date_solved', 'should_import']] = new_solved_values
     
-    portalDT[column] = dt.Frame([
-      portalUpdates[f.id == row[0], column].to_list()[0][0]
-      if portalUpdates[f.id == row[0], column].to_list()[0][0] != None
-      else row[1]
-      for row in portalDT[:, ['id', column]].to_tuples()
-    ])
+  # update recontact status
+  if row['should_update_recontact'].to_list()[0][0] is True:
+    new_recontact_values = row['recontact'].to_list()[0] + [True]
+    subjects_dt[f.subjectID==id, ['recontact', 'should_import']] = new_recontact_values
+  
+
+# isolate records to import to reduce import times
+subjects_import_dt = subjects_dt[f.should_import, :]
 
 #///////////////////////////////////////////////////////////////////////////////
 
 # ~ 4 ~
 # Import data
+rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data=subjects_import_dt)
+rd3.importDatatableAsCsv(pkg_entity='rd3_portal_recontact_solved', data=portal_dt)
 
-print2('Importing datasets....')
 
-# import subject metadata only if there is new data
-if shouldImportSubjectMetadta:
-  rd3.importDatatableAsCsv(pkg_entity='solverd_subjects', data = subjectsDT)
+# subj_unknown = rd3.get(
+#   entity='rd3_portal_recontact_solved',
+#   q='process_status==N;remark=="subject not yet in RD3"',
+#   batch_size=10000
+# )
 
-# update portal history
-rd3.importDatatableAsCsv(pkg_entity='rd3_portal_recontact_solved', data=portalDT)
+# subj_unknown_dt = dt.Frame(
+#   flattenDataset(
+#     data = subj_unknown,
+#     nested_cols='id'
+#   )
+# )
+
+# subj_unknown_dt[
+#   :, dt.first(f[:]), dt.by(f.subject)
+# ][
+#   :, (f.subject,f.process_status, f.remark)
+# ].to_csv('~/Desktop/solverd_2024-01-11_unknown_subjects.csv')

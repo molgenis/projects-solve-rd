@@ -17,7 +17,7 @@ fusionauth-client==1.43.0
 halo==0.0.31
 idna==3.4
 install==1.3.5
-Jinja2==3.1.2
+Jinja2==3.1.3
 log-symbols==0.0.14
 logutils==0.3.5
 MarkupSafe==2.1.2

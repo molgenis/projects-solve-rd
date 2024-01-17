@@ -1,39 +1,10 @@
 import molgenis.client as molgenis
-from datetime import datetime
 from os.path import abspath
 import numpy as np
 import tempfile
-import pytz
 import csv
 
-def now(tz='Europe/Amsterdam', strftime=True):
-  """Print the current time
-  
-  :param tz: string containing a timezone name
-  :type tz: str
-  
-  :param strftime: if True, the current time will be formatted as HOUR:MINUTE:SECOND
-  :type: strftime: bool
-  
-  :returns: current time
-  :rtype: datetime or str
-  """
-  time = datetime.now(tz=pytz.timezone(tz))
-  if strftime:
-    return time.strftime('%H:%M:%S.%f')[:-3]
-  return time
-  
-def print2(*args):
-  """Print message with timestamp
-  
-  :param *args: one or more strings containing a message to print
-  :type *args: str
-  
-  :returns: a message with a timestamp
-  :rtype: str
-  """
-  message = ' '.join(map(str, args))
-  print(f"[{now()}] {message}")
+from .utils import print2
 
 
 class Molgenis(molgenis.Session):
@@ -88,7 +59,5 @@ class Molgenis(molgenis.Session):
         else:
           print2('Imported data into', pkg_entity)
 
-      file.close()
-      tmp_dir.close()
-
+        file.close()
       return response

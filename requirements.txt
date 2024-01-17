@@ -61,7 +61,7 @@ tomli==2.0.1
 tomli_w==1.0.0
 tox==4.5.1
 tzdata==2023.3
-urllib3==1.26.14
+urllib3==1.26.18
 virtualenv==20.23.0
 wcwidth==0.2.6
 wrapt==1.14.1

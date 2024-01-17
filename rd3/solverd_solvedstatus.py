@@ -20,22 +20,18 @@ import csv
 import re
 
 def now(tz='Europe/Amsterdam'):
-  """Get the current time based on current time zone
-  
+  """Get the current time based on current time zone  
   :param tz: region to present time in
   :type tz: str
-  
   :returns: string containing the current time formatted as HH:MM:SS
   :rtype: str
-  
   """
   return datetime.datetime.now(tz=pytz.timezone(tz)).strftime('%H:%M:%S.%f')[:-3]
 
 def print2(*args):
-  """Print one or more strings as console message with a timestamp
-  
+  """Print one or more strings as console message with a timestamp  
   :param *args: one or more strings containing a message to print
-  :param *args: str
+  :type *args: str
   """
   print(f"[{now()}] {' '.join(map(str, args))}")
 
@@ -181,8 +177,8 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # ['2023-03-23', '2023-11-07', '2023-11-13', '2023-12-12']
 portal_data_raw = rd3.get(
   entity = 'rd3_portal_recontact_solved',
-  # q='process_status=="N";(date_solved=ge=2023-03-23;date_solved=le=2023-03-23)',
-  # q='process_status=="N";(date_solved=ge=2023-11-07;date_solved=le=2023-11-07)',
+  # q='process_status==N;(date_solved=ge=2023-03-23;date_solved=le=2023-03-23)',
+  # q='process_status==N;(date_solved=ge=2023-11-07;date_solved=le=2023-11-07)',
   # q='process_status=="N";(date_solved=ge=2023-11-13;date_solved=le=2023-11-13)',
   q='process_status=="N";(date_solved=ge=2023-12-12;date_solved=le=2023-12-12)',
   batch_size=10000
@@ -194,9 +190,12 @@ portal_dt = dt.Frame(portal_data)
 # retrive subject metadata and flatten
 # the solved status metadata will be added to the subject dataset,
 # subjects_raw = rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=10000)
-subjects_raw = rd3.get('solverd_subjects', q="retracted!='Y'", batch_size=1000)
+subjects_raw = rd3.get('solverd_subjects', batch_size=1000)
 subjects = flattenDataset(subjects_raw,'subjectID|id|value')
 subjects_dt = dt.Frame(subjects)
+
+# drop records that are retracted (if there are any)
+subjects_dt = subjects_dt[f.retracted!='Y', :]
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -232,7 +231,9 @@ print2('Summary of subjects that will be updated:\n\n',
 )
 
 # compile a list of subject ids that should be updated
-subject_ids = subjects_dt[f.should_update, 'subjectID'].to_list()[0]
+subject_ids = subjects_dt['subjectID'].to_list()[0]
+ids_not_to_update = subjects_dt[f.should_update==False,'subjectID'].to_list()[0]
+ids_to_update = subjects_dt[f.should_update, 'subjectID'].to_list()[0]
 
 #///////////////////////////////////////////////////////////////////////////////
 
@@ -252,7 +253,23 @@ portal_dt['is_unknown_subject'] = dt.Frame([
   for value in portal_dt['subject'].to_list()[0]
 ])
 
+#//////////
 # portal_dt[:, dt.count(), dt.by(f.is_unknown_subject)]
+# portal_dt[f.is_unknown_subject, :]
+
+# # del portal_dt['is_unknown_subject']
+
+# portal_dt[['remark', 'history']] = dt.Frame([
+#   (None, 'N')
+#   if row[0] == 'subject not yet in RD3' and row[1] is False
+#   else (row[0], row[2])
+#   for row in portal_dt[
+#     :, ['remark', 'is_unknown_subject', 'history']
+#   ].to_tuples()
+# ])
+#//////////
+
+# rd3.importDatatableAsCsv('rd3_portal_recontact_solved', portal_dt)
 
 # for any unknown subjects, make sure they are flagged properly
 portal_dt[['history', 'remark', 'process_status']] = dt.Frame([
@@ -363,9 +380,7 @@ portal_dt['remark'] = dt.Frame([
   for row in portal_dt[:, ['should_update_count', 'remark']].to_tuples()
 ])
 
-
 #///////////////////////////////////////////////////////////////////////////////
-
 
 # ~ 3 ~
 # Update database with new data
@@ -422,8 +437,28 @@ rd3.importDatatableAsCsv(pkg_entity='rd3_portal_recontact_solved', data=portal_d
 #   )
 # )
 
-# subj_unknown_dt[
-#   :, dt.first(f[:]), dt.by(f.subject)
-# ][
-#   :, (f.subject,f.process_status, f.remark)
-# ].to_csv('~/Desktop/solverd_2024-01-11_unknown_subjects.csv')
+# subj_unknown_dt[:, dt.first(f[:]), dt.by(f.subject)]
+# # [
+# #   :, (f.subject,f.process_status, f.remark)
+# # ].to_csv('~/Desktop/solverd_2024-01-11_unknown_subjects.csv')
+
+
+# from datatable import fread
+# all_subjects_dt = fread('~/Desktop/rd3_subjects_release.csv')
+# all_subject_ids = dt.unique(all_subjects_dt['id']).to_list()[0]
+# subj_unknown_dt['is_in_csv'] = dt.Frame([
+#   value in all_subject_ids
+#   for value in subj_unknown_dt['subject'].to_list()[0]
+# ])
+
+# subj_unknown_dt['release'] = dt.Frame([
+#   ','.join(all_subjects_dt[f.id==row[0],'release'].to_list()[0])
+#   if row[1] is True else None
+#   for row in subj_unknown_dt[:, ['subject', 'is_in_csv']].to_tuples()
+# ])
+
+# subj_unknown_dt[:, dt.first(f[:]), dt.by(f.subject)][:, ['subject','release']].to_csv('~/Desktop/rd3_missing_subjects_by_release.csv')
+# # [:, dt.count(), dt.by(f.release)]
+
+# subj_unknown_dt[:, ['subject','solved','release']][:, :, dt.sort(f.subject)]
+# subj_unknown_dt[f.is_in_csv==False,:]

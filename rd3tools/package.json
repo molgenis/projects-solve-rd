@@ -1,0 +1,10 @@
+{
+  "name": "rd3tools",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "flit build",
+    "install": "flit install"
+  }
+}

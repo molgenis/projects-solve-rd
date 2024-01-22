@@ -1,15 +1,21 @@
 certifi==2023.11.17
 charset-normalizer==3.3.2
+colorclass==2.2.2
 datatable==1.1.0
+docopt==0.6.2
 idna==3.6
 molgenis-py-client==2.4.1
 numpy==1.26.3
-pandas==2.1.4
+packaging==23.2
+pandas==2.2.0
+pip-upgrader==1.4.15
 python-dateutil==2.8.2
 python-dotenv==1.0.0
 pytz==2023.3.post1
-rd3tools @ file:///Users/davidcruvolo/Github/projects-solve-rd/rd3-py/dist/rd3tools-1.0.0.tar.gz
+rd3tools @ file:///Users/davidcruvolo/Github/projects-solve-rd/rd3-py/dist/rd3tools-1.1.0.tar.gz#sha256=1e7b1da3452f02e8a147b4c4983d9b7985dd919c6297433258689d7744b6bd4c
 requests==2.31.0
 six==1.16.0
+terminaltables==3.1.10
+tqdm==4.66.1
 tzdata==2023.4
 urllib3==2.1.0

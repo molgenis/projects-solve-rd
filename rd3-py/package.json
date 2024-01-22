@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "flit build",
+    "build": "rm -rf dist/* && flit build",
     "install": "flit install"
   }
 }

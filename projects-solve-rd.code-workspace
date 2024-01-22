@@ -5,11 +5,27 @@
     }
   ],
   "settings" : {
+    "[python]": {
+      "editor.defaultFormatter": "ms-python.autopep8",
+      "editor.tabSize": 4,
+      "editor.insertSpaces": true,
+      "editor.formatOnSave": true
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+    "python.envFile": "${workspaceFolder}/.env",
+    "[markdown]": {
+      "editor.unicodeHighlight.ambiguousCharacters": false,
+      "editor.unicodeHighlight.invisibleCharacters": false,
+      "diffEditor.ignoreTrimWhitespace": false,
+      "editor.wordWrap": "on",
+      "editor.quickSuggestions": {
+        "comments": "off",
+        "strings": "off",
+        "other": "off"
+      }
+    },
     "markdownlint.config": {
       "MD041": false
-    },
-    "python.terminal.activateEnvInCurrentTerminal": true,
-    "python.envFile": "${workspaceFolder}/.env",
-    "python.defaultInterpreterPath": "venv/bin/python"
+    }
   }
 }

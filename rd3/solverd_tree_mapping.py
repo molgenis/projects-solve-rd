@@ -1,61 +1,258 @@
-#'////////////////////////////////////////////////////////////////////////////
-#' FILE: rd3_data_patient_tree_mapping.py
-#' AUTHOR: David Ruvolo
-#' CREATED: 2022-06-20
-#' MODIFIED: 2022-11-17
-#' PURPOSE: mapping script for patient tree dataset
-#' STATUS: stable
-#' PACKAGES: **see below**
-#' COMMENTS: NA
-#'////////////////////////////////////////////////////////////////////////////
+""" Solve-RD Tree Mapping
+FILE: rd3_data_patient_tree_mapping.py
+AUTHOR: David Ruvolo
+CREATED: 2022-06-20
+MODIFIED: 2024-01-23
+PURPOSE: mapping script for patient tree dataset
+STATUS: stable
+PACKAGES: **see below**
+COMMENTS: see notes at the end of this script
+"""
 
-from dotenv import load_dotenv
-from os import environ
-import sys
-load_dotenv()
-sys.path.append(environ['SYS_PATH'])
-
-from datatable import dt, f
-from rd3.api.molgenis2 import Molgenis
-from rd3.utils.utils import statusMsg
-from tqdm import tqdm
 import json
+from os import environ
+from tqdm import tqdm
+from rd3tools.molgenis import Molgenis
+from rd3tools.utils import print2, flatten_data
+from datatable import dt, f
+from dotenv import load_dotenv
+load_dotenv()
 
-def initJson(index, subjectID, familyID):
-  baseUrl='/menu/plugins/dataexplorer?entity=solverd_subjects'
-  url = f"{baseUrl}&filter=subjectID%3Dq%3D{subjectID}"
-  return {
-    'id': f"RD-{index}",
-    'subjectID': subjectID,
-    'familyID': familyID,
-    'group': 'patient',
-    'href': url
-  }
-  
-def initSubJson(index, id, group, table, tableAttr):
-  baseUrl = f"/menu/plugins/dataexplorer?entity=solverd_{table}"
-  url=f"{baseUrl}&filter={tableAttr}%3Dq%3D{id}"
-  return {
-    'id': f"RD-{index}",
-    'name': id,
-    'group': group,
-    'href': url
-  }
+# connect to RD3
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 
-# connect to database
-if environ['JOB_ENV']=='PROD':
-  statusMsg('Connecting to RD3-PROD')
-  rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-  rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-else:
-  statusMsg('Connecting to RD3-ACC')
-  rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
-  rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+def init_json(_index: int = None, subject_id: str = None, family_id: str = None):
+    """Init JSON object for top-level subject metadata
 
-#//////////////////////////////////////////////////////////////////////////////
+    :param index: a record-level identifier (i.e., key)
+    :type index: int
 
-# ~ 1 ~
+    :param subject_id: an identifier that distinguishes an individual
+    :type subject_id: str
+
+    :param family_id: an identifier that groups multiple related individuals
+    :type family_id: str
+
+    :return: metadata for patient tree structure
+    :rtype: dict
+    """
+    base_url = '/menu/plugins/dataexplorer?entity=solverd_subjects'
+    url = f"{base_url}&filter=subjectID%3Dq%3D{subject_id}"
+    return {'id': f"RD-{_index}", 'subjectID': subject_id, 'familyID': family_id, 'group': 'patient', 'href': url}
+
+
+def init_child_json(
+        _index: int = None,
+        _id: str = None,
+        group: str = None,
+        table: str = None,
+        column: str = None):
+    """Init Child json structure that contains a link from a unique record to
+    the location in the database
+
+    :param index: a record-level identifier (i.e., key)
+    :type index: str
+
+    :param _id: an identifier that distinguishes the record
+    :type _id: str
+
+    :param group: a value that links the current record with others
+    :type group: str
+
+    :param table: the name of a table where the data is stored
+    :type table: str
+
+    :param column: the name of the column where the record can be found
+    :type column: str
+
+    :return: metadata for a linked records
+    :rtype: dict
+    """
+    base_url = f"/menu/plugins/dataexplorer?entity=solverd_{table}"
+    url = f"{base_url}&filter={column}%3Dq%3D{_id}"
+    return {'id': f"RD-{_index}", 'name': _id, 'group': group, 'href': url}
+
+
+def get_table_attribs(pkg_entity: str = None, attributes: str = None, nested_columns: str = None):
+    """Retrieve a subset data from a specific table in a database
+    :param pkg_entity: the name of the table in emx format (pkg_entity)
+    :type pkg_entity: str
+
+    :param attributes: one or more columns to retrieve (comma-separated string)
+    :type attributes: str
+
+    :param nested_columns: one or more nested columns to extract when data is
+        flattend (see function `flatten_data`)
+    :type nested_columns: str
+
+    :return: dataset
+    :rtype: datatable frame
+    """
+    data_raw = rd3.get(pkg_entity, attributes=attributes, batch_size=10000)
+
+    if bool(nested_columns):
+        data_flat = flatten_data(data_raw, 'subjectID')
+        return dt.Frame(data_flat)
+
+    return dt.Frame(data_raw)
+
+
+if __name__ == 'main':
+
+    # retrieve metadata
+    print2('Fetching metadata...')
+    subjects_dt = get_table_attribs(
+        pkg_entity='solverd_subjects',
+        attributes='subjectID,fid',
+        nested_columns='subjectID'
+    )
+
+    samples_dt = get_table_attribs(
+        pkg_entity='solverd_samples',
+        attributes='sampleID,belongsToSubject',
+        nested_columns='subjectID'
+    )
+
+    experiments_data = rd3.get(
+        'solverd_labinfo',
+        attributes="experimentID,sampleID",
+        batch_size=10000
+    )
+
+    # for row in solverdExperiments:
+    for row in experiments_data:
+        if 'sampleID' in row:
+            if bool(row['sampleID']):
+                row['sampleID'] = ','.join([
+                    item['sampleID'] for item in row['sampleID']
+                ])
+            else:
+                row['sampleID'] = None
+    experiments_dt = dt.Frame(experiments_data)
+    del experiments_dt['_href']
+
+    # ///////////////////////////////////////
+
+    # Summarise data
+    print2('Summarising metadata....')
+    print2('Starting with experiments and samples....')
+    samples_dt.key = 'sampleID'
+    summary_dt = experiments_dt[
+        :, :, dt.join(samples_dt)][
+            f.belongsToSubject != None,
+            (f.belongsToSubject, f.sampleID, f.experimentID)][
+                :, :, dt.sort(f.belongsToSubject)]
+
+    # add missing samples
+    print2('Adding samples that do not have experiment metadata (yet)....')
+    summary_dt_sample_ids = summary_dt['sampleID'].to_list()[0]
+    samples_dt['is_missing'] = dt.Frame([
+        value not in summary_dt_sample_ids
+        for value in samples_dt['sampleID'].to_list()[0]
+    ])
+
+    missing_samples_dt = samples_dt[
+        (f.is_missing), (f.belongsToSubject, f.sampleID)][
+            f.belongsToSubject != None, :]
+
+    summary_dt = dt.rbind(summary_dt, missing_samples_dt, force=True)
+
+    # merge family IDs
+    print2('Merging family IDs....')
+    family_dt = subjects_dt[f.fid != None, (f.subjectID, f.fid)]
+    family_dt.names = {'subjectID': 'belongsToSubject'}
+    family_dt.key = 'belongsToSubject'
+    summary_dt = summary_dt[:, :, dt.join(family_dt)]
+
+    # add missing subjects
+    print2('Adding missing subjects that do not have samples yet....')
+    summary_dt_subject_ids = summary_dt['belongsToSubject'].to_list()[0]
+    subjects_dt['is_missing'] = dt.Frame([
+        value not in summary_dt_subject_ids
+        for value in subjects_dt['subjectID'].to_list()[0]
+    ])
+
+    missing_subjects_dt = subjects_dt[f.is_missing, :]
+    missing_subjects_dt.names = {'subjectID': 'belongsToSubject'}
+    summary_dt = dt.rbind(summary_dt, missing_subjects_dt, force=True)
+    summary_dt = summary_dt[:, :,
+                            dt.sort(f.belongsToSubject, f.sampleID, f.experimentID)]
+    del summary_dt['is_missing']
+
+    # ///////////////////////////////////////
+
+    # create json dataset
+    print2('Building tree dataset....')
+    tree_dt = dt.Frame([
+        {'id': '', 'belongsToSubject': '', 'fid': '', 'json': ''}])
+
+    summary_subject_ids = dt.unique(
+        summary_dt['belongsToSubject']).to_list()[0]
+
+    for (index, subj_id) in enumerate(tqdm(summary_subject_ids)):
+
+        # filter data for subject and init json
+        subj_row = summary_dt[f.belongsToSubject == subj_id, :]
+        new_subj_row = subj_row[0, (f.belongsToSubject, f.fid)]
+        new_subj_row['id'] = f"RD-{index}"
+
+        subj_json = init_json(
+            _index=index,
+            subject_id=subj_id,
+            family_id=subj_row['fid'].to_list()[0][0]
+        )
+
+        # compile samples and experiments
+        subj_sample_ids = dt.unique(subj_row['sampleID']).to_list()[0]
+        if bool(subj_sample_ids) and str(subj_sample_ids) != '[None]':
+            subj_json['children'] = []
+
+            # loop through samples
+            for (sample_index, sample_id) in enumerate(subj_sample_ids):
+                sample_json = init_child_json(
+                    _index=f"{index}.{sample_index}",
+                    _id=sample_id,
+                    group='sample',
+                    table='samples',
+                    column='sampleID'
+                )
+
+                # detect experiment IDs and loop through
+                subj_expr_ids = dt.unique(
+                    subj_row[f.sampleID == sample_id, f.experimentID]).to_list()[0]
+                if bool(subj_expr_ids) and str(subj_expr_ids) != '[None]':
+                    sample_json['children'] = []
+                    for (expr_index, expr_id) in enumerate(subj_expr_ids):
+                        expr_json = init_child_json(
+                            _index=f"{index}.{sample_index}.{expr_index}",
+                            _id=expr_id,
+                            group='experiment',
+                            table='labinfo',
+                            column='experimentID'
+                        )
+                        sample_json['children'].append(expr_json)
+
+                # add sample json object to subject level json
+                subj_json['children'].append(sample_json)
+
+            # add json to tree_data
+            new_subj_row['json'] = json.dumps(subj_json)
+        tree_dt = dt.rbind(tree_dt, new_subj_row, force=True)
+
+    # ///////////////////////////////////////
+
+    # drop first row and importy
+    print2('Importing data....')
+    tree_dt = tree_dt[f.id != '', :]
+    tree_dt.names = {'belongsToSubject': 'subjectID'}
+    rd3.import_dt('rd3stats_treedata', tree_dt)
+    rd3.logout()
+
+
+# //////////////////////////////////////////////////////////////////////////////
+
 # Prepare Tree Data
 # Since most of the data is available in the "Solve-RD Experiments" table, we
 # can use it as the source for the patient tree dataset. For the UI, we would like
@@ -104,192 +301,5 @@ else:
 # }
 #
 # Entries should be rendered for all subjects regardless if they have sample
-# or experiment metadata (as this is important to know). Build a list of 
+# or experiment metadata (as this is important to know). Build a list of
 # subjects from the Subjects table, and then add samples and experiments.
-#
-
-# ~ 1a ~
-# Get Data
-
-# pull all available subjects
-statusMsg('Retrieving subject metadata...')
-subjects = dt.Frame(
-  rd3.get('solverd_subjects', attributes = 'subjectID,fid', batch_size=10000)
-)
-
-# get sample metadata
-statusMsg('Retrieving sample metadata...')
-solverdSamples = rd3.get(
-  'solverd_samples',
-  attributes='sampleID,belongsToSubject',
-  batch_size=10000
-)
-
-# flatten ref attributes
-for row in solverdSamples:
-  if 'belongsToSubject' in row:
-    if bool(row['belongsToSubject']):
-      row['belongsToSubject'] = row['belongsToSubject']['subjectID']
-      
-
-# get experiment metadata
-statusMsg('Retrieving experiment metadata...')
-solverdExperiments = rd3.get(
-  'solverd_labinfo',
-  attributes="experimentID,sampleID",
-  batch_size=10000
-)
-
-# flatten ref attributes
-for row in solverdExperiments:
-  if 'sampleID' in row:
-    if bool(row['sampleID']):
-      row['sampleID'] = ','.join([
-        item['sampleID'] for item in row['sampleID']
-      ])
-    else:
-      row['sampleID'] = None
-
-# as datatable objects
-samples = dt.Frame(solverdSamples)
-experiments = dt.Frame(solverdExperiments)
-
-del subjects['_href']
-del samples['_href']
-del experiments['_href']
-
-#///////////////////////////////////////
-
-# ~ 1b ~
-# Create Tree data object
-# Data will be joined in a few steps. It is easier to start with the experiments
-# dataset, as this gives us a large number of samples and experiments to work with.
-# Then, bind samples and subjects that aren't in the dataset.
-statusMsg('Creating tree object....')
-
-
-# ~ 1b.i ~
-# Merge subjectIDs with experiments using the samples datatable
-statusMsg('Joining samples and experiment metadata...')
-samples.key = 'sampleID'
-summarizedDT = experiments[:, :, dt.join(samples)][
-  f.belongsToSubject!=None, (f.belongsToSubject, f.sampleID, f.experimentID)
-][:, :, dt.sort(f.belongsToSubject)]
-
-
-# ~ 1b.ii ~
-# identify samples that are not yet in treedata
-statusMsg('Identifying samples that are not present....')
-sampleIDs = summarizedDT['sampleID'].to_list()[0]
-samples['missing'] = dt.Frame([
-  id not in sampleIDs
-  for id in tqdm(samples['sampleID'].to_list()[0])
-])
-
-summarizedDT = dt.rbind(
-  summarizedDT,
-  samples[f.missing, (f.belongsToSubject, f.sampleID)][f.belongsToSubject != None, :],
-  force=True
-)
-
-# ~1b.iii ~
-# merge family IDs
-statusMsg('Merging family IDs....')
-subjectFamilyIDs = subjects[:, (f.subjectID, f.fid)][f.fid != None, :]
-subjectFamilyIDs.names = {'subjectID': 'belongsToSubject' }
-subjectFamilyIDs.key = 'belongsToSubject'
-summarizedDT = summarizedDT[:, :, dt.join(subjectFamilyIDs)]
-
-
-# ~ 1b.iv ~
-# identify subjects that are not yet in the treedata
-statusMsg('Identifying and joining subjects not in treedata....')
-summarizedSubjectIDs = summarizedDT['belongsToSubject'].to_list()[0]
-subjects['missing'] = dt.Frame([
-  value not in summarizedSubjectIDs
-  for value in tqdm(subjects['subjectID'].to_list()[0])
-])
-
-# subjects[f.missing, :]
-# join and update names
-summarizedDT = dt.rbind(
-  summarizedDT,
-  subjects[f.missing, { 'belongsToSubject': f.subjectID, 'fid': f.fid }],
-  force = True
-)
-
-# sort data
-statusMsg('Sorting dataset....')
-summarizedDT = summarizedDT[
-  :, :, dt.sort(f.belongsToSubject, f.sampleID, f.experimentID)
-]
-   
-# ~ 1b.v ~ 
-# Compile JSON
-statusMsg('Compiling JSON object....')
-treeDataSubjects = dt.unique(summarizedDT['belongsToSubject']).to_list()[0]
-treedata = dt.Frame([{'id': '', 'belongsToSubject': '', 'fid': '', 'json': ''}])
-
-for (index, id) in enumerate(tqdm(treeDataSubjects)):
-  # filter data for subject and init json
-  subjectData = summarizedDT[f.belongsToSubject == id, :]
-  newRow = subjectData[0, (f.belongsToSubject, f.fid)]
-  newRow['id'] = f"RD-{index}"
-  subjectJson = initJson(
-    index = index,
-    subjectID = id,
-    familyID = newRow['fid'].to_list()[0][0]
-  )
-  
-  # compile json if there are sampleIDs
-  sampleIDs = dt.unique(subjectData['sampleID']).to_list()[0]
-  if bool(sampleIDs) and (str(sampleIDs) != '[None]'):
-    subjectJson['children'] = []
-    
-    # loop through sampleIDs
-    for (sampleIndex, sampleID) in enumerate(sampleIDs):
-      sampleJson = initSubJson(
-        index = f"{index}.{sampleIndex}",
-        id = sampleID,
-        group = 'sample',
-        table = 'samples',
-        tableAttr = 'sampleID'
-      )
-      
-      # detect experiment IDs
-      experimentIDs = dt.unique(subjectData[f.sampleID==sampleID, f.experimentID]).to_list()[0]
-      if bool(experimentIDs) and (str(experimentIDs) != '[None]'):
-        sampleJson['children'] = []
-        for (experimentIndex, experimentID) in enumerate(experimentIDs):
-          experimentJson = initSubJson(
-            index = f"{index}.{sampleIndex}.{experimentIndex}",
-            id = experimentID,
-            group = 'experiment',
-            table = 'labinfo',
-            tableAttr = 'experimentID'
-          )
-          sampleJson['children'].append(experimentJson)
-      
-      # add sample json object to subject json
-      subjectJson['children'].append(sampleJson)
-  # add subject json to treedata record for this subject
-  newRow['json'] = json.dumps(subjectJson)
-  treedata = dt.rbind(treedata, newRow, force=True)
-
-# prepare data
-statusMsg('Renaming columns....')
-treedata.names = {
-  'belongsToSubject': 'subjectID',
-  'fid': 'familyID'
-}
-
-statusMsg('Removing null records....')
-treedata = treedata[f.id != '', :]
-
-#///////////////////////////////////////////////////////////////////////////////
-
-# ~ 2 ~
-# Import Data
-statusMsg('Importing into RD3....')
-# rd3.delete('rd3stats_treedata')
-rd3.importDatatableAsCsv('rd3stats_treedata', treedata)

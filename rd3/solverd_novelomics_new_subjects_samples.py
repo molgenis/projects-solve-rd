@@ -2,7 +2,7 @@
 FILE: solverd_novelomics_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-01-22
+MODIFIED: 2024-01-23
 PURPOSE: Import new novelomics data
 STATUS: stable
 PACKAGES: **see below**
@@ -14,19 +14,17 @@ import functools
 import operator
 import re
 from dotenv import load_dotenv
-from datatable import dt, f, first, as_type
+from datatable import dt, f, as_type
 from tqdm import tqdm
 
 from rd3tools.molgenis import Molgenis
 from rd3tools.datatable import dt_as_recordset
-from rd3tools.utils import (
-    as_key_pairs,
-    timestamp,
-    recode_value,
-    flatten_data,
-    print2
-)
+from rd3tools.utils import (as_key_pairs, timestamp,
+                            recode_value, flatten_data)
 load_dotenv()
+
+rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 
 def get_wrapped_values(val: str = None):
@@ -45,42 +43,27 @@ def get_wrapped_values(val: str = None):
     return re.sub(r'[\(\)]', '', match)
 
 
-rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
-# rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
-# rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
-
 # ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 0 ~
 # Retrieve metadata
 
-# get existing RD3 subjects
-raw_subjects = rd3_prod.get(
-    entity='solverd_subjects',
-    attributes='subjectID,partOfRelease',
-    batch_size=10000
-)
-
-subjects_flat = flatten_data(raw_subjects, "id")
+raw_subjects = rd3_prod.get('solverd_subjects', batch_size=1000)
+subjects_flat = flatten_data(raw_subjects, 'subjectID|id|value')
 subjects_dt = dt.Frame(subjects_flat)
 subject_ids = subjects_dt['subjectID'].to_list()[0]
 
+raw_subjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=1000)
+subjectinfo_flat = flatten_data(raw_subjectinfo, 'id')
+subjectinfo_dt = dt.Frame(subjectinfo_flat)
+subjectinfo_dt[:, dt.update(dateOfBirth=as_type(f.dateOfBirth, dt.Type.str32))]
 
-# get existing samples
-raw_samples = rd3_prod.get(
-    entity='solverd_samples',
-    attributes='sampleID,batch,partOfRelease',
-    batch_size=10000
-)
+raw_samples = rd3_prod.get('solverd_samples', batch_size=1000)
 samples_flat = flatten_data(raw_samples, "subjectID|id|value")
 samples_dt = dt.Frame(samples_flat)
 sample_ids = samples_dt['sampleID'].to_list()[0]
 
-
-# get new shipment metadata
-QUERY = "processed=false"
+QUERY = "processed==false"
 shipment_raw = rd3_prod.get('rd3_portal_novelomics_shipment', q=QUERY)
 shipment_dt = dt.Frame(shipment_raw)
 del shipment_dt['_href']
@@ -102,8 +85,7 @@ del shipment_dt['_href']
 # contain new "releases" or updates to an existing one. It isn't necessary to
 # indicate patches for novel omics releases when importing new sample data.
 releaseinfo = dt.Frame(
-    rd3_prod.get('solverd_info_datareleases', attributes='id')
-)['id']
+    rd3_prod.get('solverd_info_datareleases', attributes='id'))['id']
 
 releases = dt.unique(shipment_dt['type_of_analysis'])[:, {
     'id': f.type_of_analysis,
@@ -112,8 +94,9 @@ releases = dt.unique(shipment_dt['type_of_analysis'])[:, {
     'date': timestamp()
 }]
 
-# only do this once
-# releases[f.id=='RNA-seq','id'] = 'SR-RNAseq'
+if 'RNA-seq' in releases['id'].to_list()[0]:
+    print('Type of analysis is "RNA-seq" and should be recoded as SR-RNAseq')
+    # releases[f.id=='RNA-seq','id'] = 'SR-RNAseq'
 
 # format IDs
 releases['id'] = dt.Frame([
@@ -153,10 +136,8 @@ if releases[f.isNewRelease, :].nrows > 0:
 
 # ~ 1b ~
 # Check ERNs and recode into RD3 terminology
-# Make sure all unique incoming ERN values are mapped to an official ERN code
 
 erns = dt.Frame(rd3_prod.get('solverd_info_erns', attributes='id'))['id']
-
 ern_mappings = as_key_pairs(
     data=dt_as_recordset(data=erns),
     key_attr='id',
@@ -169,8 +150,7 @@ for value in new_ern_values:
     if value.lower() not in ern_mappings:
         print(f'Value "{value}" not in ERN mapping dataset')
 
-# update mappings and rerun previous incomingErnValues check until
-# all mappings are resolved
+# update mappings and rerun previous incomingErnValues check until all mappings are resolved
 ern_mappings.update({
     'epicare': 'ern_epicare',
     'ern-epicare': 'ern_epicare',
@@ -228,7 +208,6 @@ for value in new_org_values:
 # del new_orgs['organisation']
 
 # import new organisations and rerun organisation mapping step
-# rd3_acc.import_dt('solverd_info_organisations', new_orgs)
 # rd3_prod.import_dt('solverd_info_organisations', new_orgs)
 
 # ///////////////////////////////////////
@@ -236,15 +215,10 @@ for value in new_org_values:
 # ~ 1d ~
 # Create tissue type mappings
 tissue_types_dt = dt.Frame(
-    rd3_prod.get(
-        entity='solverd_lookups_tissueType',
-        attributes='id'
-    )
-)['id']
+    rd3_prod.get('solverd_lookups_tissueType', attributes='id'))['id']
 
 tissue_types_dt['mappingID'] = dt.Frame([
-    value.lower()
-    for value in tissue_types_dt['id'].to_list()[0]
+    value.lower() for value in tissue_types_dt['id'].to_list()[0]
 ])
 
 tissue_type_mappings = as_key_pairs(
@@ -255,8 +229,7 @@ tissue_type_mappings = as_key_pairs(
 
 # check incoming data, update mappings (if applicable), and rerun
 new_tissue_types = dt.unique(
-    shipment_dt[f.tissue_type != None, 'tissue_type']
-).to_list()[0]
+    shipment_dt[f.tissue_type != None, 'tissue_type']).to_list()[0]
 
 new_tissue_types.sort(key=str.lower)
 for value in new_tissue_types:
@@ -333,6 +306,7 @@ material_type_mappings = as_key_pairs(
 # check incoming data, update mappings (if applicable), and rerun
 incomingmaterial_types = dt.unique(
     shipment_dt[f.sample_type != None, 'sample_type']).to_list()[0]
+
 for value in incomingmaterial_types:
     if value.lower() not in material_type_mappings:
         print(f"Value '{value}' does not exist in material type mappings")
@@ -347,14 +321,10 @@ material_type_mappings.update({
 # ~ 1d ~
 # Create pathological state mappings
 pathological_state = dt.Frame(
-    rd3_prod.get(
-        entity='solverd_lookups_pathological_state'
-    )
-)['value']
+    rd3_prod.get(entity='solverd_lookups_pathologicalstate'))['value']
 
 pathological_state['mappingID'] = dt.Frame([
-    value.lower()
-    for value in pathological_state['value'].to_list()[0]
+    value.lower() for value in pathological_state['value'].to_list()[0]
 ])
 
 pathological_state_mappings = as_key_pairs(
@@ -387,8 +357,7 @@ if 'pathological_state' in shipment_dt.names:
 
 # make sure all P numbers are uppercase (we've had some lowercase values in the past)
 shipment_dt['participant_subject'] = dt.Frame([
-    value.strip().upper()
-    for value in shipment_dt['participant_subject'].to_list()[0]
+    value.strip().upper() for value in shipment_dt['participant_subject'].to_list()[0]
 ])
 
 # transform incoming analysis so that it can be mapped to a release
@@ -403,11 +372,7 @@ shipment_dt['partOfRelease'] = dt.Frame([
 ])
 
 shipment_dt['ERN'] = dt.Frame([
-    recode_value(
-        mappings=ern_mappings,
-        value=value.strip().lower(),
-        label='ERN'
-    )
+    recode_value(ern_mappings, value.strip().lower(), 'ERN')
     for value in shipment_dt['ERN'].to_list()[0]
 ])
 
@@ -423,11 +388,7 @@ shipment_dt['organisation'] = dt.Frame([
 ])
 
 shipment_dt['organisation'] = dt.Frame([
-    recode_value(
-        mappings=org_mappings,
-        value=value.strip().lower(),
-        label='Organistion'
-    )
+    recode_value(org_mappings, value.strip().lower(), 'Organistion')
     for value in shipment_dt['organisation'].to_list()[0]
 ])
 
@@ -467,11 +428,7 @@ if 'extracted_protocol' in shipment_dt.names:
 
 # recode tissue types
 shipment_dt['tissue_type'] = dt.Frame([
-    recode_value(
-        mappings=tissue_type_mappings,
-        value=value.strip().lower(),
-        label='Tissue'
-    )
+    recode_value(tissue_type_mappings, value.strip().lower(), 'Tissue')
     for value in shipment_dt['tissue_type'].to_list()[0]
 ])
 
@@ -540,14 +497,12 @@ else:
 #     - update release information in subjects, subjectinfo, samples
 #     - the rest of the subject metadata can be ignored
 
-
 # triage incoming subjects: which subjects exist in RD3?
 existing_subjects_reduce = functools.reduce(
-    operator.or_,
-    (f.participant_subject == value for value in subject_ids)
-)
+    operator.or_, (f.participant_subject == value for value in subject_ids))
 
 subjects_update_dt = shipment_dt[existing_subjects_reduce, :]
+
 shipment_dt['isNewSubject'] = dt.Frame([
     value not in subjects_update_dt['participant_subject'].to_list()[0]
     for value in shipment_dt['participant_subject'].to_list()[0]
@@ -555,9 +510,7 @@ shipment_dt['isNewSubject'] = dt.Frame([
 
 # triage incoming samples: which samples exist in RD3?
 existing_samples_reduce = functools.reduce(
-    operator.or_,
-    (f.sample_id == value for value in sample_ids)
-)
+    operator.or_, (f.sample_id == value for value in sample_ids))
 
 samples_update_dt = shipment_dt[existing_samples_reduce, :]
 shipment_dt['isNewSample'] = dt.Frame([
@@ -600,26 +553,25 @@ shipment_dt.names = {
 #
 # Some attributes can be automatically updated with out review (see notes above).
 
+samples_with_conflicts = []
+samples_with_updates = []
+
 # If this step returns records, continue with the rest of the code. Otherwise, you
 # may skip to the next section. :-)
-samples_to_validate = shipment_dt[
-    (f.isNewSubject == False) & (f.isNewSample == False), :
-]
+samples_to_validate = shipment_dt[(
+    f.isNewSubject == False) & (f.isNewSample == False), :]
 
 if samples_to_validate.nrows == 0:
-    print('Nothing to validate :-)')
+    print('Nothing to validate. You may skip to the next section')
 
 # identify records that need to be validated
 samples_to_compare = samples_dt[
-    functools.reduce(
-        operator.or_,
-        (f.sampleID ==
-         value for value in samples_to_validate['sampleID'].to_list()[0])
+    functools.reduce(operator.or_, (
+        f.sampleID == value for value in samples_to_validate['sampleID'].to_list()[0])
     ), :
 ]
 
 # define object that will store all conflicting data
-samples_with_conflicts = []
 columns_with_major_conflicts = [
     'subjectID',
     'tissueType',
@@ -633,7 +585,6 @@ columns_with_major_conflicts = [
 # define object that will stored rows that can be updated without review
 # for these cases, confirm that the incoming value does not exist for this
 # record (in the string). If it does not, join the two strings.
-samples_with_updates = []
 columns_with_minor_conflicts = [
     'batch',
     'alternativeSampleIdentifiers',
@@ -673,18 +624,18 @@ for sample_id in tqdm(sample_ids_to_validate):
 
 NUM_ISSUES = len(samples_with_conflicts)
 NUM_UPDATES = len(samples_with_updates)
-print2(
+print(
     "Detected", NUM_ISSUES, f"conflict{'s'[:NUM_ISSUES^1]}",
     "that require manual verification"
 )
-print2(
+print(
     "Detected", NUM_UPDATES, f"updates{'s'[:NUM_UPDATES^1]}",
     "that can be imported without review"
 )
 
 # ///////////////////////////////////////////////////////////////////////////////
 
-# ~ 2 ~
+# ~ 3 ~
 # Import data
 # Data will be imported using several methods.
 #
@@ -700,44 +651,39 @@ print2(
 shipment_dt['dateRecordCreated'] = timestamp()
 shipment_dt['recordCreatedBy'] = 'rd3-bot'
 
-# ~ 2a ~
+# ~ 3a ~
 # Import new subject metadata
 new_subjects_dt = shipment_dt[
-    f.isNewSubject,
-    (
+    f.isNewSubject, (
         f.subjectID,
         f.organisation,
         f.ERN,
         f.partOfRelease,
         f.dateRecordCreated,
-        f.recordCreatedBy
+        f.recordCreatedBy)]
+
+if not new_subjects_dt.nrows:
+    print('No subjects to import. You may skip this step')
+
+if dt.unique(new_subjects_dt['subjectID']).nrows != new_subjects_dt.nrows:
+    print(
+        'WARNING: More than one sample per subject was submitted.',
+        'Consider processing data separately.'
     )
-][:, first(f[:]), dt.by(f.subjectID)]
 
-# import into solverd_subjects
-# rd3_acc.import_dt('solverd_subjects', new_subjects_dt)
+new_subjectinfo_dt = new_subjects_dt[
+    :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
+]
+
 rd3_prod.import_dt('solverd_subjects', new_subjects_dt)
+rd3_prod.import_dt('solverd_subjectinfo', new_subjectinfo_dt)
 
-# import into solverd_subjectinfo
-# rd3_acc.import_dt(
-#   pkg_entity='solverd_subjectinfo',
-#   data = new_subjects_dt[
-#     :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
-#   ]
-# )
-
-rd3_prod.import_dt(
-    pkg_entity='solverd_subjectinfo',
-    data=new_subjects_dt[
-        :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
-    ]
-)
+# ///////////////////////////////////////
 
 # ~ 2b ~
 # Import new sample metadata
-newSamples = shipment_dt[
-    f.isNewSample,
-    (
+new_samples_dt = shipment_dt[
+    f.isNewSample, (
         f.sampleID,
         f.alternativeIdentifier,
         f.subjectID,
@@ -750,198 +696,111 @@ newSamples = shipment_dt[
         f.organisation,
         f.ERN,
         f.dateRecordCreated,
-        f.recordCreatedBy
-    )
-]
+        f.recordCreatedBy)]
 
-newSamples.names = {'subjectID': 'belongsToSubject'}
+new_samples_dt.names = {'subjectID': 'belongsToSubject'}
+rd3_prod.import_dt('solverd_samples', new_samples_dt)
 
-# rd3_acc.import_dt('solverd_samples', newSamples)
-rd3_prod.import_dt('solverd_samples', newSamples)
+# ///////////////////////////////////////
 
 # ~ 2b ~
 # Update subject release information
 
-existingSubjects = shipment_dt[f.isNewSubject == False, :]
+existing_subjects_dt = shipment_dt[f.isNewSubject == False, :]
+existing_subject_ids = existing_subjects_dt['subjectID'].to_list()[0]
 
 # Is the current analysis associated with this participant?
-for subj_id in existingSubjects['subjectID'].to_list()[0]:
-    subjectReleases = subjects_dt[
-        f.subjectID == subj_id, (f.partOfRelease)
-    ].to_list()[0][0]
+for subj_id in tqdm(existing_subject_ids):
+    curr_subj_row = subjects_dt[f.subjectID == subj_id, :]
+    curr_releases = curr_subj_row[:, 'partOfRelease'].to_list()[0][0]
 
-    newRelease = recode_value(
-        mappings=release_ids,
-        value=existingSubjects[
-            f.subjectID == subj_id, 'type_of_analysis'
-        ].to_list()[0][0]
-    )
+    new_subj_row = existing_subjects_dt[f.subjectID == subj_id, :]
+    new_analysis_type = new_subj_row[:, 'type_of_analysis'].to_list()[0][0]
+    new_release = recode_value(release_ids, new_analysis_type)
 
-    if newRelease not in subjectReleases:
+    if new_release not in curr_releases:
         print('Updating releases....')
-        subjectReleases = f"{subjectReleases},{newRelease}"
+        curr_new_releases = f"{curr_releases},{new_release}"
         subjects_dt[
-            f.subjectID == subj_id, (f.partOfRelease)
-        ] = subjectReleases
-        subjects_dt[f.subjectID == subj_id, 'updatedRecord'] = True
+            f.subjectID == subj_id,
+            ['partOfRelease', 'should_import']
+        ] = (curr_new_releases, True)
 
-existing_subjects_to_update = dt_as_recordset(
-    data=subjects_dt[f.updatedRecord, (f.subjectID, f.partOfRelease)]
-)
+        subjectinfo_dt[
+            f.subjectID == subj_id,
+            ['partOfRelease', 'should_import']
+        ] = (curr_new_releases, True)
 
-# update in subjects
-# rd3_acc.batchUpdate('solverd_subjects','partOfRelease',updateExistingSubjects)
-rd3_prod.batchUpdate(
-    'solverd_subjects',
-    'partOfRelease',
-    existing_subjects_to_update
-)
+rd3_prod.import_dt('solverd_subjects', subjects_dt[f.should_import, :])
+rd3_prod.import_dt('solverd_subjectinfo', subjectinfo_dt[f.should_import, :])
 
-# update in subject info
-# rd3_acc.batchUpdate('solverd_subjectinfo','partOfRelease',updateExistingSubjects)
-rd3_prod.batchUpdate(
-    'solverd_subjectinfo',
-    'partOfRelease',
-    existing_subjects_to_update
-)
-
+# ///////////////////////////////////////
 
 # ~ 2c ~
-# Update Columns
-# Importing update metadata is split into two parts based on column names. Data
-# will either go into the subjects or samples table.
+# Update release and batch info in the samples table
 
-samples_with_updates = dt.Frame(samples_with_updates)
+if not bool(samples_with_updates):
+    print('New samples to update. You may skip this step.')
 
-# update partOfRelease
-rd3_prod.batchUpdate(
-    pkg_entity='solverd_samples',
-    column='partOfRelease',
-    data=dt_as_recordset(
-        samples_with_updates[
-            f.partOfRelease != None,
-            (f.sampleID, f.partOfRelease)]
-    )
-)
+update_samples_dt = dt.Frame(samples_with_updates)
+update_sample_ids = update_samples_dt['sampleID'].to_list()[0]
 
-rd3_prod.batchUpdate(
-    pkg_entity='solverd_samples',
-    column='batch',
-    data=dt_as_recordset(
-        samples_with_updates[f.batch != None, (f.sampleID, f.batch)]
-    )
-)
+for sample_id in update_sample_ids:
+    curr_row = samples_dt[f.sampleID == sample_id, :]
+    new_row = update_sample_ids[f.sampleID == sample_id, :]
 
+    # check releases
+    curr_release = curr_row['partOfRelease'].to_list()[0][0]
+    new_release = new_row['partOfRelease'].to_list()[0][0]
 
-# records to update in subjects
-# for column in samples_with_updates.names:
-#     if column in ['partOfRelease']:
-#         print(f"Updating column {column}....")
-#         rd3_prod.batchUpdate(
-#           pkg_entity='solverd_subjects',
-#           column = column,
-#           data = dt_as_recordset(
-#             data = samples_with_updates[:, ['subjectID', column]]
-#           )
-#         )
+    if new_release not in curr_release:
+        print('Updating release info....')
+        curr_new_releases = f"{curr_release},{new_release}"
+        samples_dt[
+            f.sampleID == sample_id,
+            ['partOfRelease', 'should_import']
+        ] = (curr_new_releases, True)
 
-# # records to update in samples
-# for column in samples_with_updates.names:
-#     if column in columns_with_minor_conflicts:
-#         print(f"Updating column {column}....")
-#         rd3_prod.batchUpdate(
-#           pkg_entity='solverd_samples',
-#           column=column,
-#           data=dt_as_recordset(
-#             data = samples_with_updates[:, ['sampleID', column]]
-#           )
-#         )
+    # check batches
+    curr_batch = curr_row['batch'].to_list()[0][0]
+    new_batch = new_row['batch'].to_list()[0][0]
+
+    if new_batch not in curr_batch:
+        print('Updating batch info....')
+        curr_new_batch = f"{curr_batch}, {new_batch}"
+        samples_dt[
+            f.sampleID == sample_id,
+            ['batch', 'should_import']
+        ] = (curr_new_batch, True)
+
+rd3_prod.import_dt('solverd_samples', samples_dt[f.should_import, :])
 
 # ///////////////////////////////////////
 
 # ~ 2d ~
 # Update processed status in the portal table
-# Create a list of all molgenis IDs where
 
-portal_updates_dt = dt.Frame(
-    samples_with_updates['sampleID'].to_list()[0] +
-    newSamples['sampleID'].to_list()[0]
-)
-portal_updates_dt.names = {'C0': 'sampleID'}
+processed_ids = []
+shipment_updates_dt = dt.Frame(shipment_raw)
 
-# (f.sampleID == value for value in samples_to_validate['sampleID'].to_list()[0])
-molgenis_ids_dt = shipment_dt[
-    functools.reduce(
-        operator.or_,
-        (f.sampleID ==
-         value for value in portal_updates_dt['sampleID'].to_list()[0])
-    ),
-    (f.sampleID, f.molgenis_id)
-]
+if update_samples_dt:
+    processed_ids += update_samples_dt['sampleID'].to_list()[0]
 
-# join data
-molgenis_ids_dt.key = 'sampleID'
-portal_updates_dt.key = 'sampleID'
-portal_updates_dt = portal_updates_dt[:, :, dt.join(molgenis_ids_dt)]
+if new_samples_dt:
+    processed_ids += new_samples_dt['sampleID'].to_list()[0]
 
-portal_updates_dt['processed'] = True
-portal_updates_dt[:, dt.update(processed=as_type(f.processed, str))]
-
-# rd3_acc.batchUpdate(
-#   pkg_entity='rd3_portal_novelomics_shipment',
-#   column = 'processed',
-#   data = dt_as_recordset(portal_updates_dt[:, (f.molgenis_id, f.processed)])
-# )
-
-rd3_prod.batchUpdate(
-    pkg_entity='rd3_portal_novelomics_shipment',
-    column='processed',
-    data=dt_as_recordset(
-        portal_updates_dt[:, (f.molgenis_id, f.processed)])
-)
-
-# update portal information
-for molgenis_id in portal_updates_dt['molgenis_id'].to_list()[0]:
-    shipment_dt[f.molgenis_id == molgenis_id, 'processed'] = True
-
-# review cases that haven't been processed:
-# Periodically, there may be a few cases that weren't marked as processed and weren't
-# flagged for review. It is likely that there is additional information regarding this
-# subject or sample that isn't a red flag. Make sure these cases are reviewed before
-# exiting the script.
-# Variables that will likely throw a message are:
-#   alternativelIdentifier
-#   batch
-if shipment_dt[f.processed == False, :].nrows > 0:
-    print('Warning: there are cases need to be reviewed!!!!')
-    # shipment_dt[f.processed==False,:]
-    # shipment_dt[f.processed==False,'processed'] = True
+for proc_id in processed_ids:
+    shipment_updates_dt[f.sample_id == proc_id, 'processed'] = True
 
 
-# ///////////////////////////////////////
+if shipment_updates_dt[f.processed, :].nrows != shipment_updates_dt.nrows:
+    print('There are still samples that are not processed. Please review')
 
-# Alternatively, update all records. If you use this method, make sure you
-# pull the data from each instance
-# portalUpdate = dt.Frame(
-#   rd3_prod.get(
-#     entity='rd3_portal_novelomics_shipment',
-#     q='processed==false'
-#   )
-# )
-# portalUpdate['processed'] = 'true'
+shipment_updates_dt[
+    :, dt.update(processed=as_type(f.processed, dt.Type.str32))]
 
-# rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',portalUpdate)
+rd3_prod.import_dt('rd3_portal_novelomics_shipment', shipment_updates_dt)
 
-# update prod
-# portalUpdate = dt.Frame(
-#   rd3_prod.get(
-#     entity='rd3_portal_novelomics_shipment',
-#     q='processed==false')
-# )
-# portalUpdate['processed'] = 'true'
-# rd3_prod.importDatatableAsCsv('rd3_portal_novelomics_shipment',shipment_dt)
-
-
-# ///////////////////////////////////////
+# ///////////////////////////////////////////////////////////////////////////////
 
 rd3_prod.logout()

@@ -1,34 +1,16 @@
 """Solve-RD GPAP Experiments"""
 
+import re
 from os import environ
 from tqdm import tqdm
 from datatable import dt, f
-from rd3tools.molgenis import Molgenis
-from rd3tools.utils import print2, flatten_data
+from rd3tools.molgenis import Molgenis, get_table_attribs
+from rd3tools.utils import print2, as_key_pairs, recode_value
 from dotenv import load_dotenv
 load_dotenv()
 
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
-
-
-def get_table_attribs(pkg_entity: str = None, columns: str = None, nested_columns: str = None):
-    """Retrieve a subset data from a specific table in a database
-    :param pkg_entity: the name of the table in emx format (pkg_entity)
-    :type pkg_entity: str
-
-    :param nested_columns: one or more nested columns to extract when data is
-        flattend (see function `flatten_data`)
-    :type nested_columns: str
-
-    :param *kwargs: additional params to pass on to `get`
-
-    :return: dataset
-    :rtype: datatable frame
-    """
-    data_raw = rd3.get(pkg_entity, attributes=columns, batch_size=10000)
-    data_flat = flatten_data(data_raw, nested_columns)
-    return dt.Frame(data_flat)
 
 
 def flatten_string(value: list = None, split_at: str = ','):
@@ -110,22 +92,28 @@ def detect_record_conflicts(
 # Get Metadata
 print2('Retrieving data....')
 
-gpap_dt = dt.Frame(rd3.get('solverdportal_experiments', batch_size=10000))
-del gpap_dt['_href']
+gpap_dt = get_table_attribs(
+    client=rd3,
+    pkg_entity='solverdportal_experiments',
+    nested_columns='name'
+)
 
 subjects_dt = get_table_attribs(
+    client=rd3,
     pkg_entity='solverd_subjects',
     columns='subjectID',
     nested_columns='subjectID|id|value'
 )
 
 samples_dt = get_table_attribs(
+    client=rd3,
     pkg_entity='solverd_samples',
     columns='sampleID,belongsToSubject,tissueType,ERN,organisation',
     nested_columns='subjectID|id|value'
 )
 
 experiments_dt = get_table_attribs(
+    client=rd3,
     pkg_entity='solverd_labinfo',
     columns='experimentID,sampleID,capture,libraryType,library,sequencer,seqType,partOfRelease',
     nested_columns='sampleID|id|value'
@@ -142,9 +130,44 @@ solverd_dt = solverd_dt[:, :, dt.join(samples_dt)]
 subjects_dt.key = 'subjectID'
 solverd_dt = solverd_dt[:, :, dt.join(subjects_dt)]
 
+# retrieve look up tables
+
+erns_dt = get_table_attribs(
+    client=rd3,
+    pkg_entity='solverd_info_erns',
+    columns='id,shortname',
+)
+
+tissues_rd3 = get_table_attribs(
+    client=rd3,
+    pkg_entity='solverd_lookups_tissueType',
+    columns='id'
+)
+
+
+# ///////////////////////////////////////
+
+# apply transforms to make validation/mapping a bit easier
+# many of these transformations should only be run once
+
+# gpap_dt['erns_rd3'] = dt.Frame([
+#     None if value.lower() == 'not_applicable'
+#     else re.sub(r'([-]|\s+)', '_', value.lower())
+#     for value in gpap_dt['erns'].to_list()[0]
+# ])
+
+# gpap_erns = dt.unique(gpap_dt['erns_rd3']).to_list()[0]
+# for value in gpap_erns:
+#     if value not in erns_dt['id'].to_list()[0] and value is not None:
+#         print2('ERNS', value, 'is not known')
+
+
+# rd3.import_dt('solverdportal_experiments', gpap_dt)
 
 # ///////////////////////////////////////////////////////////////////////////////
 
+# reset errors
+gpap_dt[['has_error', 'error_type']] = (False, None)
 
 # ~ 1 ~
 # Validate metadata
@@ -228,7 +251,7 @@ gpap_dt['error_type'] = dt.Frame([
 # is the sample ID unknown
 sample_ids = dt.unique(solverd_dt['sampleID']).to_list()[0]
 gpap_dt['error_type'] = dt.Frame([
-    flatten_string(f"{row[1]}, unknown sample")
+    flatten_string(f"{row[1]},unknown sample")
     if row[0] is not None and row[0] not in sample_ids else row[1]
     for row in gpap_dt[:, (f.sample_id2, f.error_type)].to_tuples()
 ])
@@ -251,23 +274,73 @@ gpap_dt['error_type'] = dt.Frame([
 
 # ///////////////////////////////////////
 
+# validate kit
+
+# Is kit missing?
+gpap_dt['error_type'] = dt.Frame([
+    flatten_string(f"{row[1]},missing kit") if row[0] is None else row[1]
+    for row in gpap_dt[:, (f.kit, f.error_type)].to_tuples()
+])
+
+# does the kit conflict with the value in RD3?
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='capture',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing kit'],
+        new_error='conflicting kit'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.kit, f.error_type)].to_tuples())
+])
+
+
+# ///////////////////////////////////////
+
+# Validate ERN assignment
+
+# Is the ERN missing?
+gpap_dt['error_type'] = dt.Frame([
+    flatten_string(f"{row[1]},missing ERN") if row[0] is None else row[1]
+    for row in gpap_dt[:, (f.erns_rd3, f.error_type)].to_tuples()
+])
+
+# Is the ERN value unknown?
+gpap_dt['error_type'] = dt.Frame([
+    row[1] if row[0] is None else (
+        flatten_string(f"{row[1]},unknown ERN")
+        if row[0] not in erns_dt['id'].to_list()[0] else row[1]
+    )
+    for row in gpap_dt[:, (f.erns_rd3, f.error_type)].to_tuples()
+])
+
+# is there a conflict between the ERN values?
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='ERN',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing ERN', 'unknown ERN'],
+        new_error='conflicting ERN'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.erns_rd3, f.error_type)].to_tuples())
+])
+
+
+# ///////////////////////////////////////////////////////////////////////////////
+
 # finalise errors
 gpap_dt['has_error'] = dt.Frame([
     bool(value) for value in gpap_dt['error_type'].to_list()[0]
 ])
 
 counts = gpap_dt[:, dt.count(), dt.by(f.has_error, f.error_type)]
-# gpap_dt[dt.re.match(f.error_type, '.*conflicting participant.*'), :].nrows
-# gpap_dt[dt.re.match(f.error_type, '.*missing sample.*'), :].nrows
-# gpap_dt[dt.re.match(f.error_type, '.*unknown experiment.*'), :].nrows
-# gpap_dt[dt.re.match(f.error_type, '.*unknown participant.*'), :].nrows
-
-# gpap_dt[dt.re.match(f.error_type, '.*conflicting sample.*'), :]
-
-# gpap_dt[dt.re.match(f.error_type, '.*unknown sample.*'), :][:, dt.count(), dt.by(f.subproject)]
-
-# gpap_dt[dt.re.match(f.error_type, '.*unknown experiment.*'), :][:, dt.count(), dt.by(f.subproject)]
-# gpap_dt[dt.re.match(f.error_type, '.*unknown participant.*'), :][:, dt.count(), dt.by(f.subproject)]
-# [:, dt.count(), dt.by(f.error_type)]
+gpap_dt[f.error_type == 'conflicting ERN', :]
 
 rd3.import_dt('solverdportal_experiments', gpap_dt)

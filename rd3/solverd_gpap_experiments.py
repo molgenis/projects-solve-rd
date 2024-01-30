@@ -1,6 +1,7 @@
 """Solve-RD GPAP Experiments"""
 
 from os import environ
+from tqdm import tqdm
 from datatable import dt, f
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, flatten_data
@@ -202,7 +203,7 @@ gpap_dt['error_type'] = dt.Frame([
         ],
         new_error='conflicting participant'
     )
-    for row in gpap_dt[:, (f.rdconnect_id, f.participant_id, f.error_type)].to_tuples()
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.participant_id, f.error_type)].to_tuples())
 ])
 
 
@@ -211,28 +212,42 @@ gpap_dt['error_type'] = dt.Frame([
 # ~ 1c ~
 # Evaluate sample identifiers
 
+# create a second sample_id column to combine novelomics and virtual samples
+gpap_dt['sample_id2'] = dt.Frame([
+    f"VS{row[2]}" if row[0] is None and 'SolveDF' in row[1] else row[0]
+    for row in gpap_dt[:, (f.sample_id, f.subproject, f.rdconnect_id)].to_tuples()
+])
+
 # is the sample missing?
 print2('Is the sample ID missing?')
 gpap_dt['error_type'] = dt.Frame([
     flatten_string(f"{row[1]},missing sample") if row[0] is None else row[1]
-    for row in gpap_dt[:, (f.sample_id, f.error_type)].to_tuples()
+    for row in gpap_dt[:, (f.sample_id2, f.error_type)].to_tuples()
+])
+
+# is the sample ID unknown
+sample_ids = dt.unique(solverd_dt['sampleID']).to_list()[0]
+gpap_dt['error_type'] = dt.Frame([
+    flatten_string(f"{row[1]}, unknown sample")
+    if row[0] is not None and row[0] not in sample_ids else row[1]
+    for row in gpap_dt[:, (f.sample_id2, f.error_type)].to_tuples()
 ])
 
 # Does the sample conflict with the current record in RD3?
 print2('Does the sample ID conflict with the ID in RD3?')
-# gpap_dt['error_type'] = dt.Frame([
-#     detect_record_conflicts(
-#         data=solverd_dt,
-#         filter_col='experimentID',
-#         value_col='sampleID',
-#         filter_by=row[0],
-#         match_for=row[1],
-#         current_error=row[2],
-#         error_exclusions=['missing sample'],
-#         new_error='conflicting sample'
-#     )
-#     for row in gpap_dt[:, (f.rdconnect_id, f.sample_id, f.error_type)].to_tuples()
-# ])
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='sampleID',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing sample'],
+        new_error='conflicting sample'
+    )
+    for row in gpap_dt[:, (f.rdconnect_id, f.sample_id, f.error_type)].to_tuples()
+])
 
 # ///////////////////////////////////////
 
@@ -248,6 +263,8 @@ counts = gpap_dt[:, dt.count(), dt.by(f.has_error, f.error_type)]
 # gpap_dt[dt.re.match(f.error_type, '.*unknown participant.*'), :].nrows
 
 # gpap_dt[dt.re.match(f.error_type, '.*conflicting sample.*'), :]
+
+# gpap_dt[dt.re.match(f.error_type, '.*unknown sample.*'), :][:, dt.count(), dt.by(f.subproject)]
 
 # gpap_dt[dt.re.match(f.error_type, '.*unknown experiment.*'), :][:, dt.count(), dt.by(f.subproject)]
 # gpap_dt[dt.re.match(f.error_type, '.*unknown participant.*'), :][:, dt.count(), dt.by(f.subproject)]

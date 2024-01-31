@@ -1,11 +1,10 @@
 """Solve-RD GPAP Experiments"""
 
-import re
 from os import environ
 from tqdm import tqdm
 from datatable import dt, f
 from rd3tools.molgenis import Molgenis, get_table_attribs
-from rd3tools.utils import print2, as_key_pairs, recode_value
+from rd3tools.utils import print2
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -30,7 +29,7 @@ def flatten_string(value: list = None, split_at: str = ','):
     ```
     """
     values = value.split(split_at)
-    values_unique = {val for val in values if val != 'None'}
+    values_unique = {val.strip() for val in values if val != 'None'}
     return ','.join(sorted(values_unique))
 
 
@@ -144,11 +143,29 @@ tissues_rd3 = get_table_attribs(
     columns='id'
 )
 
+orgs_rd3 = get_table_attribs(
+    client=rd3,
+    pkg_entity='solverd_info_organisations',
+    columns='value'
+)
+
+seqtype_rd3 = get_table_attribs(
+    client=rd3,
+    pkg_entity='solverd_lookups_seqType',
+    columns='id,label'
+)
+
 
 # ///////////////////////////////////////
 
 # apply transforms to make validation/mapping a bit easier
 # many of these transformations should only be run once
+
+# create a second sample_id column to combine novelomics and virtual samples
+# gpap_dt['sample_id2'] = dt.Frame([
+#     f"VS{row[2]}" if row[0] is None and 'SolveDF' in row[1] else row[0]
+#     for row in gpap_dt[:, (f.sample_id, f.subproject, f.rdconnect_id)].to_tuples()
+# ])
 
 # gpap_dt['erns_rd3'] = dt.Frame([
 #     None if value.lower() == 'not_applicable'
@@ -174,79 +191,50 @@ gpap_dt[['has_error', 'error_type']] = (False, None)
 # Run tests on target columns and flag accordingly
 print2('Validating metadata....')
 
+
+# Run check for missing values
+print2('Identifying records with missing values....')
+
+target_columns = [
+    {'column': 'sample_id2', 'error': 'missing sample'},
+    {'column': 'participant_id', 'error': 'missing participant'},
+    {'column': 'kit', 'error': 'missing kit'},
+    {'column': 'tissue', 'error': 'missing tissue'},
+    {'column': 'library', 'error': 'missing library'},
+    {'column': 'erns_rd3', 'error': 'missing ERN'},
+    {'column': 'owner', 'error': 'missing organisation'},
+    {'column': 'seq_type', 'error': 'missing seq type'}
+]
+
+for target_column in tqdm(target_columns):
+    column_name = target_column['column']
+    column_error = target_column['error']
+    if column_name in gpap_dt.names:
+        print2('Checking column', column_name, 'for missing values....')
+        gpap_dt['error_type'] = dt.Frame([
+            flatten_string(f"{row[1]},{column_error}")
+            if row[0] is None or row[0] in ['Not_Applicable', 'None', ' ', '']
+            else row[1]
+            for row in gpap_dt[:, [f[column_name], f.error_type]].to_tuples()
+        ])
+
+
+# ///////////////////////////////////////
+
 # ~ 1a ~
 # Do all experiments exist?
 print2('Do all experiments exist in RD3?')
 
 experiment_ids = dt.unique(solverd_dt['experimentID']).to_list()[0]
-
 gpap_dt['error_type'] = dt.Frame([
     'unknown experiment' if value not in experiment_ids else None
     for value in gpap_dt['rdconnect_id'].to_list()[0]
 ])
 
-
-# ~ 1b ~
-# Evalute participant_id
-# Does the participant exist? Is is different than the record in RD3?
-print2('Is the subject ID missing?')
-
-# is the participant ID missing?
-subject_ids = dt.unique(solverd_dt['subjectID']).to_list()[0]
-gpap_dt['error_type'] = dt.Frame([
-    flatten_string(f'{row[1]},missing participant')
-    if row[0] is None else row[1]
-    for row in gpap_dt[:, (f.participant_id, f.error_type)].to_tuples()
-])
-
-
-# is the participant ID unknown? I.e., does it exist in RD3?
-print2('Does the subject ID exist in RD3?')
-gpap_dt['error_type'] = dt.Frame([
-    flatten_string(value=f"{row[1]},unknown participant")
-    if row[0] is not None and row[0] not in subject_ids else row[1]
-    for row in gpap_dt[:, (f.participant_id, f.error_type)].to_tuples()
-])
-
-
-# Does the participant ID conflict with what is in RD3?
-print2('Does the subject ID conflict with the ID in RD3?')
-gpap_dt['error_type'] = dt.Frame([
-    detect_record_conflicts(
-        data=solverd_dt,
-        filter_col='experimentID',
-        value_col='subjectID',
-        filter_by=row[0],
-        match_for=row[1],
-        current_error=row[2],
-        error_exclusions=[
-            'unknown experiment',
-            'unknown participant',
-            'missing participant'
-        ],
-        new_error='conflicting participant'
-    )
-    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.participant_id, f.error_type)].to_tuples())
-])
-
-
 # ///////////////////////////////////////
 
-# ~ 1c ~
+# ~ 1b ~
 # Evaluate sample identifiers
-
-# create a second sample_id column to combine novelomics and virtual samples
-gpap_dt['sample_id2'] = dt.Frame([
-    f"VS{row[2]}" if row[0] is None and 'SolveDF' in row[1] else row[0]
-    for row in gpap_dt[:, (f.sample_id, f.subproject, f.rdconnect_id)].to_tuples()
-])
-
-# is the sample missing?
-print2('Is the sample ID missing?')
-gpap_dt['error_type'] = dt.Frame([
-    flatten_string(f"{row[1]},missing sample") if row[0] is None else row[1]
-    for row in gpap_dt[:, (f.sample_id2, f.error_type)].to_tuples()
-])
 
 # is the sample ID unknown
 sample_ids = dt.unique(solverd_dt['sampleID']).to_list()[0]
@@ -274,15 +262,45 @@ gpap_dt['error_type'] = dt.Frame([
 
 # ///////////////////////////////////////
 
-# validate kit
+# ~ 1c ~
+# Evalute participant_id
+print2('Is the subject ID missing?')
 
-# Is kit missing?
+# is the participant ID unknown? I.e., does it exist in RD3?
+subject_ids = dt.unique(solverd_dt['subjectID']).to_list()[0]
+
+print2('Does the subject ID exist in RD3?')
 gpap_dt['error_type'] = dt.Frame([
-    flatten_string(f"{row[1]},missing kit") if row[0] is None else row[1]
-    for row in gpap_dt[:, (f.kit, f.error_type)].to_tuples()
+    flatten_string(value=f"{row[1]},unknown participant")
+    if row[0] is not None and row[0] not in subject_ids else row[1]
+    for row in gpap_dt[:, (f.participant_id, f.error_type)].to_tuples()
 ])
 
-# does the kit conflict with the value in RD3?
+# Does the participant ID conflict with what is in RD3?
+print2('Does the subject ID conflict with the ID in RD3?')
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='subjectID',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=[
+            'unknown experiment',
+            'unknown participant',
+            'missing participant'
+        ],
+        new_error='conflicting participant'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.participant_id, f.error_type)].to_tuples())
+])
+
+
+# ///////////////////////////////////////
+
+# ~ 1d ~
+# Validate Kit: does the kit conflict with the value in RD3?
 gpap_dt['error_type'] = dt.Frame([
     detect_record_conflicts(
         data=solverd_dt,
@@ -300,19 +318,77 @@ gpap_dt['error_type'] = dt.Frame([
 
 # ///////////////////////////////////////
 
-# Validate ERN assignment
+# ~ 1e ~
+# Validate Tisue Types
 
-# Is the ERN missing?
+# are there any unknown tissue types?
+
+tissue_types = tissues_rd3['id'].to_list()[0]
 gpap_dt['error_type'] = dt.Frame([
-    flatten_string(f"{row[1]},missing ERN") if row[0] is None else row[1]
-    for row in gpap_dt[:, (f.erns_rd3, f.error_type)].to_tuples()
+    row[1]
+    if row[1] is None else (
+        flatten_string(f"{row[1]},unknown tissue")
+        if row[0] not in tissue_types else row[1]
+    )
+    for row in gpap_dt[:, (f.tissue, f.error_type)].to_tuples()
 ])
+
+# Is there a conflict between tissue type values
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='tissueType',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing tissue', 'unknown tissue'],
+        new_error='conflicting tissue type'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.tissue, f.error_type)].to_tuples())
+])
+
+# ///////////////////////////////////////
+
+# ~ 1f ~
+# Validate Library Strategy/SeqType (choose seq_type column)
+
+# Is the SeqType value unknown?
+gpap_dt['error_type'] = dt.Frame([
+    row[1] if row[0] is None else (
+        flatten_string(f"{row[1]},unknown seq type")
+        if row[0] not in seqtype_rd3['value'].to_list()[0] else row[1]
+    )
+    for row in gpap_dt[:, (f.seq_type, f.error_type)].to_tuples()
+])
+
+
+# is there a conflict bewteen seq type values?
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='seqType',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing seq type', 'unknown seq type'],
+        new_error='conflicting seq type'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.library_strategy, f.error_type)].to_tuples())
+])
+
+# ///////////////////////////////////////
+
+# ~ 1g ~
+# Validate ERN assignment
+ern_ids = erns_dt['id'].to_list()[0]
 
 # Is the ERN value unknown?
 gpap_dt['error_type'] = dt.Frame([
     row[1] if row[0] is None else (
         flatten_string(f"{row[1]},unknown ERN")
-        if row[0] not in erns_dt['id'].to_list()[0] else row[1]
+        if row[0] not in ern_ids else row[1]
     )
     for row in gpap_dt[:, (f.erns_rd3, f.error_type)].to_tuples()
 ])
@@ -332,6 +408,38 @@ gpap_dt['error_type'] = dt.Frame([
     for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.erns_rd3, f.error_type)].to_tuples())
 ])
 
+# ///////////////////////////////////////
+
+# ~ 1h ~
+# Validate organisation
+
+# Are there any Organisation values not in RD3?
+org_ids = orgs_rd3['value'].to_list()[0]
+
+gpap_dt['error_type'] = dt.Frame([
+    row[1] if row[0] is None else (
+        flatten_string(f"{row[1]},unknown organisation")
+        if row[0] not in org_ids else row[1]
+    )
+    for row in gpap_dt[:, (f.owner, f.error_type)].to_tuples()
+])
+
+
+# Is there a conflict between the GPAP and RD3 organisations?
+gpap_dt['error_type'] = dt.Frame([
+    detect_record_conflicts(
+        data=solverd_dt,
+        filter_col='experimentID',
+        value_col='organisation',
+        filter_by=row[0],
+        match_for=row[1],
+        current_error=row[2],
+        error_exclusions=['missing organisation', 'unknown origanisation'],
+        new_error='conflicting organisation'
+    )
+    for row in tqdm(gpap_dt[:, (f.rdconnect_id, f.owner, f.error_type)].to_tuples())
+])
+
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -341,6 +449,5 @@ gpap_dt['has_error'] = dt.Frame([
 ])
 
 counts = gpap_dt[:, dt.count(), dt.by(f.has_error, f.error_type)]
-gpap_dt[f.error_type == 'conflicting ERN', :]
 
 rd3.import_dt('solverdportal_experiments', gpap_dt)

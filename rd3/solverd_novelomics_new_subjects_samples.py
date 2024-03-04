@@ -2,7 +2,7 @@
 FILE: solverd_novelomics_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-01-23
+MODIFIED: 2024-03-04
 PURPOSE: Import new novelomics data
 STATUS: stable
 PACKAGES: **see below**
@@ -56,7 +56,9 @@ subject_ids = subjects_dt['subjectID'].to_list()[0]
 raw_subjectinfo = rd3_prod.get('solverd_subjectinfo', batch_size=1000)
 subjectinfo_flat = flatten_data(raw_subjectinfo, 'id')
 subjectinfo_dt = dt.Frame(subjectinfo_flat)
-subjectinfo_dt[:, dt.update(dateOfBirth=as_type(f.dateOfBirth, dt.Type.str32))]
+subjectinfo_dt['dateOfBirth'] = subjectinfo_dt[
+    :, dt.as_type(f.dateOfBirth, dt.Type.str32)
+]
 
 raw_samples = rd3_prod.get('solverd_samples', batch_size=1000)
 samples_flat = flatten_data(raw_samples, "subjectID|id|value")
@@ -561,7 +563,12 @@ samples_with_updates = []
 samples_to_validate = shipment_dt[(
     f.isNewSubject == False) & (f.isNewSample == False), :]
 
-if samples_to_validate.nrows == 0:
+if samples_to_validate.nrows != 0:
+    print(
+        'There are subjects and samples that already exist in RD3 in the new dataset!',
+        'These records must be validated before data can be imported.'
+    )
+else:
     print('Nothing to validate. You may skip to the next section')
 
 # identify records that need to be validated
@@ -614,7 +621,7 @@ for sample_id in tqdm(sample_ids_to_validate):
         if (column in new_sample) and (column in curr_sample):
             if new_sample[column] not in curr_sample[column]:
                 new_row = {
-                    'sampleID': id,
+                    'sampleID': sample_id,
                     'subjectID': new_sample['subjectID']
                 }
                 curr_values = curr_sample[column].split(',')
@@ -739,7 +746,9 @@ rd3_prod.import_dt('solverd_subjectinfo', subjectinfo_dt[f.should_import, :])
 # ~ 2c ~
 # Update release and batch info in the samples table
 
-if not bool(samples_with_updates):
+if bool(samples_with_updates):
+    print("There are samples to update. Please run the following step")
+else:
     print('New samples to update. You may skip this step.')
 
 update_samples_dt = dt.Frame(samples_with_updates)
@@ -747,31 +756,34 @@ update_sample_ids = update_samples_dt['sampleID'].to_list()[0]
 
 for sample_id in update_sample_ids:
     curr_row = samples_dt[f.sampleID == sample_id, :]
-    new_row = update_sample_ids[f.sampleID == sample_id, :]
+    new_row = update_samples_dt[f.sampleID == sample_id, :]
 
     # check releases
-    curr_release = curr_row['partOfRelease'].to_list()[0][0]
-    new_release = new_row['partOfRelease'].to_list()[0][0]
+    if 'partofRelease' in update_samples_dt.names:
+        curr_release = curr_row['partOfRelease'].to_list()[0][0]
+        new_release = new_row['partOfRelease'].to_list()[0][0]
 
-    if new_release not in curr_release:
-        print('Updating release info....')
-        curr_new_releases = f"{curr_release},{new_release}"
-        samples_dt[
-            f.sampleID == sample_id,
-            ['partOfRelease', 'should_import']
-        ] = (curr_new_releases, True)
+        if new_release not in curr_release:
+            print('Updating release info....')
+            curr_new_releases = f"{curr_release},{new_release}"
+            samples_dt[
+                f.sampleID == sample_id,
+                ['partOfRelease', 'should_import']
+            ] = (curr_new_releases, True)
 
     # check batches
-    curr_batch = curr_row['batch'].to_list()[0][0]
-    new_batch = new_row['batch'].to_list()[0][0]
+    if 'batch' in update_samples_dt.names:
+        curr_batch = curr_row['batch'].to_list()[0][0]
+        new_batch = new_row['batch'].to_list()[0][0]
 
-    if new_batch not in curr_batch:
-        print('Updating batch info....')
-        curr_new_batch = f"{curr_batch}, {new_batch}"
-        samples_dt[
-            f.sampleID == sample_id,
-            ['batch', 'should_import']
-        ] = (curr_new_batch, True)
+        if new_batch not in curr_batch:
+            print('Updating batch info....')
+            curr_new_batch = f"{curr_batch}, {new_batch}"
+            samples_dt[
+                f.sampleID == sample_id,
+                ['batch', 'should_import']
+            ] = (curr_new_batch, True)
+
 
 rd3_prod.import_dt('solverd_samples', samples_dt[f.should_import, :])
 
@@ -796,8 +808,9 @@ for proc_id in processed_ids:
 if shipment_updates_dt[f.processed, :].nrows != shipment_updates_dt.nrows:
     print('There are still samples that are not processed. Please review')
 
-shipment_updates_dt[
-    :, dt.update(processed=as_type(f.processed, dt.Type.str32))]
+shipment_updates_dt['processed'] = shipment_updates_dt[
+    :, dt.as_type(f.processed, dt.Type.str32)
+]
 
 rd3_prod.import_dt('rd3_portal_novelomics_shipment', shipment_updates_dt)
 

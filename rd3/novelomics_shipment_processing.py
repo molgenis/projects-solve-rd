@@ -1,9 +1,9 @@
 """Solve-RD Novelomics: new shipment file processing
-FILE: solverd_novelomics_processing.py
+FILE: novelomics_shipment_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-03-04
-PURPOSE: Import new novelomics data
+MODIFIED: 2024-03-14
+PURPOSE: Process new shipment manifest files - register new subjects and samples
 STATUS: stable
 PACKAGES: **see below**
 COMMENTS: NA
@@ -14,7 +14,7 @@ import functools
 import operator
 import re
 from dotenv import load_dotenv
-from datatable import dt, f, as_type
+from datatable import dt, f
 from tqdm import tqdm
 
 from rd3tools.molgenis import Molgenis
@@ -69,6 +69,13 @@ QUERY = "processed==false"
 shipment_raw = rd3_prod.get('rd3_portal_novelomics_shipment', q=QUERY)
 shipment_dt = dt.Frame(shipment_raw)
 del shipment_dt['_href']
+
+# if you need to delete unprocessed records due to data errors, then
+# run the following commands
+# rd3_prod.delete_list(
+#     entity='rd3_portal_novelomics_shipment',
+#     entities=shipment_dt['molgenis_id'].to_list()[0]
+# )
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -230,24 +237,31 @@ tissue_type_mappings = as_key_pairs(
 )
 
 # check incoming data, update mappings (if applicable), and rerun
-new_tissue_types = dt.unique(
+incoming_tissue_types = dt.unique(
     shipment_dt[f.tissue_type != None, 'tissue_type']).to_list()[0]
 
-new_tissue_types.sort(key=str.lower)
-for value in new_tissue_types:
+incoming_tissue_types.sort(key=str.lower)
+for value in incoming_tissue_types:
     if value.lower() not in tissue_type_mappings:
         print(f"Value '{value}' not in tissue type mappings")
 
+# update mappings for cases that are simple recodes
 tissue_type_mappings.update({
+    'adipose tissue': 'Adipose',
     'blood': 'Whole Blood',
     'cell pellet': 'Cells',
+    'exelid': 'Eyelid',
+    'fat skin': 'Adipose - Subcutaneous',
     'fibroblasts': 'Cells - Cultured fibroblasts',
+    "fetus skin": "Foetus",
     'fetus': 'Foetus',
     'ffpe': 'Tumor',
     'heart': 'Heart',
     'muscle': 'Muscle - Skeletal',
     'pbmc': 'Peripheral Blood Mononuclear Cells',
-    'whole blood': 'Whole Blood'
+    'whole blood': 'Whole Blood',
+    'subcutaneous fat': 'Adipose - Subcutaneous',
+    'tissue': 'Tissue - unspecified',
 })
 
 # ///////////////////////////////////////
@@ -256,11 +270,21 @@ tissue_type_mappings.update({
 # Create anatomical location mappings
 
 if 'anatomical_location' in shipment_dt.names:
-    print('Checking anatomical location mappings....')
+    print('Manually check anatomical location mappings!')
 
     # As of 06 Dec 2022, the value 'blood' can be ignored as it cannot be mapped
-    # to a more specific term
+    # to a more specific term.
+    # As of 15 March 2024, terms that do not exist in RD3 will be labelled other.
+    # The original value will be placed in a new column. This was implemented as
+    # it isn't possible to determine the exact location from the supplied value.
     anatomical_location_mappings = {
+        'chest': '74964007',  # Other
+        'left': '74964007',  # Other
+        'nose': '74964007',  # Other
+        'retro right auricular area': '74964007',  # Other
+        'right': '74964007',  # Other
+        'scalp': '74964007',  # Other
+
         'chest skin': '74160004',  # Skin of Chest
         'skin scalp': '43067004',  # Skin of Scalp
         # Entire skin of postauricular region
@@ -295,8 +319,7 @@ material_types = dt.Frame(
 )['id']
 
 material_types['mappingID'] = dt.Frame([
-    value.lower()
-    for value in material_types['id'].to_list()[0]
+    value.lower() for value in material_types['id'].to_list()[0]
 ])
 
 material_type_mappings = as_key_pairs(
@@ -350,7 +373,10 @@ if 'pathological_state' in shipment_dt.names:
                 f"Value '{value}' does not exist in pathological state mappings")
 
   # if there are any values, enter them below ->
-  # pathological_state_mappings.update({ ... })
+    pathological_state_mappings.update({
+        'affected area': 'Affected',
+        'safe area': 'Normal'
+    })
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -396,7 +422,7 @@ shipment_dt['organisation'] = dt.Frame([
 
 # recode anatomical location (if available)
 if 'anatomical_location' in shipment_dt.names:
-    shipment_dt['anatomical_location'] = dt.Frame([
+    shipment_dt['tmp_anatomical_location'] = dt.Frame([
         recode_value(
             mappings=anatomical_location_mappings,
             value=value.lower(),
@@ -404,6 +430,15 @@ if 'anatomical_location' in shipment_dt.names:
         ) if value else value
         for value in shipment_dt['anatomical_location'].to_list()[0]
     ])
+
+    # identifier cases with "other"
+    shipment_dt['anatomical_location_comment'] = dt.Frame([
+        row[1] if row[0] == "74964007" else None
+        for row in shipment_dt[:, ['tmp_anatomical_location', 'anatomical_location']].to_tuples()
+    ])
+
+    shipment_dt['anatomical_location'] = shipment_dt['tmp_anatomical_location']
+    del shipment_dt['tmp_anatomical_location']
 
 # recode sample types (i.e., materialType)
 shipment_dt['sample_type'] = dt.Frame([
@@ -531,7 +566,9 @@ shipment_dt.names = {
     'tissue_type': 'tissueType',
     'sample_type': 'materialType',
     'pathological_state': 'pathological_state',
-    'tumor_cell_fraction': 'percentageTumorCells'
+    'tumor_cell_fraction': 'percentageTumorCells',
+    'anatomical_location': 'anatomicalLocation',
+    'anatomical_location_comment': 'anatomicalLocationComment',
 }
 
 # ///////////////////////////////////////////////////////////////////////////////
@@ -606,15 +643,18 @@ for sample_id in tqdm(sample_ids_to_validate):
     curr_sample = dt_as_recordset(samples_dt[f.sampleID == sample_id, :])[0]
 
     # identify records that require manually verification
-    # for column in columns_with_major_conflicts:
-    #   if (column in incomingSample) and (column in existingSample):
-    #     if incomingSample[column] != existingSample[column]:
-    #       print(f"Incoming sample {id} has conflicting {column} values")
-    #       samples_with_conflicts.append({
-    #         'incomingValue': incomingSample[column],
-    #         'existingValue': existingSample[column],
-    #         'message': f"values in {column} do not match"
-    #       })
+    for column in columns_with_major_conflicts:
+        if (column in new_sample) and (column in curr_sample):
+            if new_sample[column] is not None and curr_sample[column] is not None:
+                if new_sample[column] not in curr_sample[column]:
+                    new_row = {
+                        'sampleID': sample_id,
+                        'subjectID': new_sample['subjectID'],
+                    }
+                    curr_values = curr_sample[column].split(',')
+                    curr_values.append(new_sample[column])
+                    new_row[column] = ','.join(list(set(curr_values)))
+                    samples_with_conflicts.append(new_row)
 
     # identify columns that can automatically imported
     for column in columns_with_minor_conflicts:
@@ -661,14 +701,18 @@ shipment_dt['recordCreatedBy'] = 'rd3-bot'
 # ~ 3a ~
 # Import new subject metadata
 new_subjects_dt = shipment_dt[
-    f.isNewSubject, (
+    f.isNewSubject,
+    (
         f.subjectID,
         f.organisation,
         f.ERN,
         f.partOfRelease,
         f.dateRecordCreated,
-        f.recordCreatedBy)]
+        f.recordCreatedBy
+    )
+]
 
+# if there are no more subjects, then you can skip to 3b
 if not new_subjects_dt.nrows:
     print('No subjects to import. You may skip this step')
 
@@ -687,7 +731,7 @@ rd3_prod.import_dt('solverd_subjectinfo', new_subjectinfo_dt)
 
 # ///////////////////////////////////////
 
-# ~ 2b ~
+# ~ 3b ~
 # Import new sample metadata
 new_samples_dt = shipment_dt[
     f.isNewSample, (
@@ -698,6 +742,8 @@ new_samples_dt = shipment_dt[
         f.materialType,
         f.pathological_state,
         f.percentageTumorCells,
+        f.anatomicalLocation,
+        f.anatomicalLocationComment,
         f.partOfRelease,
         f.batch,
         f.organisation,
@@ -705,12 +751,14 @@ new_samples_dt = shipment_dt[
         f.dateRecordCreated,
         f.recordCreatedBy)]
 
+new_samples_dt['retracted'] = 'N'
 new_samples_dt.names = {'subjectID': 'belongsToSubject'}
+
 rd3_prod.import_dt('solverd_samples', new_samples_dt)
 
 # ///////////////////////////////////////
 
-# ~ 2b ~
+# ~ 3c ~
 # Update subject release information
 
 existing_subjects_dt = shipment_dt[f.isNewSubject == False, :]
@@ -743,7 +791,7 @@ rd3_prod.import_dt('solverd_subjectinfo', subjectinfo_dt[f.should_import, :])
 
 # ///////////////////////////////////////
 
-# ~ 2c ~
+# ~ 3d ~
 # Update release and batch info in the samples table
 
 if bool(samples_with_updates):
@@ -789,7 +837,7 @@ rd3_prod.import_dt('solverd_samples', samples_dt[f.should_import, :])
 
 # ///////////////////////////////////////
 
-# ~ 2d ~
+# ~ 3e ~
 # Update processed status in the portal table
 
 processed_ids = []

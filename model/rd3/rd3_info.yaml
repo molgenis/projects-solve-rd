@@ -142,6 +142,37 @@ entities:
         dataType: enum
         nillable: false
         enumOptions: raw,processed
+        
+      - name: numberOfRows
+        description: number of records in the dataset
+        dataType: int
+        tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
+        
+      - name: numberOfMales
+        description: a count is a data item denoted by an integer and represented the number of instances or occurences of an entity
+        dataType: int
+        tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
+      
+      - name: numberOfFemales
+        description: a count is a data item denoted by an integer and represented the number of instances or occurences of an entity
+        dataType: int
+        tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
+        
+      - name: ageCategories
+        dataType: mref
+        refEntity: solverd_lookups_ageGroups
+        tags: NCIT_C25150 http://purl.obolibrary.org/obo/NCIT_C25150
+        
+      - name: ordoCodes
+        dataType: mref
+        refEntity: solverd_lookups_disease
+        description: ORDO codes en MIM codes
+        tags: NCIT_C15607 http://purl.obolibrary.org/obo/NCIT_C15607
+      
+      - name: hpoCodes
+        dataType: mref
+        refEntity: solverd_lookups_phenotype
+        tags: NCIT_C16977 http://purl.obolibrary.org/obo/NCIT_C16977
       
       - name: comments
         dataType: text

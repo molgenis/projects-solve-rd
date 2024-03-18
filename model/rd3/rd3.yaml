@@ -2,7 +2,7 @@
 # FILE: rd3.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-26
-# MODIFIED: 2022-11-07
+# MODIFIED: 2024-03-18
 # PURPOSE: RD3 EMX Structure
 # STATUS: in.progress
 # COMMENTS: This file contains the EMX markup for the RD3 database. All
@@ -20,8 +20,8 @@
 name: solverd
 label: Solve-RD RD3 (New Model)
 description: Solve-RD RD3 database 
-version: 2.0-beta-0.9.7
-date: 2022-11-08
+version: 2.1.0
+date: 2024-03-18
 
 # set package defaults
 defaults:
@@ -427,6 +427,10 @@ entities:
         dataType: xref
         refEntity: solverd_lookups_anatomicallocation
         description: Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken.
+        tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264
+        
+      - name: anatomicalLocationComment
+        dataType: string
         tags: NCIT_C103264 http://purl.obolibrary.org/obo/NCIT_C103264
         
       - name: batch
@@ -862,6 +866,7 @@ entities:
         description: Number of samples derived from a subject
         dataType: int
         partOfAttribute: subjectData
+        aggregateable: true
         
       - name: samples
         description: All samples derived from a subject
@@ -873,6 +878,7 @@ entities:
         label: Total Number of Experiments
         dataType: int
         partOfAttribute: subjectData
+        aggregateable: true
         
       - name: experiments
         description: All experiments associated with a subject

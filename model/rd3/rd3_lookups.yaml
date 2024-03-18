@@ -23,6 +23,39 @@ defaults:
   visible: true
 
 entities:
+
+  - name: ageGroups
+    label: Age Groups
+    description: How long something has existed; elapsed time since birth.
+    tags: NCIT_C25150 http://purl.obolibrary.org/obo/NCIT_C25150
+    attributes:
+      - name: name
+        idAttribute: true
+        lookupAttribute: true
+        nillable: false
+        description: One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing.
+        tags: NCIT_C25364 http://purl.obolibrary.org/obo/NCIT_C25364
+      
+      - name: definition
+        dataType: text
+        tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
+        description: A written or verbal account, representation, statement, or explanation of something
+      
+      - name: codesystem
+        tags: NCIT_C70895 http://purl.obolibrary.org/obo/NCIT_C70895
+        description: A systematized collection of concepts that define corresponding codes.
+      
+      - name: code
+        idAttribute: true
+        nillable: false
+        tags: NCIT_C25162 http://purl.obolibrary.org/obo/NCIT_C25162
+        description: A symbol or combination of symbols which is assigned to the members of a collection.
+      
+      - name: ontologyTermURI
+        dataType: hyperlink
+        tags: NCIT_C165071 http://purl.obolibrary.org/obo/NCIT_C165071
+        description: A unique symbol that establishes identity of the resource.
+
   - name: anatomicallocation 
     label: Anatomical Location
     description: "SNOMED CT, code list for anatomicalLocation (Snomed, Body Structure ontlogy used) See: http://bioportal.bioontology.org/ontologies/SNMD_BDY"

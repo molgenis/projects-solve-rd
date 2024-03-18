@@ -4,7 +4,7 @@
 
 | Name | Description | Parent |
 |:---- |:-----------|:------|
-| solverd | Solve-RD RD3 database (v2.0-beta-0.9.7, 2022-11-08) | - |
+| solverd | Solve-RD RD3 database (v2.1.0, 2024-03-18) | - |
 | solverd_info | Information about RD3 Releases, Studies, Cohorts, Collaborators, etc. | solverd |
 | solverd_lookups | Lookup tables that contain standarized terms, codes, definitions, etc. | solverd |
 | solverd_variants | - | solverd |
@@ -29,6 +29,7 @@
 | publications | Publication linked to subject or variants | solverd_info |
 | run | container of jobs | solverd_info |
 | studies | A detailed examination, analysis, or critical inspection of one or multiple subjects designed to discover facts. | solverd_info |
+| ageGroups | How long something has existed; elapsed time since birth. | solverd_lookups |
 | anatomicallocation | SNOMED CT, code list for anatomicalLocation (Snomed, Body Structure ontlogy used) See: http://bioportal.bioontology.org/ontologies/SNMD_BDY | solverd_lookups |
 | country | - | solverd_lookups |
 | dataUseConditions | code list describing different types of conditions to access the data | solverd_lookups |
@@ -133,6 +134,7 @@ Samples used as input for analyses in RD3
 | retracted | Retracted Sample | - | categorical |
 | dateAvailable | Date available | Date that a file became visible to sandbox/RD3 | date |
 | anatomicalLocation | - | Biological entity that constitutes the structural organization of an individual member of a biological species from which this material was taken. | xref |
+| anatomicalLocationComment | - | - | string |
 | batch | - | Sample batch number | string |
 | partOfRelease | - | One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated. | mref |
 | includedInStudies | - | Reference to the study or studies in which this person participates. | mref |
@@ -269,6 +271,12 @@ container of files belonging together (different datasets can contain overlappin
 | description | - | A written or verbal account, representation, statement, or explanation of something. | text |
 | dataUseConditions | - | - | mref |
 | datasetType | - | type of dataset (raw or processed (analysed) data) | enum |
+| numberOfRows | - | number of records in the dataset | int |
+| numberOfMales | - | a count is a data item denoted by an integer and represented the number of instances or occurences of an entity | int |
+| numberOfFemales | - | a count is a data item denoted by an integer and represented the number of instances or occurences of an entity | int |
+| ageCategories | - | - | mref |
+| ordoCodes | - | ORDO codes en MIM codes | mref |
+| hpoCodes | - | - | mref |
 | comments | - | A written explanation, observation or criticism added to textual material. | text |
 
 ### Entity: solverd_info_erns
@@ -368,6 +376,18 @@ A detailed examination, analysis, or critical inspection of one or multiple subj
 | numberOfSubjectsEnrolled | - | An integer specifying the quantity of study subjects enrolled in the study at the current time. | int |
 | samplesCollected | - | An integer specifying the quantity of samples collected at the current time. | int |
 | belongsToDataRelease | - | The act of making data or other structured information accessible to the public or to the user group of a database. | mref |
+
+### Entity: solverd_lookups_ageGroups
+
+How long something has existed; elapsed time since birth.
+
+| Name | Label | Description | Data Type |
+|:---- |:-----|:-----------|:---------|
+| name&#8251; | - | One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing. | string |
+| definition | - | A written or verbal account, representation, statement, or explanation of something | text |
+| codesystem | - | A systematized collection of concepts that define corresponding codes. | string |
+| code&#8251; | - | A symbol or combination of symbols which is assigned to the members of a collection. | string |
+| ontologyTermURI | - | A unique symbol that establishes identity of the resource. | hyperlink |
 
 ### Entity: solverd_lookups_anatomicallocation
 

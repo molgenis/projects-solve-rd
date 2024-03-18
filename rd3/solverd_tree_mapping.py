@@ -99,7 +99,7 @@ def get_table_attribs(pkg_entity: str = None, attributes: str = None, nested_col
     return dt.Frame(data_raw)
 
 
-if __name__ == 'main':
+if __name__ == '__main__':
 
     # retrieve metadata
     print2('Fetching metadata...')

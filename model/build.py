@@ -83,14 +83,20 @@ emx2.write(name='rd3_emx2', format="xlsx", outDir='dist')
 
 portal = Convert(files=[
     'model/portal/rd3_portal.yaml',
-    'model/portal/rd3_portal_release.yaml',
-    # 'model/portal/rd3_portal_novelomics.yaml',
+    # 'model/portal/rd3_portal_release.yaml',
+    'model/portal/rd3_portal_novelomics.yaml',
     # 'model/portal/rd3_portal_cluster.yaml'
 ])
 
 portal.convert()
 portal.compileSemanticTags()
-portal.write(name="rd3_portal", outDir="dist")
+with pd.ExcelWriter("./dist/rd3_portal.xlsx") as wb:
+    packages_df = pd.DataFrame(portal.packages)
+    entities_df = pd.DataFrame(portal.entities)
+    attributes_df = pd.DataFrame(portal.attributes)
+    packages_df.to_excel(wb, sheet_name='packages', index=False)
+    entities_df.to_excel(wb, sheet_name='entities', index=False)
+    attributes_df.to_excel(wb, sheet_name='attributes', index=False)
 
 # ///////////////////////////////////////
 

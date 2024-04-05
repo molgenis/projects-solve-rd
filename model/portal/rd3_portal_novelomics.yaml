@@ -2,7 +2,7 @@
 # FILE: rd3_portal_novelomics.yaml
 # AUTHOR: davidruvolo51
 # CREATED: 2021-10-11
-# MODIFED: 2022-11-29
+# MODIFED: 2024-04-05
 # PURPOSE: EMX for novelomics portal tables
 # DEPENDENCIES: NA
 # COMMENTS: This file contains the EMX markup for the RD3 Portal novel omics
@@ -17,8 +17,8 @@ name: rd3_portal_novelomics
 label: Novel Omics
 description: Staging tables for novel omics sample and experiment metadata
 parent: rd3_portal
-version: 1.6.0
-date: 2022-11-29
+version: 1.7.0
+date: 2024-04-05
 
 # set defaults for both tables
 defaults:
@@ -79,6 +79,7 @@ entities:
       - name: run_ega_id
       - name: experiment_ega_id
       - name: sample_ega_id
+      - name: analysis_ega_id
       
        # record metadata attributes (for internal use only)
       - name: date_created
@@ -157,6 +158,32 @@ entities:
       - name: extracted_protocol
         dataType: string
         
+      # record metadata attributes (for internal use only)
+      - name: date_created
+        description: Date the data was uploaded into RD3
+        dataType: datetime
+        auto: true
+
+      - name: processed
+        description: indication if the the record has been processed into an RD3 release
+        dataType: bool
+        defaultValue: false
+
+      - name: molgenis_id
+        description: an internal, auto generated identifier
+        dataType: string
+        idAttribute: true
+        auto: true
+        nillable: false
+
+  - name: datasets
+    label: Datasets
+    description: Link between EGA datasets and runs/analyses
+    attributes:
+      - name: data_ega_id
+      - name: run_or_analysis_ega_id
+      - name: reference_type
+    
       # record metadata attributes (for internal use only)
       - name: date_created
         description: Date the data was uploaded into RD3

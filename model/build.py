@@ -83,8 +83,8 @@ emx2.write(name='rd3_emx2', format="xlsx", outDir='dist')
 
 portal = Convert(files=[
     'model/portal/rd3_portal.yaml',
-    # 'model/portal/rd3_portal_release.yaml',
-    'model/portal/rd3_portal_novelomics.yaml',
+    'model/portal/rd3_portal_release.yaml',
+    # 'model/portal/rd3_portal_novelomics.yaml',
     # 'model/portal/rd3_portal_cluster.yaml'
 ])
 

@@ -284,6 +284,7 @@ if 'anatomical_location' in shipment_dt.names:
         'retro right auricular area': '74964007',  # Other
         'right': '74964007',  # Other
         'scalp': '74964007',  # Other
+        'other': '74964007',  # Other
 
         'chest skin': '74160004',  # Skin of Chest
         'skin scalp': '43067004',  # Skin of Scalp

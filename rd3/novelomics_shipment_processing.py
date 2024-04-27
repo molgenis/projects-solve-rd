@@ -2,7 +2,7 @@
 FILE: novelomics_shipment_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-03-14
+MODIFIED: 2024-04-27
 PURPOSE: Process new shipment manifest files - register new subjects and samples
 STATUS: stable
 PACKAGES: **see below**
@@ -163,7 +163,9 @@ for value in new_ern_values:
 ern_mappings.update({
     'epicare': 'ern_epicare',
     'ern-epicare': 'ern_epicare',
+    'ern euro-nmd': 'ern_euro_nmd',
     'ern-genturis': 'ern_genturis',
+    'ern genturis': 'ern_genturis',
     'ern-ithaca': 'ern_ithaca',
     'ern-nmd': 'ern_euro_nmd',
     'genturis': 'ern_genturis',
@@ -440,6 +442,9 @@ if 'anatomical_location' in shipment_dt.names:
 
     shipment_dt['anatomical_location'] = shipment_dt['tmp_anatomical_location']
     del shipment_dt['tmp_anatomical_location']
+else:
+    shipment_dt['anatomical_location'] = None
+    shipment_dt['anatomical_location_comment'] = None
 
 # recode sample types (i.e., materialType)
 shipment_dt['sample_type'] = dt.Frame([

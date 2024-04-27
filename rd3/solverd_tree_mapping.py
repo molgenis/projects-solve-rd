@@ -2,7 +2,7 @@
 FILE: rd3_data_patient_tree_mapping.py
 AUTHOR: David Ruvolo
 CREATED: 2022-06-20
-MODIFIED: 2024-01-23
+MODIFIED: 2024-04-27
 PURPOSE: mapping script for patient tree dataset
 STATUS: stable
 PACKAGES: **see below**
@@ -249,57 +249,3 @@ if __name__ == '__main__':
     tree_dt.names = {'belongsToSubject': 'subjectID'}
     rd3.import_dt('rd3stats_treedata', tree_dt)
     rd3.logout()
-
-
-# //////////////////////////////////////////////////////////////////////////////
-
-# Prepare Tree Data
-# Since most of the data is available in the "Solve-RD Experiments" table, we
-# can use it as the source for the patient tree dataset. For the UI, we would like
-# the data to be searchable for subject- and family identifiers rather than
-# everything. It is also better to do as much preprocessing to eliminate the
-# need to transform the data in javascript. The structure of the data should
-# look like the following.
-#
-#   | subjectID | familyID | json     |
-#   |-----------|----------|----------|
-#   | P12345    | F12345   | "{...}"  |
-#
-# The value in the json column should contain everything that is needed in
-# Vue component. The structure of the json object should look like this.
-#
-# - Patient
-#   - Sample n
-#     - Experiment n
-#     ....
-#   ....
-#
-# {
-#   id: "<some-identifier>",
-#   subjectID: "<rd3-subject-identifier>",
-#   familyID: "<rd3-family-identifier>",
-#   group: "patient",
-#   href: "<url-to-subject-record>",
-#   children: [
-#     {
-#       id: "<some-identifier>+n",
-#       name: "sample-idenfier",
-#       group: "sample",
-#       href: "<url-to-sample-record>",
-#       children: [
-#         {
-#           id: "<some-identifier>+n",
-#           name: "<experiment-idenfier>",
-#           group: "experiment",
-#           href: "<url-to-experiment-record>",
-#         },
-#         ....
-#       ]
-#     },
-#     ....
-#   ]
-# }
-#
-# Entries should be rendered for all subjects regardless if they have sample
-# or experiment metadata (as this is important to know). Build a list of
-# subjects from the Subjects table, and then add samples and experiments.

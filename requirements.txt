@@ -16,6 +16,6 @@ rd3tools @ file:///Users/davidcruvolo/Github/projects-solve-rd/rd3-py/dist/rd3to
 requests==2.31.0
 six==1.16.0
 terminaltables==3.1.10
-tqdm==4.66.1
+tqdm==4.66.3
 tzdata==2023.4
 urllib3==2.1.0

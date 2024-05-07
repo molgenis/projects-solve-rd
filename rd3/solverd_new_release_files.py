@@ -10,11 +10,19 @@ COMMENTS: NA
 """
 
 from os import environ
+import numpy as np
 from dotenv import load_dotenv
 from datatable import dt, f
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, recode_value, flatten_data, timestamp, as_key_pairs
 load_dotenv()
+
+
+def dt_as_recordset(data: None):
+    """Datatable to recordset"""
+    if 'to_pandas' not in dir(data):
+        raise AttributeError('Data is not a datatable frame')
+    return data.to_pandas().replace({np.nan: None}).to_dict('records')
 
 
 # set current release
@@ -24,7 +32,6 @@ load_dotenv()
 
 # ~ 0 ~
 # Retrieve metadata from RD3
-
 print2('Connecting to RD3 and retrieving data...')
 
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
@@ -34,7 +41,7 @@ rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # retrieve subjects to validate incoming subjects and experiments
 subjects_raw = rd3.get(
     entity='solverd_subjects',
-    attributes='subjectID,partOfRelease',
+    attributes='subjectID,partOfRelease,retracted',
     batch_size=1000
 )
 subjects = flatten_data(subjects_raw, 'subjectID|id|value')
@@ -64,26 +71,16 @@ experiments_dt = dt.Frame(experiments)
 
 
 # retrieve new experiment manifest data
-portal_raw = rd3.get(
+manifest_raw = rd3.get(
     entity='rd3_portal_release_experiments',
-    q='processed==false',
-    batch_size=1000
+    q='processed==false;date_created=ge=2024-04-01T00:00:00%2B0200',
+    batch_size=10000,
+    num=5000
 )
 
-portal_dt = dt.Frame(portal_raw)
-
-
-# get new manifest metadata
-# manifest = dt.Frame(
-#     rd3_prod.get(
-#         entity='rd3_portal_release_experiments',
-#         q="processed==false",
-#         batch_size=10000
-#     )
-# )
-
-# manifestDT = manifest.copy()
-# del manifestDT['_href']
+manifest_dt = dt.Frame(manifest_raw)
+portal_dt = manifest_dt.copy()
+del portal_dt['_href']
 
 # isoloate identifiers
 subject_ids = subjects_dt['subjectID'].to_list()[0]
@@ -120,20 +117,18 @@ for column in portal_dt.names:
 # prepare seqTypes mappings
 
 # get current seqtype reference values and convert to an object
-seqtype_dt = dt.Frame(rd3.get('solverd_lookups_seqType'))[:, (f.id, f.label)] \
-    .to_pandas() \
-    .to_dict('records')
-
-seqtype_mappings = as_key_pairs(seqtype_dt, 'id', 'id')
+seqtype_dt = dt.Frame(rd3.get('solverd_lookups_seqType'))
+seqtype_mappings = as_key_pairs(dt_as_recordset(seqtype_dt), 'id', 'id')
 
 # get unique seqtype values from new data to identify new values
-new_seqtypes = dt.unique(
-    portal_dt[f.library_strategy != None, f.library_strategy]
-)
+if 'library_strategy' in portal_dt.names:
+    new_seqtypes = dt.unique(
+        portal_dt[f.library_strategy != None, f.library_strategy]
+    ).to_list()[0]
 
-for value in new_seqtypes:
-    if value not in seqtype_mappings:
-        print2(f"Value '{value}' not in SeqTypes mapping dataset")
+    for value in new_seqtypes:
+        if value not in seqtype_mappings:
+            print2(f"Value '{value}' not in SeqTypes mapping dataset")
 
 # update mappings and rerun until there are no more errors
 # add variations here. If there are new values, add them to the lookup table
@@ -151,19 +146,18 @@ file_formats = dt.Frame(rd3.get('solverd_lookups_typeFile'))
 del file_formats['_href']
 
 file_format_mappings = as_key_pairs(
-    data=file_formats,
+    data=dt_as_recordset(file_formats),
     key_attr='id',
     value_attr='id'
 )
 
-new_file_formats = dt.unique(portal_dt['file_type'])
+new_file_formats = dt.unique(portal_dt['file_type']).to_list()[0]
 for value in new_file_formats:
     if value not in file_format_mappings:
-        print2('Value "{value}" not in file format mappings')
+        print2(f'Value "{value}" not in file format mappings')
 
 # if there are unknown/new file formats, update mappings and import into RD3
 # file_format_mappings.update({})
-
 
 # ///////////////////////////////////////
 
@@ -181,35 +175,65 @@ portal_dt['subject_id'] = dt.Frame([
 
 # ~ 1b.ii ~
 # set release
-manifestDT['partOfRelease'] = currentRelease
+rd3_releases = dt.Frame(
+    rd3.get('solverd_info_datareleases', attributes='id')
+)['id']
+
+release_mappings = as_key_pairs(dt_as_recordset(rd3_releases), 'id', 'id')
+
+new_release_values = dt.unique(portal_dt['project_batch_id']).to_list()[0]
+for value in new_release_values:
+    if value not in release_mappings:
+        print2(f'Value "{value}" not a recognized release')
+
+# update releaes accordingly
+release_mappings.update({
+    'DF3': 'freeze3_original'
+})
+
+# ///////////////////////////////////////
+
+# manifestDT['partOfRelease'] = currentRelease
 
 # ~ 1b.iii ~
 # recode library layout
-portal_dt['library'] = dt.Frame([
-    '1' if value == 'PAIRED' else (
-        '2' if value == 'SINGLE' else value
-    )
-    for value in portal_dt['library_layout'].to_list()[0]
-])
+if 'library_layout' in portal_dt.names:
+    portal_dt['library'] = dt.Frame([
+        '1' if value == 'PAIRED' else (
+            '2' if value == 'SINGLE' else value
+        )
+        for value in portal_dt['library_layout'].to_list()[0]
+    ])
+else:
+    print2('Column "library_layout" not found. Initializing empty column...')
+    portal_dt['library'] = None
 
 # ~ 1b.iv ~
 # library_source to title case
-portal_dt['library_source'] = dt.Frame([
-    value.title() if bool(value) else value
-    for value in portal_dt['library_source'].to_list()[0]
-])
+if 'library_source' in portal_dt.names:
+    portal_dt['library_source'] = dt.Frame([
+        value.title() if bool(value) else value
+        for value in portal_dt['library_source'].to_list()[0]
+    ])
+else:
+    print2('Column "library_source" not found. Initializing empty column...')
+    portal_dt['library_source'] = None
 
 # ~ 1b.v ~
 # recode library strategy
-portal_dt['library_strategy'] = dt.Frame([
-    recode_value(
-        mappings=seqtype_mappings,
-        value=value,
-        label='SeqTypes/Library Strategy'
-    )
-    if value else value
-    for value in portal_dt['library_strategy'].to_list()[0]
-])
+if 'library_strategy' in portal_dt.names:
+    portal_dt['library_strategy'] = dt.Frame([
+        recode_value(
+            mappings=seqtype_mappings,
+            value=value,
+            label='SeqTypes/Library Strategy'
+        )
+        if value else value
+        for value in portal_dt['library_strategy'].to_list()[0]
+    ])
+else:
+    print2('Column "library_strategy" not found. Initializing empty column...')
+    portal_dt['library_strategy'] = None
 
 # ~ 1b.vi ~
 # create full path column (concat path and name)
@@ -248,9 +272,9 @@ portal_dt['isNewExperiment'] = dt.Frame([
     for id in portal_dt['project_experiment_dataset_id'].to_list()[0]
 ])
 
-# manifestDT[:, dt.count(), dt.by(f.isNewSubject)]
-# manifestDT[:, dt.count(), dt.by(f.isNewSample)]
-# manifestDT[:, dt.count(), dt.by(f.isNewExperiment)]
+# portal_dt[:, dt.count(), dt.by(f.isNewSubject)]
+# portal_dt[:, dt.count(), dt.by(f.isNewSample)]
+# portal_dt[:, dt.count(), dt.by(f.isNewExperiment)]
 
 # ///////////////////////////////////////
 

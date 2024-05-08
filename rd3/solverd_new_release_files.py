@@ -343,10 +343,10 @@ files_dt = portal_dt[:, dt.first(f[:]), dt.by(f.name)][:, {
 
 # ~ 3a ~
 # Create experiments and files datasets
+labinfo_dt = labinfo_dt[f.isNewExperiment, :]
+labinfo_dt['dateRecordCreated'] = timestamp()
+labinfo_dt['recordCreatedBy'] = 'rd3-bot'
 
-# newExperiments = labinfoDT[f.isNewExperiment, :]
-# newExperiments['dateRecordCreated'] = timestamp()
-# newExperiments['recordCreatedBy'] = 'rd3-bot'
 
 # filesDT = filesDT[(f.EGA != None), :]
 files_dt['dateRecordCreated'] = timestamp()

@@ -1,92 +1,93 @@
-#///////////////////////////////////////////////////////////////////////////////
-# FILE: solverd_novelomics_new_experiments.py
-# AUTHOR: David Ruvolo
-# CREATED: 2023-02-07
-# MODIFIED: 2023-04-17
-# PURPOSE: process and import new experiment metadata
-# STATUS: stable
-# PACKAGES: **see below**
-# COMMENTS: NA
-#///////////////////////////////////////////////////////////////////////////////
+"""Solve-RD New Experiment Releases
+FILE: solverd_novelomics_new_experiments.py
+AUTHOR: David Ruvolo
+CREATED: 2023-02-07
+MODIFIED: 2024-05-07
+PURPOSE: process and import new experiment metadata
+STATUS: stable
+PACKAGES: **see below**
+COMMENTS: NA
+"""
 
-from rd3.api.molgenis2 import Molgenis
+from os import environ
+import numpy as np
 from dotenv import load_dotenv
 from datatable import dt, f
-from os import environ
-# from tqdm import tqdm
-# import functools
-# import operator
-# import re
-from rd3.utils.utils import (
-  dtFrameToRecords,
-  timestamp,
-  toKeyPairs,
-  recodeValue,
-  flattenDataset,
-  timestamp
-)
+from rd3tools.molgenis import Molgenis
+from rd3tools.utils import print2, recode_value, flatten_data, timestamp, as_key_pairs
+load_dotenv()
+
+
+def dt_as_recordset(data: None):
+    """Datatable to recordset"""
+    if 'to_pandas' not in dir(data):
+        raise AttributeError('Data is not a datatable frame')
+    return data.to_pandas().replace({np.nan: None}).to_dict('records')
+
 
 # set current release
-currentRelease='freeze3_original'
+# currentRelease = 'freeze3_original'
 
-# init connection to RD3
-load_dotenv()
-rd3_prod = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3_prod.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+# ///////////////////////////////////////////////////////////////////////////////
 
-# rd3_acc = Molgenis(environ['MOLGENIS_ACC_HOST'])
-# rd3_acc.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
+# ~ 0 ~
+# Retrieve metadata from RD3
+print2('Connecting to RD3 and retrieving data...')
 
-#///////////////////////////////////////////////////////////////////////////////
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-# ~ 0 ~ 
-# Retrieve data from RD3
 
-# get subjects
-rawsubjects = rd3_prod.get(
-  entity='solverd_subjects',
-  attributes='subjectID,partOfRelease',
-  batch_size=10000
+# retrieve subjects to validate incoming subjects and experiments
+subjects_raw = rd3.get(
+    entity='solverd_subjects',
+    attributes='subjectID,partOfRelease,retracted',
+    batch_size=1000
 )
-subjects = flattenDataset(rawsubjects, columnPatterns="id")
-subjectsDT = dt.Frame(subjects)
+subjects = flatten_data(subjects_raw, 'subjectID|id|value')
+subjects_dt = dt.Frame(subjects)
+subjects_dt = subjects_dt[f.retracted != 'Y', :]
 
-# get samples
-rawsamples = rd3_prod.get(
-  entity='solverd_samples',
-  attributes='sampleID,belongsToSubject,partOfRelease',
-  batch_size=10000
+
+# retrieve samples to identify new samples
+samples_raw = rd3.get(
+    entity='solverd_samples',
+    attributes='sampleID,belongsToSubject,partOfRelease',
+    batch_size=1000
 )
-samples = flattenDataset(rawsamples, columnPatterns="subjectID|id")
-samplesDT = dt.Frame(samples)
+samples = flatten_data(samples_raw, 'subjectID|id')
+samples_dt = dt.Frame(samples)
 
-# get experiments
-rawexperiments = rd3_prod.get(
-  entity='solverd_labinfo',
-  attributes='experimentID,sampleID,partOfRelease',
-  batch_size=10000
+
+# retrieve experiments to identify new experiments
+experiments_raw = rd3.get(
+    entity='solverd_labinfo',
+    attributes='experimentID,sampleID,partOfRelease',
+    batch_size=1000
 )
-experiments = flattenDataset(rawexperiments, columnPatterns="sampleID|id")
-experimentsDT = dt.Frame(experiments)
 
-# get new manifest metadata
-manifest = dt.Frame(
-  rd3_prod.get(
+experiments = flatten_data(experiments_raw, 'sampleID|id')
+experiments_dt = dt.Frame(experiments)
+
+
+# retrieve new experiment manifest data
+manifest_raw = rd3.get(
     entity='rd3_portal_release_experiments',
-    q="processed==false",
-    batch_size=10000
-  )
+    q='processed==false;date_created=ge=2024-04-01T00:00:00%2B0200',
+    batch_size=10000,
+    num=5000
 )
 
-manifestDT = manifest.copy()
-del manifestDT['_href']
+manifest_dt = dt.Frame(manifest_raw)
+portal_dt = manifest_dt.copy()
+del portal_dt['_href']
 
-# extract identifiers
-subjectIDs = subjectsDT['subjectID'].to_list()[0]
-sampleIDs = samplesDT['sampleID'].to_list()[0]
-experimentIDs = experimentsDT['experimentID'].to_list()[0]
+# isoloate identifiers
+subject_ids = subjects_dt['subjectID'].to_list()[0]
+sample_ids = samples_dt['sampleID'].to_list()[0]
+experiment_ids = experiments_dt['experimentID'].to_list()[0]
 
-#///////////////////////////////////////////////////////////////////////////////
+# ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
 # Process new manifest data
@@ -94,79 +95,71 @@ experimentIDs = experimentsDT['experimentID'].to_list()[0]
 # ~ 1a ~
 # Recode columns
 # Make sure values are real and do not have spaces
-manifestDT['library_strategy'] = dt.Frame([
-  value if bool(value) and (value != ' ') else None
-  for value in manifestDT['library_strategy'].to_list()[0]
-])
+for column in ['library_strategy', 'library_layout', 'library_source']:
+    if column in portal_dt.names:
+        portal_dt[column] = dt.Frame([
+            value if bool(value) and value != ' ' else None
+            for value in portal_dt[column].to_list()[0]
+        ])
 
-manifestDT['library_layout'] = dt.Frame([
-  value if bool(value) and (value != ' ') else None
-  for value in manifestDT['library_layout'].to_list()[0]
-])
-
-manifestDT['library_source'] = dt.Frame([
-  value if bool(value) and (value != ' ') else None
-  for value in manifestDT['library_source'].to_list()[0]
-])
 
 # blanket recode 'unknown'
-for column in manifestDT.names:
-  manifestDT[column] = dt.Frame([
-    None if value == 'unknown' else value
-    for value in manifestDT[column].to_list()[0]
-  ])
+for column in portal_dt.names:
+    portal_dt[column] = dt.Frame([
+        None if value == 'unknown' else value
+        for value in portal_dt[column].to_list()[0]
+    ])
+
+
+# ///////////////////////////////////////
 
 # ~ 1b ~
 # prepare seqTypes mappings
-seqTypes = dt.Frame(rd3_prod.get('solverd_lookups_seqType'))[:, (f.id, f.label)]
-seqTypesMappings = toKeyPairs(
-  data = dtFrameToRecords(seqTypes),
-  keyAttr='id',
-  valueAttr='id'
-)
 
-# check for new values and add new ones if applicable
-seqTypesMappings.update({'Bisulfite-Seq': 'RRBS'})
+# get current seqtype reference values and convert to an object
+seqtype_dt = dt.Frame(rd3.get('solverd_lookups_seqType'))
+seqtype_mappings = as_key_pairs(dt_as_recordset(seqtype_dt), 'id', 'id')
 
-incomingSeqTypes = dt.unique(manifestDT['library_strategy'])
-incomingSeqTypes['isNewMapping'] = dt.Frame([
-  (value not in seqTypesMappings) and (value is not None)
-  for value in incomingSeqTypes['library_strategy'].to_list()[0]
-])
+# get unique seqtype values from new data to identify new values
+if 'library_strategy' in portal_dt.names:
+    new_seqtypes = dt.unique(
+        portal_dt[f.library_strategy != None, f.library_strategy]
+    ).to_list()[0]
 
-if incomingSeqTypes[f.isNewMapping,:].nrows:
-  print(f"New seqtypes found not in seqType mappings")
+    for value in new_seqtypes:
+        if value not in seqtype_mappings:
+            print2(f"Value '{value}' not in SeqTypes mapping dataset")
 
-# import new seqTypes
-# newSeqTypes = incomingSeqTypes[
-#   f.isNewMapping, f[:].remove(f.isNewMapping)
-# ][:, {'id': f.library_strategy, 'label': f.library_strategy}]
-# rd3_acc.importDatatableAsCsv(
-#   pkg_entity='solverd_lookups_seqType',
-#   data=newSeqTypes
-# )
-# rd3_prod.importDatatableAsCsv(
-#   pkg_entity='solverd_lookups_seqType',
-#   data=newSeqTypes
-# )
+# update mappings and rerun until there are no more errors
+# add variations here. If there are new values, add them to the lookup table
+seqtype_mappings.update({
+    'Bisulfite-Seq': 'RRBS'
+})
+
+
+# ///////////////////////////////////////
 
 # ~ 1c ~
 # Recode File Formats
-fileFormats = dt.Frame(rd3_prod.get('solverd_lookups_typeFile'))
-del fileFormats['_href']
 
-incomingFileTypes = dt.unique(manifestDT['file_type'])
-incomingFileTypes['isNewMapping'] = dt.Frame([
-  value not in fileFormats['id'].to_list()[0]
-  for value in incomingFileTypes['file_type'].to_list()[0]
-])
+file_formats = dt.Frame(rd3.get('solverd_lookups_typeFile'))
+del file_formats['_href']
 
-if incomingFileTypes[f.isNewMapping,:].nrows:
-  print('New file formats to import')
+file_format_mappings = as_key_pairs(
+    data=dt_as_recordset(file_formats),
+    key_attr='id',
+    value_attr='id'
+)
 
-# newFileTypes = incomingFileTypes[f.isNewMapping,:]
+new_file_formats = dt.unique(portal_dt['file_type']).to_list()[0]
+for value in new_file_formats:
+    if value not in file_format_mappings:
+        print2(f'Value "{value}" not in file format mappings')
 
-#///////////////////////////////////////
+# if there are unknown/new file formats, update mappings and import into RD3
+# file_format_mappings.update({})
+
+# ///////////////////////////////////////
 
 # ~ 1b ~
 # Recode Experiment Data
@@ -175,51 +168,81 @@ if incomingFileTypes[f.isNewMapping,:].nrows:
 
 # ~ 1b.i ~
 # make sure all P numbers are uppercase (we've had some lowercase values in the past)
-manifestDT['subject_id'] = dt.Frame([
-  value.strip().upper()
-  for value in manifestDT['subject_id'].to_list()[0]
+portal_dt['subject_id'] = dt.Frame([
+    value.strip().upper()
+    for value in portal_dt['subject_id'].to_list()[0]
 ])
 
 # ~ 1b.ii ~
 # set release
-manifestDT['partOfRelease'] = currentRelease
+rd3_releases = dt.Frame(
+    rd3.get('solverd_info_datareleases', attributes='id')
+)['id']
+
+release_mappings = as_key_pairs(dt_as_recordset(rd3_releases), 'id', 'id')
+
+new_release_values = dt.unique(portal_dt['project_batch_id']).to_list()[0]
+for value in new_release_values:
+    if value not in release_mappings:
+        print2(f'Value "{value}" not a recognized release')
+
+# update releaes accordingly
+release_mappings.update({
+    'DF3': 'freeze3_original'
+})
+
+# ///////////////////////////////////////
+
+# manifestDT['partOfRelease'] = currentRelease
 
 # ~ 1b.iii ~
 # recode library layout
-manifestDT['library'] = dt.Frame([
-  '1' if value == 'PAIRED' else (
-    '2' if value == 'SINGLE' else value
-  )
-  for value in manifestDT['library_layout'].to_list()[0]
-])
+if 'library_layout' in portal_dt.names:
+    portal_dt['library'] = dt.Frame([
+        '1' if value == 'PAIRED' else (
+            '2' if value == 'SINGLE' else value
+        )
+        for value in portal_dt['library_layout'].to_list()[0]
+    ])
+else:
+    print2('Column "library_layout" not found. Initializing empty column...')
+    portal_dt['library'] = None
 
 # ~ 1b.iv ~
 # library_source to title case
-manifestDT['library_source'] = dt.Frame([
-  value.title() if bool(value) else value
-  for value in manifestDT['library_source'].to_list()[0]
-])
+if 'library_source' in portal_dt.names:
+    portal_dt['library_source'] = dt.Frame([
+        value.title() if bool(value) else value
+        for value in portal_dt['library_source'].to_list()[0]
+    ])
+else:
+    print2('Column "library_source" not found. Initializing empty column...')
+    portal_dt['library_source'] = None
 
 # ~ 1b.v ~
 # recode library strategy
-manifestDT['library_strategy'] = dt.Frame([
-  recodeValue(
-    mappings = seqTypesMappings,
-    value = value,
-    label='SeqTypes/Library Strategy'
-  )
-  if value else value
-  for value in manifestDT['library_strategy'].to_list()[0]
-])
+if 'library_strategy' in portal_dt.names:
+    portal_dt['library_strategy'] = dt.Frame([
+        recode_value(
+            mappings=seqtype_mappings,
+            value=value,
+            label='SeqTypes/Library Strategy'
+        )
+        if value else value
+        for value in portal_dt['library_strategy'].to_list()[0]
+    ])
+else:
+    print2('Column "library_strategy" not found. Initializing empty column...')
+    portal_dt['library_strategy'] = None
 
 # ~ 1b.vi ~
 # create full path column (concat path and name)
-manifestDT['name'] = dt.Frame([
-  '/'.join(list(filter(None, row)))
-  for row in manifestDT[:, (f.file_path,f.file_name)].to_tuples()
+portal_dt['name'] = dt.Frame([
+    '/'.join(list(filter(None, row)))
+    for row in portal_dt[:, (f.file_path, f.file_name)].to_tuples()
 ])
 
-#///////////////////////////////////////////////////////////////////////////////
+# ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 2 ~
 # Prepare Datasets
@@ -232,33 +255,33 @@ manifestDT['name'] = dt.Frame([
 # Create flags for new subjects, samples, and experiments
 
 # are there new subjects?
-manifestDT['isNewSubject'] = dt.Frame([
-  id not in subjectIDs
-  for id in manifestDT['subject_id'].to_list()[0]
+portal_dt['isNewSubject'] = dt.Frame([
+    id not in subject_ids
+    for id in portal_dt['subject_id'].to_list()[0]
 ])
 
 # are there new samples?
-manifestDT['isNewSample'] = dt.Frame([
-  id not in sampleIDs
-  for id in manifestDT['sample_id'].to_list()[0]
+portal_dt['isNewSample'] = dt.Frame([
+    id not in sample_ids
+    for id in portal_dt['sample_id'].to_list()[0]
 ])
 
 # are there new experiments?
-manifestDT['isNewExperiment'] = dt.Frame([
-  id not in experimentIDs
-  for id in manifestDT['project_experiment_dataset_id'].to_list()[0]
+portal_dt['isNewExperiment'] = dt.Frame([
+    id not in experiment_ids
+    for id in portal_dt['project_experiment_dataset_id'].to_list()[0]
 ])
 
-# manifestDT[:, dt.count(), dt.by(f.isNewSubject)]
-# manifestDT[:, dt.count(), dt.by(f.isNewSample)]
-# manifestDT[:, dt.count(), dt.by(f.isNewExperiment)]
+# portal_dt[:, dt.count(), dt.by(f.isNewSubject)]
+# portal_dt[:, dt.count(), dt.by(f.isNewSample)]
+# portal_dt[:, dt.count(), dt.by(f.isNewExperiment)]
 
-#///////////////////////////////////////
+# ///////////////////////////////////////
 
 # ~ 2b ~
 # Create labinfo table
-labinfoDT = manifestDT[
-  :, dt.first(f[:]), dt.by(f.project_experiment_dataset_id)
+labinfo_dt = portal_dt[
+    :, dt.first(f[:]), dt.by(f.project_experiment_dataset_id)
 ][:, {
   'experimentID': f.project_experiment_dataset_id,
   'sampleID': f.sample_id,
@@ -273,27 +296,27 @@ labinfoDT = manifestDT[
   'isNewSubject': f.isNewSubject,
   'isNewSample': f.isNewSample,
   'isNewExperiment': f.isNewExperiment
-}]
+  }]
 
 # create files table
-filesDT = manifestDT[:, dt.first(f[:]), dt.by(f.name)][:, {
-  'EGA': f.file_ega_id,
-  'name': f.name,
-  'md5': f.unencrypted_md5_checksum,
-  'fileFormat': f.file_type,
-  'subjectID': f.subject_id,
-  'sampleID': f.sample_id,
-  'experimentID': f.project_experiment_dataset_id,
-  'partOfRelease': f.partOfRelease,
-  'isNewSubject': f.isNewSubject,
-  'isNewSample': f.isNewSample,
-  'isNewExperiment': f.isNewExperiment
+files_dt = portal_dt[:, dt.first(f[:]), dt.by(f.name)][:, {
+    'EGA': f.file_ega_id,
+    'name': f.name,
+    'md5': f.unencrypted_md5_checksum,
+    'fileFormat': f.file_type,
+    'subjectID': f.subject_id,
+    'sampleID': f.sample_id,
+    'experimentID': f.project_experiment_dataset_id,
+    'partOfRelease': f.partOfRelease,
+    'isNewSubject': f.isNewSubject,
+    'isNewSample': f.isNewSample,
+    'isNewExperiment': f.isNewExperiment
 }]
 
 # Check counts
 # Theoretically, there should be no new subjects and samples in this dataset.
 # However, you may run into the situation where there are unknown records. If
-# this happens, check the novelomics shipment staging table to see if all 
+# this happens, check the novelomics shipment staging table to see if all
 # records where run (i.e., processed == false). If there are any records where
 # processed is false, then run the novelomics subject-sample mapping script.
 # You may also want to check to see if there are any samples that are marked
@@ -302,12 +325,17 @@ filesDT = manifestDT[:, dt.first(f[:]), dt.by(f.name)][:, {
 #
 # If there are cases where `isNewExperiment` is false, then you will need
 # to validate those cases.
-labinfoDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
-filesDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
+# labinfo_dt[
+#     :, dt.count(), dt.by(
+#         f.isNewSubject, f.isNewSample, f.isNewExperiment
+#     )
+# ]
 
-#///////////////////////////////////////////////////////////////////////////////
+# files_dt[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
 
-# ~ 3 ~ 
+# ///////////////////////////////////////////////////////////////////////////////
+
+# ~ 3 ~
 # Create and import new metadata
 # It is apparent that there are duplicate records due to multiple re-imports
 # or other import issues. It is better to identify new records, and import them
@@ -315,53 +343,48 @@ filesDT[:, dt.count(), dt.by(f.isNewSubject, f.isNewSample, f.isNewExperiment)]
 
 # ~ 3a ~
 # Create experiments and files datasets
+labinfo_dt = labinfo_dt[f.isNewExperiment, :]
+labinfo_dt['dateRecordCreated'] = timestamp()
+labinfo_dt['recordCreatedBy'] = 'rd3-bot'
 
-# newExperiments = labinfoDT[f.isNewExperiment, :]
-# newExperiments['dateRecordCreated'] = timestamp()
-# newExperiments['recordCreatedBy'] = 'rd3-bot'
 
 # filesDT = filesDT[(f.EGA != None), :]
-filesDT['dateRecordCreated'] = timestamp()
-filesDT['recordCreatedBy'] = 'rd3-bot'
+files_dt['dateRecordCreated'] = timestamp()
+files_dt['recordCreatedBy'] = 'rd3-bot'
 
 # optional: remove IDs that aren't known
-filesDT['subjectID'] = dt.Frame([
-  None if row[1] == True else row[0]
-  for row in filesDT[:, (f.subjectID, f.isNewSubject)].to_tuples()
+files_dt['subjectID'] = dt.Frame([
+    None if row[1] is True else row[0]
+    for row in files_dt[:, (f.subjectID, f.isNewSubject)].to_tuples()
 ])
 
-filesDT['sampleID'] = dt.Frame([
-  None if row[1] == True else row[0]
-  for row in filesDT[:, (f.sampleID, f.isNewSample)].to_tuples()
+files_dt['sampleID'] = dt.Frame([
+    None if row[1] is True else row[0]
+    for row in files_dt[:, (f.sampleID, f.isNewSample)].to_tuples()
 ])
 
-filesDT['experimentID'] = dt.Frame([
-  None if row[1] == True else row[0]
-  for row in filesDT[:, (f.experimentID, f.isNewExperiment)].to_tuples()
+files_dt['experimentID'] = dt.Frame([
+    None if row[1] is True else row[0]
+    for row in files_dt[:, (f.experimentID, f.isNewExperiment)].to_tuples()
 ])
 
 # ~ 3b ~
 # Update Portal Status
-fileIDs = filesDT[f.EGA!=None, 'EGA'].to_list()[0]
-manifest['processed'] = dt.Frame([
-  value in fileIDs
-  for value in manifest['file_ega_id'].to_list()[0]
+file_ids = files_dt[f.EGA != None, 'EGA'].to_list()[0]
+portal_dt['processed'] = dt.Frame([
+    value in file_ids
+    for value in portal_dt['file_ega_id'].to_list()[0]
 ])
 
-manifest[:, dt.count(), dt.by(f.processed)]
+# portal_dt[:, dt.count(), dt.by(f.processed)]
 
-# ~ 3b ~
+# ///////////////////////////////////////////////////////////////////////////////
+
+# ~ 4 ~
 # Import
-# rd3_prod.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
-rd3_prod.importDatatableAsCsv(pkg_entity='solverd_files',data=filesDT)
-rd3_prod.importDatatableAsCsv(
-  pkg_entity='rd3_portal_novelomics_experiment',
-  data = novelomicsraw
-)
 
-# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_labinfo',data=newExperiments)
-# rd3_acc.importDatatableAsCsv(pkg_entity='solverd_files',data=newFiles)
+rd3.import_dt('solverd_labinfo', labinfo_dt)
+rd3.import_dt('solverd_files', files_dt)
+rd3.import_dt('rd3_portal_novelomics_experiment', portal_dt)
 
-# logout
-# rd3_acc.logout()
-rd3_prod.logout()
+rd3.logout()

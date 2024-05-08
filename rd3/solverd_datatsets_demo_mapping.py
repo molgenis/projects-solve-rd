@@ -5,7 +5,7 @@ from os import environ
 from dotenv import load_dotenv
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, flatten_data
-from datatable import dt, f, as_type
+from datatable import dt, f
 load_dotenv()
 
 print2('Connecting to RD3....')

@@ -11,6 +11,7 @@ COMMENTS: NA
 from os import environ
 from dotenv import load_dotenv
 from tqdm import tqdm
+from datetime import datetime
 from datatable import dt, f
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, flatten_data
@@ -39,6 +40,12 @@ def merge_dataset_ids(id_list, from_dt, to_dt, from_id_col, to_id_col):
                 row_dataset_id_str,
                 True
             )
+
+
+def calculate_age(dob, recent=datetime.today()):
+    """Calculate age from date of birth until a recent date"""
+    return recent.year - dob.year - ((recent.month, recent.day) < (dob.month, dob.day))
+
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +80,24 @@ subjects_raw = rd3.get('solverd_subjects', batch_size=1000)
 subjects = flatten_data(subjects_raw, 'subjectID|id|value')
 subjects_dt = dt.Frame(subjects)
 subjects_dt = subjects_dt[f.retracted != 'Y', :]
+
+subjectinfo_raw = rd3.get('solverd_subjectinfo', batch_size=1000)
+subjectinfo = flatten_data(subjectinfo_raw, 'subjectID|id|value')
+subjectinfo_dt = dt.Frame(subjectinfo)[:, (
+    f.subjectID,
+    f.dateOfBirth,
+    f.ageOfOnset
+)]
+
+if 'includedInDatasets' not in subjectinfo_dt.names:
+    subjectinfo_dt['includedInDatasets'] = ''
+
+CURRENT_YEAR = datetime.today().year
+subjectinfo_dt['ageAsOfToday'] = dt.Frame([
+    calculate_age(datetime(value, 7, 1))
+    if bool(value) and value <= CURRENT_YEAR else None
+    for value in subjectinfo_dt['dateOfBirth'].to_list()[0]
+])
 
 
 # retrieve samples to identify new samples
@@ -147,6 +172,7 @@ labinfo_dataset_dt = portal_dt[
 subjects_dt['should_import'] = False
 samples_dt['should_import'] = False
 experiments_dt['should_import'] = False
+subjectinfo_dt['should_import'] = False
 
 # isolate ids
 patient_dataset_ids = patient_dataset_dt['subject_id'].to_list()[0]
@@ -181,14 +207,20 @@ merge_dataset_ids(
     to_id_col='experimentID'
 )
 
+print2('Merging dataset IDs with subjectinfo....')
+merge_dataset_ids(
+    id_list=patient_dataset_ids,
+    from_dt=patient_dataset_dt,
+    from_id_col='subject_id',
+    to_dt=subjectinfo_dt,
+    to_id_col='subjectID'
+)
 
 # reduce subjects to cases with datasets
 new_subjects_dt = subjects_dt[f.should_import, :]
 new_samples_dt = samples_dt[f.should_import, :]
 new_experiments_dt = experiments_dt[f.should_import, :]
-
-# ///////////////////////////////////////
-
+new_subjectinfo_dt = subjectinfo_dt[f.should_import, :]
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -197,17 +229,36 @@ new_experiments_dt = experiments_dt[f.should_import, :]
 
 # summarise subjects by dataset
 for dataset in tqdm(datasets_dt['data_ega_id'].to_list()[0]):
-    pattern = f"*.{dataset}.*"
     dataset_subjects = new_subjects_dt[
-        dt.re.match(f.includedInDatasets, dataset), :
+        f.includedInDatasets == dataset, :
     ]
 
+    dataset_samples = new_samples_dt[
+        f.includedInDatasets == dataset, :
+    ]
+
+    dataset_experiments = new_experiments_dt[
+        f.includedInDatasets == dataset, :
+    ]
+
+    # ///////////////////////////////////////
+
     # get number of rows (i.e., patients)
-    print2('Summarising patients (n, n by gender)....')
+    print2('Summarising datasets (num of rows)....')
+
+    # set row counts
     datasets_dt[
         f.data_ega_id == dataset,
-        'numberOfRows'
-    ] = dataset_subjects.nrows
+        [
+            'numberOfPatients',
+            'numberOfSamples',
+            'numberOfExperiments'
+        ]
+    ] = (
+        dataset_subjects.nrows,
+        dataset_samples.nrows,
+        dataset_experiments.nrows
+    )
 
     # get number of males
     datasets_dt[
@@ -220,6 +271,18 @@ for dataset in tqdm(datasets_dt['data_ega_id'].to_list()[0]):
         f.data_ega_id == dataset,
         'numberOfFemales'
     ] = dataset_subjects[f.sex1 == 'F', :].nrows
+
+    dataset_erns = []
+    for ern_str in dt.unique(dataset_subjects['ERN']).to_list()[0]:
+        erns = ern_str.split(',')
+        for ern in erns:
+            if ern not in dataset_erns:
+                dataset_erns.append(ern)
+    dataset_erns.sort()
+
+    datasets_dt[
+        f.data_ega_id == dataset, 'ERN'
+    ] = ','.join(dataset_erns)
 
     # ///////////////////////////////////////
 
@@ -266,6 +329,7 @@ for dataset in tqdm(datasets_dt['data_ega_id'].to_list()[0]):
     datasets_dt[
         f.data_ega_id == dataset, 'hpoCodes'
     ] = ','.join(dataset_hpo_codes_set)
+
 
 # ///////////////////////////////////////
 

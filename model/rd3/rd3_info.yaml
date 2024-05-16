@@ -2,9 +2,9 @@
 # FILE: rd3_info.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-10-03
-# MODIFIED: 2022-10-24
+# MODIFIED: 2024-05-16
 # PURPOSE: YAML-EMX for RD3-specific reference entities
-# STATUS: in.progress
+# STATUS: stable
 # COMMENTS: NA
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +108,23 @@ entities:
         dataType: text
         description: A notation regarding the decisions, and/or clarification of any information pertaining to data management.
         tags: NCIT_C115505 http://purl.obolibrary.org/obo/NCIT_C115505
+
+  - name: datasetAnalyses
+    label: Dataset Analyses Types
+    description: Reference values for public datasets
+    attributes:
+      - name: name
+        idAttribute: true
+        nillable: false
+        description: The words or language units by which a thing is known.
+        tags: NCIT_C42614 http://purl.obolibrary.org/obo/NCIT_C42614
         
+      - name: partOfRelease
+        description: One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated.
+        dataType: mref
+        refEntity: solverd_info_datareleases
+        tags: NCIT_C172217 http://purl.obolibrary.org/obo/NCIT_C172217
+                
   - name: datasets
     label: Datasets
     description: container of files belonging together (different datasets can contain overlapping files, except for the intial datasets containing startfiles (before analysis, startfiles= BAM, gVCF files (one per chromosome) and phenopacket file))
@@ -125,25 +141,13 @@ entities:
         dataType: text
         description: A written or verbal account, representation, statement, or explanation of something.
         tags: NCIT_C25365 http://purl.obolibrary.org/obo/NCIT_C25365
-        
-      # - name: datafiles
-      #   description: A set of related records (either written or electronic) kept together.
-      #   tags: NCIT:C42883 http://purl.obolibrary.org/obo/NCIT_C42883
-      #   dataType: mref
-      #   refEntity: solverd_files
-
-      - name: dataUseConditions
-        dataType: mref
-        refEntity: solverd_lookups_dataUseConditions
-        tags: DUO:0000001 http://purl.obolibrary.org/obo/DUO_0000001
-        
+  
       - name: datasetType
         description: type of dataset (raw or processed (analysed) data)
-        dataType: enum
+        dataType: string
         nillable: false
-        enumOptions: raw,processed
         
-      - name: numberOfRows
+      - name: numberOfPatients
         description: number of records in the dataset
         dataType: int
         tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
@@ -158,10 +162,24 @@ entities:
         dataType: int
         tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
         
-      - name: ageCategories
+      - name: numberOfSamples
+        dataType: int
+        tags: NCIT_C181317 http://purl.obolibrary.org/obo/NCIT_C181317
+        
+      - name: numberOfExperiments
+        dataType: int
+        tags: STATO_0000047 http://purl.obolibrary.org/obo/STATO_0000047
+        
+      - name: analysisTypes
         dataType: mref
-        refEntity: solverd_lookups_ageGroups
-        tags: NCIT_C25150 http://purl.obolibrary.org/obo/NCIT_C25150
+        refEntity: solverd_info_datasetAnalyses
+        
+      - name: ERN
+        label: ERN
+        description: ERN
+        dataType: mref
+        refEntity: solverd_info_erns
+        tags: NCIT_C25412 http://purl.obolibrary.org/obo/NCIT_C25412
         
       - name: ordoCodes
         dataType: mref

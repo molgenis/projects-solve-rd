@@ -4,7 +4,7 @@
 
 | Name | Description | Parent |
 |:---- |:-----------|:------|
-| solverd | Solve-RD RD3 database (v2.1.0, 2024-03-18) | - |
+| solverd | Solve-RD RD3 database (v2.2.0, 2024-05-16) | - |
 | solverd_info | Information about RD3 Releases, Studies, Cohorts, Collaborators, etc. | solverd |
 | solverd_lookups | Lookup tables that contain standarized terms, codes, definitions, etc. | solverd |
 | solverd_variants | - | solverd |
@@ -21,6 +21,7 @@
 | overview | Overview on RD3 Subjects, samples, and experiments | solverd |
 | cohorts | A group of individuals, identified by a common characteristic. | solverd_info |
 | datareleases | The act of making data or other structured information accessible to the public or to the user group of a database. | solverd_info |
+| datasetAnalyses | Reference values for public datasets | solverd_info |
 | datasets | container of files belonging together (different datasets can contain overlapping files, except for the intial datasets containing startfiles (before analysis, startfiles= BAM, gVCF files (one per chromosome) and phenopacket file)) | solverd_info |
 | erns | European Reference Networks, source: https://ec.europa.eu/health/ern/networks_en | solverd_info |
 | jobs | Jobs used to process sample data | solverd_info |
@@ -261,6 +262,15 @@ The act of making data or other structured information accessible to the public 
 | dataSource | - | The person or authoritative body who provided the information. | mref |
 | releaseNotes | - | A notation regarding the decisions, and/or clarification of any information pertaining to data management. | text |
 
+### Entity: solverd_info_datasetAnalyses
+
+Reference values for public datasets
+
+| Name | Label | Description | Data Type |
+|:---- |:-----|:-----------|:---------|
+| name&#8251; | - | The words or language units by which a thing is known. | string |
+| partOfRelease | - | One or more Solve-RD releases that indicate when the record was first introduced into RD3 or when it was updated. | mref |
+
 ### Entity: solverd_info_datasets
 
 container of files belonging together (different datasets can contain overlapping files, except for the intial datasets containing startfiles (before analysis, startfiles= BAM, gVCF files (one per chromosome) and phenopacket file))
@@ -269,12 +279,14 @@ container of files belonging together (different datasets can contain overlappin
 |:---- |:-----|:-----------|:---------|
 | id&#8251; | - | One or more characters used to identify, name, or characterize the nature, properties, or contents of a thing. | string |
 | description | - | A written or verbal account, representation, statement, or explanation of something. | text |
-| dataUseConditions | - | - | mref |
-| datasetType | - | type of dataset (raw or processed (analysed) data) | enum |
-| numberOfRows | - | number of records in the dataset | int |
+| datasetType | - | type of dataset (raw or processed (analysed) data) | string |
+| numberOfPatients | - | number of records in the dataset | int |
 | numberOfMales | - | a count is a data item denoted by an integer and represented the number of instances or occurences of an entity | int |
 | numberOfFemales | - | a count is a data item denoted by an integer and represented the number of instances or occurences of an entity | int |
-| ageCategories | - | - | mref |
+| numberOfSamples | - | - | int |
+| numberOfExperiments | - | - | int |
+| analysisTypes | - | - | mref |
+| ERN | ERN | ERN | mref |
 | ordoCodes | - | ORDO codes en MIM codes | mref |
 | hpoCodes | - | - | mref |
 | comments | - | A written explanation, observation or criticism added to textual material. | text |

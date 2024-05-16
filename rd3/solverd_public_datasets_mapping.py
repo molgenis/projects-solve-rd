@@ -245,7 +245,7 @@ labinfo_dataset_dt = portal_dt[
 subjects_dt['should_import'] = False
 samples_dt['should_import'] = False
 experiments_dt['should_import'] = False
-subjectinfo_dt['should_import'] = False
+# subjectinfo_dt['should_import'] = False
 
 # isolate ids
 patient_dataset_ids = patient_dataset_dt['subject_id'].to_list()[0]

@@ -2,7 +2,7 @@
 FILE: solverd_public_datasets_mapping.py
 AUTHOR: David Ruvolo
 CREATED: 2024-05-08
-MODIFIED: 2024-05-16
+MODIFIED: 2024-05-17
 PURPOSE: map public dataset identifiers into RD3
 STATUS: stable; ongoing
 PACKAGES: **see below**
@@ -10,45 +10,13 @@ COMMENTS: NA
 """
 from os import environ
 from datetime import datetime
-import numpy as np
 from dotenv import load_dotenv
 from tqdm import tqdm
 from datatable import dt, f
 from rd3tools.molgenis import Molgenis
+from rd3tools.datatable import dt_as_recordset, unique_values_by_id
 from rd3tools.utils import print2, flatten_data, as_key_pairs, recode_value
 load_dotenv()
-
-
-def unique_values_by_id(data, groupby, column, drop_duplicates=True, key_groupby=True):
-    """Unique Values By Id
-    For a datatable object, collapse all unique values by ID into a comma
-    separated string.
-
-    @param data datatable object
-    @param groupby name of the column that will serve as the grouping variable
-    @param column name of the column that contains the values to collapse
-    @param drop_duplicates If True, all duplicate rows will be removed
-    @param key_groupby If True, returned object will be keyed using the value named in groupby
-
-    @param datatable object
-    """
-    df = data.to_pandas()
-    df[column] = df.dropna(subset=[column]) \
-        .groupby(groupby)[column] \
-        .transform(lambda val: ','.join(set(val)))
-    if drop_duplicates:
-        df = df[[groupby, column]].drop_duplicates()
-    output = dt.Frame(df)
-    if key_groupby:
-        output.key = groupby
-    return output
-
-
-def dt_as_recordset(data: None):
-    """Datatable to recordset"""
-    if 'to_pandas' not in dir(data):
-        raise AttributeError('Data is not a datatable frame')
-    return data.to_pandas().replace({np.nan: None}).to_dict('records')
 
 
 def merge_dataset_ids(id_list, from_dt, to_dt, from_id_col, to_id_col):
@@ -114,24 +82,6 @@ subjects = flatten_data(subjects_raw, 'subjectID|id|value')
 subjects_dt = dt.Frame(subjects)
 subjects_dt = subjects_dt[f.retracted != 'Y', :]
 
-# subjectinfo_raw = rd3.get('solverd_subjectinfo', batch_size=1000)
-# subjectinfo = flatten_data(subjectinfo_raw, 'subjectID|id|value')
-# subjectinfo_dt = dt.Frame(subjectinfo)[:, (
-#     f.subjectID,
-#     f.dateOfBirth,
-#     f.ageOfOnset
-# )]
-
-# if 'includedInDatasets' not in subjectinfo_dt.names:
-#     subjectinfo_dt['includedInDatasets'] = ''
-
-# CURRENT_YEAR = datetime.today().year
-# subjectinfo_dt['ageAsOfToday'] = dt.Frame([
-#     calculate_age(datetime(value, 7, 1))
-#     if bool(value) and value <= CURRENT_YEAR else None
-#     for value in subjectinfo_dt['dateOfBirth'].to_list()[0]
-# ])
-
 
 # retrieve samples to identify new samples
 samples_raw = rd3.get('solverd_samples', batch_size=1000)
@@ -168,16 +118,16 @@ analysis_type_mappings = as_key_pairs(
     value_attr='name'
 )
 
-dataset_analysis_dt = dt.Frame(
-    unique_values_by_id(
-        data=dataset_analysis_dt,
-        groupby='name',
-        column='partOfRelease',
-        key_groupby=False
-    )
-)
+# dataset_analysis_dt = dt.Frame(
+#     unique_values_by_id(
+#         data=dataset_analysis_dt,
+#         group_by='name',
+#         column='partOfRelease',
+#         key_group_by=False
+#     )
+# )
 
-rd3.import_dt('solverd_info_datasetAnalyses', dataset_analysis_dt)
+# rd3.import_dt('solverd_info_datasetAnalyses', dataset_analysis_dt)
 
 # if there are any new mappings add them here
 analysis_type_mappings.update({
@@ -200,7 +150,7 @@ for rowNumber in tqdm(range(0, TOTAL_ROWS, INCREMENT)):
     raw = rd3.get(
         'rd3_portal_release_experiments',
         q='date_created=ge=2024-04-01T00:00:00%2B0200',
-        attributes='file_ega_id,project_experiment_dataset_id,sample_id,subject_id,analysis_ega_id',
+        attributes='project_experiment_dataset_id,sample_id,subject_id,analysis_ega_id',
         batch_size=10000,
         num=INCREMENT,
         start=rowNumber,
@@ -280,20 +230,12 @@ merge_dataset_ids(
     to_id_col='experimentID'
 )
 
-# print2('Merging dataset IDs with subjectinfo....')
-# merge_dataset_ids(
-#     id_list=patient_dataset_ids,
-#     from_dt=patient_dataset_dt,
-#     from_id_col='subject_id',
-#     to_dt=subjectinfo_dt,
-#     to_id_col='subjectID'
-# )
 
 # reduce subjects to cases with datasets
 new_subjects_dt = subjects_dt[f.should_import, :]
 new_samples_dt = samples_dt[f.should_import, :]
 new_experiments_dt = experiments_dt[f.should_import, :]
-# new_subjectinfo_dt = subjectinfo_dt[f.should_import, :]
+
 
 # create analysis type
 new_experiments_dt['analysisType'] = dt.Frame([
@@ -309,9 +251,8 @@ new_experiments_dt['analysisType'] = dt.Frame([
 # ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~
-# Summary datasets
+# Summarise datasets
 
-# summarise subjects by dataset
 for dataset in tqdm(datasets_dt['data_ega_id'].to_list()[0]):
     dataset_subjects = new_subjects_dt[
         f.includedInDatasets == dataset, :

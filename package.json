@@ -10,6 +10,7 @@
     "build": "python3 model/build.py",
     "build:templates": "python3 rd3/solverd_make_templates.py",
     "pip:freeze": "rm requirements.txt && pip freeze >> requirements.txt",
+    "rd3-py-build": "cd rd3-py && yarn build && cd ..",
     "rd3-py-install": "pip install rd3-py/dist/*.tar.gz"
   },
   "repository": {

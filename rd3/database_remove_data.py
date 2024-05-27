@@ -777,6 +777,45 @@ curr_retracted_dt['dateRecordUpdated'] = timestamp()
 
 rd3.import_dt('solverd_subjects', curr_retracted_dt)
 
+
+# compile list of subject, samples, and experiments with FIDs
+# retracted_subjects_dt = curr_retracted_dt.copy()
+# retracted_samples = rd3.get(
+#     'solverd_samples',
+#     attributes='sampleID,belongsToSubject',
+#     q='retracted==Y'
+# )
+
+# retracted_samples_dt = dt.Frame(flatten_data(retracted_samples, 'subjectID'))
+
+# retracted_expr = rd3.get(
+#     'solverd_labinfo',
+#     attributes='experimentID,sampleID',
+#     q='retracted==Y'
+# )
+
+# retracted_expr_dt = dt.Frame(flatten_data(retracted_expr, 'sampleID'))
+
+# retracted_data = []
+# for _id in tqdm(retracted_expr_dt['experimentID'].to_list()[0]):
+#     sample_id = retracted_expr_dt[f.experimentID == _id, 'sampleID'][0, 0]
+#     if sample_id:
+#         subject_id = retracted_samples_dt[f.sampleID == sample_id,
+#                                           'belongsToSubject'][0, 0]
+
+#         subject_fid = retracted_subjects_dt[f.subjectID ==
+#                                             subject_id, 'fid'][0, 0]
+
+#         retracted_data.append({
+#             'subject_id': subject_id,
+#             'family_id': subject_fid,
+#             'sample_id': sample_id,
+#             'experiment_id': _id
+#         })
+
+
+# dt.Frame(retracted_data).to_csv('data/retracted_subject_experiments.csv')
+
 # ///////////////////////////////////////
 
 # ~ 6b ~

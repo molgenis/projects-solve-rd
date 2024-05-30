@@ -2,7 +2,7 @@
 FILE: solverd_solvedstatus.py
 AUTHOR: David Ruvolo
 CREATED: 2023-03-20
-MODIFIED: 2024-01-22
+MODIFIED: 2024-05-30
 PURPOSE: update solved status metadata in RD3
 STATUS: stable
 PACKAGES: **see below**
@@ -11,9 +11,22 @@ COMMENTS: NA
 # from os import environ
 # from dotenv import load_dotenv
 from datatable import dt, f
+from datetime import datetime
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, recode_value, flatten_data, timestamp
 # load_dotenv()
+
+
+def set_data_period():
+    """Get period from time script is run and the first of the month
+    :returns array containing start (first day of the current month) and end dates (today)
+    :rtype: datetime array
+    """
+    today = datetime.today()
+    month = today.month
+    year = today.year
+    first_of_month = datetime(year, month, 1)
+    return [first_of_month, today]
 
 
 def collapse_remarks(*args):
@@ -35,15 +48,14 @@ rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
 # Retrieve metadata
 print2('Connecting to RD3 and retrieving data....')
 
+current_period = [date.strftime("%Y-%m-%d") for date in set_data_period()]
+QUERY = f'process_status==N;(date_solved=ge={current_period[0]};date_solved=le={current_period[1]})'
+
 # Retrieve data and flatten to data table objects
-# ['2023-03-23', '2023-11-07', '2023-11-13', '2023-12-12']
+# q='process_status=="N";(date_solved=ge=2024-05-01;date_solved=le=2024-05-20)',
 portal_data_raw = rd3.get(
     entity='rd3_portal_recontact_solved',
-    # q='process_status==N;(date_solved=ge=2023-03-23;date_solved=le=2023-03-23)',
-    q='process_status==N;(date_solved=ge=2023-11-07;date_solved=le=2023-11-07)',
-    # q='process_status=="N";(date_solved=ge=2023-11-13;date_solved=le=2023-11-13)',
-    # q='process_status=="N";(date_solved=ge=2023-12-12;date_solved=le=2023-12-12)',
-    # q='process_status=="N";(date_solved=ge=2024-01-12;date_solved=le=2024-01-12)',
+    q=QUERY,
     batch_size=10000
 )
 
@@ -159,8 +171,7 @@ portal_dt[[
 ]] = dt.Frame([
     (
         collapse_remarks(
-            row[3],
-            f"Solved status changed from solved to unsolved on {row[2]}"
+            row[3], f"Solved status changed from solved to unsolved on {row[2]}"
         ),
         'Y',
         'P',
@@ -270,6 +281,12 @@ subjects_import_dt['wasUpdatedBy'] = 'rd3-bot'
 
 # ~ 4 ~
 # Import data
+
+print2('Importing', subjects_import_dt.nrows, 'into solverd_subjects....')
 rd3.import_dt('solverd_subjects', subjects_import_dt)
+
+print2('Updating metadata in staging table....')
 rd3.import_dt('rd3_portal_recontact_solved', portal_dt)
+
+
 rd3.logout()

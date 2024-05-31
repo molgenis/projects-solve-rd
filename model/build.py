@@ -101,6 +101,22 @@ with pd.ExcelWriter("./dist/rd3_portal.xlsx") as wb:
 # ///////////////////////////////////////
 
 # ~ 2 ~
+# Build stats
+stats = Convert(files=['model/stats/rd3stats.yaml'])
+stats.convert()
+stats.compileSemanticTags()
+
+with pd.ExcelWriter('./dist/rd3stats.xlsx') as wb:
+    packages_df = pd.DataFrame(stats.packages)
+    entities_df = pd.DataFrame(stats.entities)
+    attributes_df = pd.DataFrame(stats.attributes)
+    packages_df.to_excel(wb, sheet_name='packages', index=False)
+    entities_df.to_excel(wb, sheet_name='entities', index=False)
+    attributes_df.to_excel(wb, sheet_name='attributes', index=False)
+
+# ///////////////////////////////////////
+
+# ~ 3 ~
 # Create Cluster Folder
 
 cluster = Convert(files=['model/base_rd3_cluster.yaml',

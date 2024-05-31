@@ -8,13 +8,35 @@ STATUS: stable
 PACKAGES: **see below**
 COMMENTS: NA
 """
-# from os import environ
-# from dotenv import load_dotenv
-from datatable import dt, f
+from os import environ
+from dotenv import load_dotenv
 from datetime import datetime
+from datatable import dt, f
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, recode_value, flatten_data, timestamp
-# load_dotenv()
+load_dotenv()
+
+stats = {
+    'date_of_run': timestamp(),
+    'run_type': 'test',
+    'run_start_time': datetime.now()
+}
+
+
+def as_mg_datetime(date):
+    """Format a datetime object in molgenis datetime format"""
+    return date.strftime('%FT%TZ')
+
+
+def close_stats_capture(data):
+    """Stop collection of solved status summary and import"""
+    start = data['run_start_time']
+    end = datetime.now()
+    data['run_duration_minutes'] = round((end - start).total_seconds() / 60, 2)
+    data['run_start_time'] = as_mg_datetime(start)
+    data['run_end_time'] = as_mg_datetime(end)
+    data_dt = dt.Frame([data])
+    return data_dt
 
 
 def set_data_period():
@@ -36,9 +58,9 @@ def collapse_remarks(*args):
     return ';'.join(values_cleaned)
 
 
-rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
-# rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+# rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
+rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 # rd3 = Molgenis(environ['MOLGENIS_ACC_HOST'])
 # rd3.login(environ['MOLGENIS_ACC_USR'], environ['MOLGENIS_ACC_PWD'])
 
@@ -65,8 +87,11 @@ portal_dt = dt.Frame(portal_data)
 # retrive subject metadata and flatten; solved status metadata will be added later on
 subjects_raw = rd3.get('solverd_subjects', batch_size=1000)
 subjects = flatten_data(subjects_raw, 'subjectID|id|value')
+
+# capture nrows after subject removal
 subjects_dt = dt.Frame(subjects)
 subjects_dt = subjects_dt[f.retracted != 'Y', :]
+stats['num_records_ignored'] = len(subjects) - subjects_dt.nrows
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -86,19 +111,20 @@ subjects_dt['should_update'] = dt.Frame([
     for row in subjects_dt[:, ['should_update', 'date_solved', 'remarks']].to_tuples()
 ])
 
-# print counts
+# print counts and update stats object
 should_update_counts = subjects_dt[:, dt.count(), dt.by(f.should_update)]
+
+stats['num_records_processed'] = should_update_counts[f.should_update, 'count'][0, 0]
+stats['num_records_ignored'] = stats['num_records_ignored'] \
+    + should_update_counts[f.should_update == False, 'count'][0, 0]
+
 print2(
     'Summary of subjects that will be updated:\n\n',
-    '\tAvailable:   \t', should_update_counts[
-        f.should_update, 'count'
-    ].to_list()[0][0],
+    '\tAvailable:   \t', stats['num_records_processed'],
     '\n'
-    '\tIgnored*:\t', should_update_counts[
-        f.should_update == False, 'count'
-    ].to_list()[0][0],
+    '\tIgnored*:\t', stats['num_records_ignored'],
     '\n\n',
-    '*Ignored means the subject was solved before the start of the project (2019-10-01)'
+    '*Ignored means the subject was solved before the start of the project (2019-10-01) or retracted'
 )
 
 # compile a list of subject ids that should be updated
@@ -127,6 +153,7 @@ portal_dt[['history', 'remark', 'process_status']] = dt.Frame([
 
 # warn if there are any unknown subjects
 unknown_count = portal_dt[f.is_unknown_subject, 'subject'].nrows
+stats['num_unknown_subjects'] = unknown_count
 if unknown_count > 0:
     print2(
         f"Identified unknown subjects (n={unknown_count})",
@@ -140,7 +167,10 @@ if unknown_count > 0:
     # remove unknown subject cases from dataset and determine if script should exit
     portal_dt = portal_dt[f.is_unknown_subject == False, :]
     if not portal_dt.nrows:
-        ERR_MSG = 'Error: All records contain unknown subject IDs. Please check this'
+        ERR_MSG = 'Run stopped. All records to process contain unknown subject IDs.'
+        stats_dt = close_stats_capture(stats)
+        stats_dt['run_comments'] = ERR_MSG
+        rd3.import_dt('rd3stats_solvedchanges', stats_dt)
         raise SystemExit(ERR_MSG)
 
 # ///////////////////////////////////////
@@ -228,6 +258,9 @@ portal_dt['remark'] = dt.Frame([
     for row in portal_dt[:, ['should_update_count', 'remark']].to_tuples()
 ])
 
+# save nrows updated
+stats['num_portal_records_update'] = portal_dt.nrows
+
 # ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 3 ~
@@ -246,10 +279,15 @@ update_dt = portal_dt[
 update_ids = update_dt['subject'].to_list()[0]
 subjects_dt['should_import'] = False
 
+stats['num_rows_updated'] = update_dt.nrows
+stats['num_distinct_subjects'] = dt.unique(update_dt['subject']).nrows
+stats['num_solved_cases'] = update_dt[f.should_update_solved, :].nrows
+stats['num_recontact_cases'] = update_dt[f.should_update_recontact, :].nrows
+
 print2(
     'Will update records of', len(update_ids), 'subjects', '\n',
-    '  New Solved Cases:', update_dt[f.should_update_solved, :].nrows, '\n',
-    '  Recontact Cases:', update_dt[f.should_update_recontact, :].nrows, '\n'
+    '  New Solved Cases:', stats['num_solved_cases'], '\n',
+    '  Recontact Cases:', stats['num_recontact_cases'], '\n'
 )
 
 for subj_id in update_ids:
@@ -288,5 +326,8 @@ rd3.import_dt('solverd_subjects', subjects_import_dt)
 print2('Updating metadata in staging table....')
 rd3.import_dt('rd3_portal_recontact_solved', portal_dt)
 
+print2('Importing job summary....')
+stats_dt = close_stats_capture(stats)
+rd3.import_dt('rd3stats_solvedchanges', stats_dt)
 
 rd3.logout()

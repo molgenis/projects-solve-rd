@@ -139,7 +139,7 @@ if releases[f.isNewRelease, :].nrows > 0:
     print('There are new releases to import!!!!')
     # new_patches = releases[f.isNewRelease,f[:].remove(f.isNewRelease)]
     # new_patches['createdBy'] = 'rd3-bot'
-    # rd3_prod.import_dt('solverd_info_datareleases', newPatches)
+    # rd3_prod.import_dt('solverd_info_datareleases', new_patches)
 
 # ///////////////////////////////////////
 
@@ -803,7 +803,7 @@ rd3_prod.import_dt('solverd_subjectinfo', subjectinfo_dt[f.should_import, :])
 if bool(samples_with_updates):
     print("There are samples to update. Please run the following step")
 else:
-    print('New samples to update. You may skip this step.')
+    print('No new samples to update. You may skip this step.')
 
 update_samples_dt = dt.Frame(samples_with_updates)
 update_sample_ids = update_samples_dt['sampleID'].to_list()[0]

@@ -2,7 +2,7 @@
 FILE: novelomics_shipment_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-04-27
+MODIFIED: 2024-07-08
 PURPOSE: Process new shipment manifest files - register new subjects and samples
 STATUS: stable
 PACKAGES: **see below**
@@ -76,6 +76,18 @@ del shipment_dt['_href']
 #     entity='rd3_portal_novelomics_shipment',
 #     entities=shipment_dt['molgenis_id'].to_list()[0]
 # )
+
+# ///////////////////////////////////////////////////////////////////////////////
+
+# ~ 0 ~
+# Preprocessing: special cases
+
+# Recode "Novel Omics OGM - BIONANO"
+shipment_dt['type_of_analysis'] = dt.Frame([
+    'OGM' if value == 'OGM - Bionano' else value
+    for value in shipment_dt['type_of_analysis'].to_list()[0]
+])
+
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -724,11 +736,15 @@ if not new_subjects_dt.nrows:
 
 if dt.unique(new_subjects_dt['subjectID']).nrows != new_subjects_dt.nrows:
     print(
-        'WARNING: More than one sample per subject was submitted.',
-        'Consider processing data separately.'
+        'WARNING:\n\tMore than one sample per subject was submitted.',
+        '\n\tConsider processing data separately or review the data to determine',
+        'if the first entry of each subject can be imported.'
     )
 
+    new_subjects_dt = new_subjects_dt[:, dt.first(f[:]), dt.by(f.subjectID)]
+
 new_subjectinfo_dt = new_subjects_dt[
+    :, dt.first(f[:]), dt.by(f.subjectID)][
     :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
 ]
 
@@ -849,8 +865,14 @@ rd3_prod.import_dt('solverd_samples', samples_dt[f.should_import, :])
 processed_ids = []
 shipment_updates_dt = dt.Frame(shipment_raw)
 
-if update_samples_dt:
+
+try:
     processed_ids += update_samples_dt['sampleID'].to_list()[0]
+except NameError:
+    print(
+        'Existing samples do not need updating. Is this correct?',
+        'If you are unsure, please run the check in step 3D.'
+    )
 
 if new_samples_dt:
     processed_ids += new_samples_dt['sampleID'].to_list()[0]

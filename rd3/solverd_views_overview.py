@@ -2,7 +2,7 @@
 FILE: rd3_views_overview.py
 AUTHOR: David Ruvolo
 CREATED: 2022-05-16
-MODIFIED: 2024-01-24
+MODIFIED: 2024-07-08
 PURPOSE: generate dataset for rd3_overview
 STATUS: stable
 PACKAGES: **see below**
@@ -10,20 +10,29 @@ COMMENTS: NA
 """
 
 import re
-from os import environ
-from dotenv import load_dotenv
 from rd3tools.molgenis import Molgenis
 from rd3tools.utils import print2, flatten_data
 from rd3tools.datatable import unique_values_by_id
 from datatable import dt, f, as_type
-load_dotenv()
 
+# when deployed
 print2('Connecting to RD3....')
-rd3 = Molgenis(url=environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
+rd3 = Molgenis('http://localhost/api/', token='${molgenisToken}')
+
+# for local dev
+# from os import environ
+# from dotenv import load_dotenv
+# load_dotenv()
+# rd3 = Molgenis(url=environ['MOLGENIS_PROD_HOST'])
+# rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 
-def get_table_attribs(pkg_entity: str = None, attributes: str = None, nested_columns: str = None):
+def get_table_attribs(
+    pkg_entity: str = None,
+    attributes: str = None,
+    nested_columns: str = None,
+    **kwargs
+):
     """Retrieve a subset data from a specific table in a database
     :param pkg_entity: the name of the table in emx format (pkg_entity)
     :type pkg_entity: str
@@ -35,10 +44,13 @@ def get_table_attribs(pkg_entity: str = None, attributes: str = None, nested_col
         flattend (see function `flatten_data`)
     :type nested_columns: str
 
+    :param kwargs: additional paramaters to pass down to molgenis.get
+
     :return: dataset
     :rtype: datatable frame
     """
-    data_raw = rd3.get(pkg_entity, attributes=attributes, batch_size=10000)
+    data_raw = rd3.get(pkg_entity, attributes=attributes,
+                       batch_size=10000, **kwargs)
     data_flat = flatten_data(data_raw, nested_columns)
     return dt.Frame(data_flat)
 
@@ -55,7 +67,8 @@ subjects_dt = get_table_attribs(
         'subjectID', 'sex1', 'fid', 'mid', 'pid', 'clinical_status', 'solved',
         'disease', 'phenotype', 'hasNotPhenotype', 'organisation', 'ERN', 'partOfRelease'
     ]),
-    nested_columns='subjectID|id|value'
+    nested_columns='subjectID|id|value',
+    q='retracted==N'
 )
 
 samples_dt = get_table_attribs(
@@ -179,5 +192,6 @@ subjects_dt['numberOfSamples'] = subjects_dt[
 subjects_dt['numberOfExperiments'] = subjects_dt[
     :, as_type(f.numberOfExperiments, dt.Type.str32)]
 
+rd3.delete('solverd_overview')
 rd3.import_dt('solverd_overview', subjects_dt)
 rd3.logout()

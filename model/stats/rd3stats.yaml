@@ -2,7 +2,7 @@
 # FILE: rd3stats.yaml
 # AUTHOR: David Ruvolo <https://github.com/davidruvolo51>
 # CREATED: 2022-06-20
-# MODIFIED: 2022-06-27
+# MODIFIED: 2024-05-30
 # PURPOSE: EMX for RD3 Stats EMX
 # DEPENDENCIES: see <index.py>
 # COMMENTS: NA
@@ -12,8 +12,8 @@
 name: rd3stats
 label: RD3 Stats
 description: Additional summaries and processed data
-version: 1.1.0
-date: 2022-06-27
+version: 1.2.0
+date: 2024-05-31
 
 # set pkg defaults
 defaults:
@@ -50,3 +50,64 @@ entities:
         description: json stringified object containing sample-experiment links
         dataType: text
         # tags: NCIT_C184769 http://purl.obolibrary.org/obo/NCIT_C184769
+
+  - name: solvedchanges
+    label: Solved status changes
+    description: History of solved status changes by run
+    attributes:
+      - name: date_of_run
+        dataType: string
+        description: date solved status script was run
+        idAttribute: true
+        nillable: false
+        
+      - name: run_type
+        dataType: string
+        description: "A string that describes the purpose of the run"
+        
+      - name: run_start_time
+        dataType: datetime
+        description: date and time the job started
+        
+      - name: run_end_time
+        dataType: datetime
+        description: date and time the job ended
+        
+      - name: run_duration_minutes
+        dataType: decimal
+        description: time (in minutes) for a job to complete
+        
+      - name: num_records_processed
+        dataType: int
+        description: Out of the total number of subjects, how many were processed (i.e., not excluded, retracted, etc.).
+        
+      - name: num_records_ignored
+        dataType: int
+        description: NUmber of subjects not processed.
+        
+      - name: num_portal_records_updated
+        dataType: int
+        description: Number of records in the portal table to be updated (either no changes, updated, solved, etc.).
+        
+      - name: num_rows_updated
+        dataType: int
+        description: The total number of records updated in the subjects table (total rows)
+        
+      - name: num_distinct_subjects
+        dataType: int
+        description: Number of distinct subjects updated
+      
+      - name: num_unknown_subjects
+        dataType: int
+        description: Number of subjects that are not yet in RD3
+
+      - name: num_solved_cases
+        dataType: int
+        description: Number of records that are now marked solved
+        
+      - name: num_recontact_cases
+        dataType: int
+        description: Number of records that have a change in recontact information
+        
+      - name: run_comments
+        dataType: text

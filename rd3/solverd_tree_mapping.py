@@ -2,7 +2,7 @@
 FILE: rd3_data_patient_tree_mapping.py
 AUTHOR: David Ruvolo
 CREATED: 2022-06-20
-MODIFIED: 2024-04-27
+MODIFIED: 2024-07-08
 PURPOSE: mapping script for patient tree dataset
 STATUS: stable
 PACKAGES: **see below**
@@ -247,5 +247,6 @@ if __name__ == '__main__':
     print2('Importing data....')
     tree_dt = tree_dt[f.id != '', :]
     tree_dt.names = {'belongsToSubject': 'subjectID'}
+    rd3.delete('rd3stats_treedata')
     rd3.import_dt('rd3stats_treedata', tree_dt)
     rd3.logout()

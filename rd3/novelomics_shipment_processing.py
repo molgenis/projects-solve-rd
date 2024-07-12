@@ -2,7 +2,7 @@
 FILE: novelomics_shipment_processing.py
 AUTHOR: David Ruvolo
 CREATED: 2022-11-15
-MODIFIED: 2024-04-27
+MODIFIED: 2024-07-08
 PURPOSE: Process new shipment manifest files - register new subjects and samples
 STATUS: stable
 PACKAGES: **see below**
@@ -79,6 +79,18 @@ del shipment_dt['_href']
 
 # ///////////////////////////////////////////////////////////////////////////////
 
+# ~ 0 ~
+# Preprocessing: special cases
+
+# Recode "Novel Omics OGM - BIONANO"
+shipment_dt['type_of_analysis'] = dt.Frame([
+    'OGM' if value == 'OGM - Bionano' else value
+    for value in shipment_dt['type_of_analysis'].to_list()[0]
+])
+
+
+# ///////////////////////////////////////////////////////////////////////////////
+
 # ~ 1 ~
 # Process New Shipment metadata
 # In this step, process the new shipment manifest data as a whole. Make sure
@@ -139,7 +151,7 @@ if releases[f.isNewRelease, :].nrows > 0:
     print('There are new releases to import!!!!')
     # new_patches = releases[f.isNewRelease,f[:].remove(f.isNewRelease)]
     # new_patches['createdBy'] = 'rd3-bot'
-    # rd3_prod.import_dt('solverd_info_datareleases', newPatches)
+    # rd3_prod.import_dt('solverd_info_datareleases', new_patches)
 
 # ///////////////////////////////////////
 
@@ -724,11 +736,15 @@ if not new_subjects_dt.nrows:
 
 if dt.unique(new_subjects_dt['subjectID']).nrows != new_subjects_dt.nrows:
     print(
-        'WARNING: More than one sample per subject was submitted.',
-        'Consider processing data separately.'
+        'WARNING:\n\tMore than one sample per subject was submitted.',
+        '\n\tConsider processing data separately or review the data to determine',
+        'if the first entry of each subject can be imported.'
     )
 
+    new_subjects_dt = new_subjects_dt[:, dt.first(f[:]), dt.by(f.subjectID)]
+
 new_subjectinfo_dt = new_subjects_dt[
+    :, dt.first(f[:]), dt.by(f.subjectID)][
     :, (f.subjectID, f.partOfRelease, f.dateRecordCreated, f.recordCreatedBy)
 ]
 
@@ -803,7 +819,7 @@ rd3_prod.import_dt('solverd_subjectinfo', subjectinfo_dt[f.should_import, :])
 if bool(samples_with_updates):
     print("There are samples to update. Please run the following step")
 else:
-    print('New samples to update. You may skip this step.')
+    print('No new samples to update. You may skip this step.')
 
 update_samples_dt = dt.Frame(samples_with_updates)
 update_sample_ids = update_samples_dt['sampleID'].to_list()[0]
@@ -849,8 +865,14 @@ rd3_prod.import_dt('solverd_samples', samples_dt[f.should_import, :])
 processed_ids = []
 shipment_updates_dt = dt.Frame(shipment_raw)
 
-if update_samples_dt:
+
+try:
     processed_ids += update_samples_dt['sampleID'].to_list()[0]
+except NameError:
+    print(
+        'Existing samples do not need updating. Is this correct?',
+        'If you are unsure, please run the check in step 3D.'
+    )
 
 if new_samples_dt:
     processed_ids += new_samples_dt['sampleID'].to_list()[0]

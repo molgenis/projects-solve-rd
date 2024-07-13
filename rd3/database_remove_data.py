@@ -183,7 +183,7 @@ for table in cluster_tables:
         )
     )
 
-    del cluster_freeze_dt['_href']
+    # del cluster_freeze_dt['_href']
 
     cluster_freeze_dt['should_remove'] = dt.Frame([
         value in ids_to_remove for value in cluster_freeze_dt['subjectID'].to_list()[0]
@@ -330,7 +330,7 @@ for table in tables:
     release_dt = dt.Frame(
         rd3.get(table, attributes='id,samples_subject', batch_size=10000)
     )
-    del release_dt['_href']
+    # del release_dt['_href']
 
     release_dt['should_remove'] = dt.Frame([
         value in ids_to_remove for value in release_dt['samples_subject'].to_list()[0]
@@ -414,11 +414,12 @@ print2('Identifying records from rd3_overview and solverd_overview....')
 
 overview_dat = rd3.get(
     entity='solverd_overview',
-    attributes='subjectID,fid,samples,experiments,files',
+    attributes='subjectID,fid,samples,experiments,files,partOfRelease',
     batch_size=10000
 )
 
-overview_dt = dt.Frame(flatten_data(overview_dat, 'sampleID|experimentID'))
+overview_dt = dt.Frame(flatten_data(
+    overview_dat, 'sampleID|experimentID|id|value'))
 
 overview_dt['should_remove'] = dt.Frame([
     value in ids_to_remove
@@ -581,15 +582,23 @@ freeze3_labinfo_dt['should_remove'] = dt.Frame([
     for value in freeze3_labinfo_dt['sample'].to_list()[0]
 ])
 
-rd3.delete_list(
-    'rd3_freeze3_labinfo',
-    freeze3_labinfo_dt[f.should_remove, 'id'].to_list()[0]
-)
+if freeze3_labinfo_dt[f.should_remove, :].nrows:
+    print('Deleting records from labinfo....')
+    rd3.delete_list(
+        'rd3_freeze3_labinfo',
+        freeze3_labinfo_dt[f.should_remove, 'id'].to_list()[0]
+    )
 
-rd3.delete_list(
-    'rd3_freeze3_sample',
-    freeze3_samples_dt[f.should_remove, 'id'].to_list()[0]
-)
+if freeze3_samples_dt[f.should_remove, :].nrows:
+    print('Removing records from rd3_freeze3_samples')
+    rd3.delete_list(
+        'rd3_freeze3_sample',
+        freeze3_samples_dt[f.should_remove, 'id'].to_list()[0]
+    )
+
+freeze3_samples_dt[f.should_remove, :].to_csv('freeze3_samples_removed.csv')
+freeze3_labinfo_dt[f.should_remove, :].to_csv(
+    'freeze3_experiments_removed.csv')
 
 rd3.delete_list('rd3_freeze3_subjectinfo', ids_to_remove)
 rd3.delete_list('rd3_freeze3_subject', ids_to_remove)
@@ -890,3 +899,65 @@ removed_labinfo_dt.names = {
 rd3.import_dt('solverd_subjects', removed_subjects_dt)
 rd3.import_dt('solverd_samples', removed_samples_dt)
 rd3.import_dt('solverd_labinfo', removed_labinfo_dt)
+
+
+# ///////////////////////////////////////////////////////////////////////////////
+
+# ~ 999 ~
+# Merge freeze from ACC to PROD
+
+# import data exported from ACC
+removed_dt = fread('85_subjects_with_freeze.csv')
+del removed_dt['fid'], removed_dt['files']
+
+# retrieve data from PROD
+removed_subjects = rd3.get('solverd_subjects', q='retracted==Y')
+removed_subjects_dt = dt.Frame(flatten_data(
+    removed_subjects, 'subjectID|id|value'))
+
+removed_samples = rd3.get('solverd_samples', q='retracted==Y')
+removed_samples_dt = dt.Frame(flatten_data(
+    removed_samples, 'sampleID|subjectID|id|value'))
+
+removed_labs = rd3.get('solverd_labinfo', q='retracted==Y')
+removed_labs_dt = dt.Frame(flatten_data(removed_labs, 'sampleID|id|value'))
+
+# add release to removed_subjects_dt
+removed_subjects_dt['in_id_list'] = dt.Frame([
+    value in removed_dt['subjectID'].to_list()[0]
+    for value in removed_subjects_dt['subjectID'].to_list()[0]
+])
+
+removed_subjects_dt[f.in_id_list, 'partOfRelease'] = 'freeze3_orginal'
+
+
+# add release to removed samples
+removed_samples_dt['in_id_list'] = dt.Frame([
+    value in removed_dt['samples'].to_list()[0]
+    for value in removed_samples_dt['sampleID'].to_list()[0]
+])
+
+# removed_samples_dt[f.in_id_list,:]
+# removed_samples_dt[f.in_id_list,'partOfRelease']
+# dt.unique(removed_samples_dt[f.in_id_list,'partOfRelease'])
+removed_samples_dt[f.in_id_list, 'partOfRelease'] = 'freeze3_original'
+
+# add release to removed labs
+removed_labs_dt['in_id_list'] = dt.Frame([
+    value in removed_dt['experiments'].to_list()[0]
+    for value in removed_labs_dt['experimentID'].to_list()[0]
+])
+
+# removed_labs_dt[f.in_id_list,:]
+# removed_labs_dt[f.in_id_list,'partOfRelease']
+# dt.unique(removed_labs_dt[f.in_id_list,'partOfRelease'])
+removed_labs_dt[f.in_id_list, 'partOfRelease'] = 'freeze3_original'
+
+# update meta in datasets
+removed_subjects_dt['dateRecordUpdated'] = timestamp()
+removed_samples_dt['dateRecordUpdated'] = timestamp()
+removed_labs_dt['dateRecordUpdated'] = timestamp()
+
+rd3.import_dt('solverd_subjects', removed_subjects_dt)
+rd3.import_dt('solverd_samples', removed_samples_dt)
+rd3.import_dt('solverd_labinfo', removed_labs_dt)

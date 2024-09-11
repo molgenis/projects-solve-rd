@@ -2,9 +2,9 @@
 # FILE: rd3.yaml
 # AUTHOR: David Ruvolo
 # CREATED: 2022-09-26
-# MODIFIED: 2024-05-16
+# MODIFIED: 2024-09-10
 # PURPOSE: RD3 EMX Structure
-# STATUS: in.progress
+# STATUS: stable
 # COMMENTS: This file contains the EMX markup for the RD3 database. All
 # reference entities are defined in a separate file (rd3_lookups.yaml). The
 # structure of RD3 is as follows:
@@ -20,8 +20,8 @@
 name: solverd
 label: Solve-RD RD3 (New Model)
 description: Solve-RD RD3 database 
-version: 2.2.0
-date: 2024-05-16
+version: 2.2.1
+date: 2024-09-10
 
 # set package defaults
 defaults:
@@ -565,6 +565,12 @@ entities:
         label: MeanCov
         description: Mean read depth
         dataType: decimal
+        
+      - name: median_cov
+        label: Median coverage
+        description: Median read depth
+        dataType: decimal
+        tags: NCIT_C155320 http://purl.obolibrary.org/obo/NCIT_C155320
         
       - name: c20
         label: C20

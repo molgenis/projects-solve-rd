@@ -1,218 +1,239 @@
-#///////////////////////////////////////////////////////////////////////////////
-# FILE: transfer_metadata.py
-# AUTHOR: David Ruvolo
-# CREATED: 2023-05-09
-# MODIFIED: 2023-05-11
-# PURPOSE: import files and data into emx2 instance
-# STATUS: stable
-# PACKAGES: **See below**
-# COMMENTS: NA
-#///////////////////////////////////////////////////////////////////////////////
+"""Transfer data from EMX1 to EMX2
+FILE: transfer_metadata.py
+AUTHOR: David Ruvolo
+CREATED: 2023-05-09
+MODIFIED: 2023-05-11
+PURPOSE: import files and data into emx2 instance
+STATUS: stable
+PACKAGES: **See below**
+COMMENTS: NA
+"""
 
-from emx2.api.emx2 import Molgenis as EMX2
-from emx2.utils import to_csv, recodeCommaStrings
-from rd3.utils.utils import flattenDataset, recodeValue
-from rd3.api.molgenis2 import Molgenis
+from os import environ, system
 from datatable import dt, f, as_type
 from dotenv import load_dotenv
-from os import environ
+from molgenis_emx2_pyclient.client import Client
+from rd3.api.molgenis2 import Molgenis
+from rd3.utils.utils import flattenDataset, recodeValue
+from emx2.utils import to_csv, recode_comma_string
 load_dotenv()
 
 
+def clear():
+    """Clear terminal"""
+    system("clear")
+
+
 rd3 = Molgenis(environ['MOLGENIS_PROD_HOST'])
-rd3.login(environ['MOLGENIS_PROD_USR'],environ['MOLGENIS_PROD_PWD'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-emx2 = EMX2(environ['MOLGENIS_EMX2_HOST'])
-emx2.signin(environ['MOLGENIS_EMX2_USR'],environ['MOLGENIS_EMX2_PWD'])
+# emx2 = EMX2(environ['MOLGENIS_EMX2_HOST'])
+# emx2.signin(environ['MOLGENIS_EMX2_USR'], environ['MOLGENIS_EMX2_PWD'])
 
-#///////////////////////////////////////////////////////////////////////////////
+# ///////////////////////////////////////////////////////////////////////////////
 
 # ~ 1 ~
 # Pull RD3 metadata
 
 # create a subset of RD3 using the familyID of subjects with 3 or more samples
-overview = rd3.get('solverd_overview',q='numberOfSamples=ge=3',num=10)
-overviewDT = dt.Frame(flattenDataset(overview,'id|subjectID|experimentID|value|sampleID'))
-ids = overviewDT['fid'].to_list()[0]
+ids_dt = dt.Frame(
+    rd3.get(
+        'solverd_overview',
+        q='numberOfSamples=ge=3',
+        attributes='subjectID,fid',
+        num=10
+    )
+)
 
-# ~ 2b.i ~
-# pull metadata from subjects and subjectinfo
-fidQuery = ','.join([f"fid=q={id}" for id in ids])
-subjects = rd3.get(entity='solverd_subjects', q=f"({fidQuery})")
+del ids_dt['_href']
 
-subjectsDT = dt.Frame(flattenDataset(subjects,columnPatterns='subjectID|id|value'))
 
-subjectsQuery = ','.join([
-  f"subjectID=q={id}" for id in subjectsDT['subjectID'].to_list()[0]
+# create queries to pull subject metadata
+FID_QUERY = ','.join([f"fid=q={id}" for id in ids_dt['fid'].to_list()[0]])
+PID_QUERY = ','.join([
+    f'subjectID=q={id}' for id in ids_dt['subjectID'].to_list()[0]
 ])
 
-subjectInfo = rd3.get(entity='solverd_subjectinfo',q=subjectsQuery)
-subjectInfoDT = dt.Frame(flattenDataset(subjectInfo,'subjectID|id'))
-
-subjectInfoDT[:, dt.update(dateOfBirth=as_type(f.dateOfBirth,dt.Type.str32))]
-
-# ~ 2b.ii ~
-# pull samples metadata
-sampleQuery=','.join([
-  f"belongsToSubject=q={id}" for id in subjectsDT['subjectID'].to_list()[0]
+SAMPLE_QUERY = ','.join([
+    f"belongsToSubject=q={id}" for id in ids_dt['subjectID'].to_list()[0]
 ])
 
-samples = rd3.get(entity='solverd_samples',q=sampleQuery)
-samplesDT = dt.Frame(flattenDataset(samples,'subjectID|id|value'))
+# ///////////////////////////////////////
+
+# retrieve data from subjects and subject info
+subjects_raw = rd3.get('solverd_subjects', q=f"({FID_QUERY})")
+subjects_dt = dt.Frame(flattenDataset(subjects_raw, 'subjectID|id|value'))
+
+subjectinfo_raw = rd3.get('solverd_subjectinfo', q=f"({PID_QUERY})")
+subjectinfo_dt = dt.Frame(
+    flattenDataset(
+        subjectinfo_raw,
+        'subjectID|id|value'
+    )
+)
+
+subjectinfo_dt['dateOfBirth'] = subjectinfo_dt[
+    :, as_type(f.dateOfBirth, dt.Type.str32)]
 
 
-# ~ 2b.iii ~
-# Pull experiments metadata
+# pull sample metadata
+samples_raw = rd3.get('solverd_samples', q=SAMPLE_QUERY)
+samples_dt = dt.Frame(flattenDataset(samples_raw, 'subjectID|id|value'))
 
-labinfoQuery = ','.join([
-  f"sampleID=q={id}" for id in samplesDT['sampleID'].to_list()[0]
+
+# pull experiment metadata
+LAB_QUERY = ','.join([
+    f"sampleID=q={id}" for id in samples_dt['sampleID'].to_list()[0]
 ])
 
-labinfo = rd3.get('solverd_labinfo', q=labinfoQuery)
-labinfoDT = dt.Frame(flattenDataset(labinfo,'sampleID|id'))
+labinfo_raw = rd3.get('solverd_labinfo', q=LAB_QUERY)
+labinfo_dt = dt.Frame(flattenDataset(labinfo_raw, 'sampleID|id'))
 
 
-# ~ 2b.iv ~
-# Pull file metadtaa
+# Pull file metadata
+files_raw = rd3.get('solverd_files', q=PID_QUERY)
+files_dt = dt.Frame(flattenDataset(
+    files_raw, 'subjectID|sampleID|experimentID|id'))
 
-files=rd3.get('solverd_files',q=subjectsQuery)
-filesDT=dt.Frame(flattenDataset(files,'subjectID|sampleID|experimentID|id'))
-
-filesDT['missingExperiment'] = dt.Frame([
-  id not in labinfoDT['experimentID'].to_list()[0]
-  for id in filesDT['experimentID'].to_list()[0]
+# check for missing file identifiers
+files_dt['missingExperiment'] = dt.Frame([
+    id not in labinfo_dt['experimentID'].to_list()[0]
+    for id in files_dt['experimentID'].to_list()[0]
 ])
 
-filesDT['missingSample'] = dt.Frame([
-  id not in samplesDT['sampleID'].to_list()[0]
-  for id in filesDT['sampleID'].to_list()[0]
+files_dt['missingSample'] = dt.Frame([
+    id not in samples_dt['sampleID'].to_list()[0]
+    for id in files_dt['sampleID'].to_list()[0]
 ])
 
 # drop rows where sample was not included in the export
-filesDT[:, dt.count(), dt.by(f.missingSample)]
-filesDT[:, dt.count(), dt.by(f.missingExperiment)]
+# files_dt[:, dt.count(), dt.by(f.missingSample)]
+# files_dt[:, dt.count(), dt.by(f.missingExperiment)]
+files_dt = files_dt[f.missingSample != True, :]
 
-filesDT=filesDT[f.missingSample!=True,:]
+# ///////////////////////////////////////////////////////////////////////////////
 
-#///////////////////////////////////////
+# ~ 2 ~
+# Transform data into FDH template
+
 
 # ~ 2c ~
 # Recode ERNs
 ernMappings = {
-  'ern_euro_nmd': 'ERN EURO-NMD',
-  'ern_rnd': 'ERN-RND', 
+    'ern_euro_nmd': 'ERN EURO-NMD',
+    'ern_rnd': 'ERN-RND',
 }
 
-subjectsDT['ERN'] = dt.Frame([
-  recodeValue(mappings=ernMappings, value = value, label='ERN')
-  if value else value
-  for value in subjectsDT['ERN'].to_list()[0]
+subjects_dt['ERN'] = dt.Frame([
+    recodeValue(mappings=ernMappings, value=value, label='ERN')
+    if value else value
+    for value in subjects_dt['ERN'].to_list()[0]
 ])
 
-samplesDT['ERN'] = dt.Frame([
-  recodeValue(mappings=ernMappings, value = value, label='ERN')
-  if value else value
-  for value in samplesDT['ERN'].to_list()[0]
+samples_dt['ERN'] = dt.Frame([
+    recodeValue(mappings=ernMappings, value=value, label='ERN')
+    if value else value
+    for value in samples_dt['ERN'].to_list()[0]
 ])
 
-overviewDT['ERN'] = dt.Frame([
-  recodeValue(mappings=ernMappings, value = value, label='ERN')
-  if value else value
-  for value in overviewDT['ERN'].to_list()[0]
-])
+# overviewDT['ERN'] = dt.Frame([
+#     recodeValue(mappings=ernMappings, value=value, label='ERN')
+#     if value else value
+#     for value in overviewDT['ERN'].to_list()[0]
+# ])
 
 
 # ~ 2d ~
 # Recode phenotypes
 hpo = emx2.query(
-  database='RD3',
-  query="""{
+    database='RD3',
+    query="""{
     Phenotype {
       name
       code
     }
   }
-  """  
-).json().get('data',{}).get('Phenotype')
+  """
+).json().get('data', {}).get('Phenotype')
 
 hpoMappings = {}
 for entry in hpo:
-  hpoMappings[entry['code']] = entry['name'] 
+    hpoMappings[entry['code']] = entry['name']
 
 
-subjectsDT['phenotype'] = dt.Frame([
-  recodeCommaStrings(hpoMappings,value) if value else value
-  for value in subjectsDT['phenotype'].to_list()[0]
+subjects_dt['phenotype'] = dt.Frame([
+    recode_comma_string(hpoMappings, value) if value else value
+    for value in subjects_dt['phenotype'].to_list()[0]
 ])
 
-subjectsDT['hasNotPhenotype'] = dt.Frame([
-  recodeCommaStrings(hpoMappings,value) if value else value
-  for value in subjectsDT['hasNotPhenotype'].to_list()[0]
+subjects_dt['hasNotPhenotype'] = dt.Frame([
+    recode_comma_string(hpoMappings, value) if value else value
+    for value in subjects_dt['hasNotPhenotype'].to_list()[0]
 ])
 
-if 'ageOfOnset' in subjectInfoDT.names:
-  subjectInfoDT['ageOfOnset'] = dt.Frame([
-    recodeCommaStrings(hpoMappings,value) if value else value
-    for value in subjectInfoDT['ageOfOnset'].to_list()[0]
-  ])
-  
-  
-overviewDT['phenotype'] = dt.Frame([
-  recodeCommaStrings(hpoMappings,value) if value else value
-  for value in overviewDT['phenotype'].to_list()[0]
-])
+if 'ageOfOnset' in subjectinfo_dt.names:
+    subjectinfo_dt['ageOfOnset'] = dt.Frame([
+        recode_comma_string(hpoMappings, value) if value else value
+        for value in subjectinfo_dt['ageOfOnset'].to_list()[0]
+    ])
 
-overviewDT['hasNotPhenotype'] = dt.Frame([
-  recodeCommaStrings(hpoMappings,value) if value else value
-  for value in overviewDT['hasNotPhenotype'].to_list()[0]
-])
+
+# overviewDT['phenotype'] = dt.Frame([
+#     recode_comma_string(hpoMappings, value) if value else value
+#     for value in overviewDT['phenotype'].to_list()[0]
+# ])
+
+# overviewDT['hasNotPhenotype'] = dt.Frame([
+#     recode_comma_string(hpoMappings, value) if value else value
+#     for value in overviewDT['hasNotPhenotype'].to_list()[0]
+# ])
 
 # ~ 2e ~
 # Recode Diseases
-disease = emx2.query(
-  database='RD3',
-  query="""{
-    Disease {
-      name
-      code
-    }
-  }
-  """
-).json().get('data', {}).get('Disease')
+# disease = emx2.query(
+#     database='RD3',
+#     query="""{
+#     Disease {
+#       name
+#       code
+#     }
+#   }
+#   """
+# ).json().get('data', {}).get('Disease')
 
-diseaseMappings={}
-for entry in disease:
-  diseaseMappings[entry['code']] = entry['name']
-  
+# diseaseMappings = {}
+# for entry in disease:
+#     diseaseMappings[entry['code']] = entry['name']
 
-subjectsDT['disease'] = dt.Frame([
-  recodeCommaStrings(diseaseMappings, value) if value else value
-  for value in subjectsDT['disease'].to_list()[0]
-])
 
-overviewDT['disease'] = dt.Frame([
-  recodeCommaStrings(diseaseMappings, value) if value else value
-  for value in overviewDT['disease'].to_list()[0]
-])
+# subjects_dt['disease'] = dt.Frame([
+#     recode_comma_string(diseaseMappings, value) if value else value
+#     for value in subjects_dt['disease'].to_list()[0]
+# ])
 
-#///////////////////////////////////////
+# overviewDT['disease'] = dt.Frame([
+#     recode_comma_string(diseaseMappings, value) if value else value
+#     for value in overviewDT['disease'].to_list()[0]
+# ])
+
+# ///////////////////////////////////////
 
 # ~ 3 ~
 # Save data
 
 # update names
-subjectsDT.names = {
-  'fid': 'familyID',
-  'pid': 'paternalID',
-  'mid': 'maternalID'
-}
+# subjects_dt.names = {
+#     'fid': 'familyID',
+#     'pid': 'paternalID',
+#     'mid': 'maternalID'
+# }
 
-# save
-to_csv('emx2/data/subjects.csv',subjectsDT)
-to_csv('emx2/data/subjectinfo.csv', subjectInfoDT)
-to_csv('emx2/data/samples.csv', samplesDT)
-to_csv('emx2/data/labinfo.csv', labinfoDT)
-to_csv('emx2/data/files.csv', filesDT)
-to_csv('emx2/data/overview.csv', overviewDT)
+# # save
+# to_csv('emx2/data/subjects.csv', subjects_dt)
+# to_csv('emx2/data/subjectinfo.csv', subjectinfo_dt)
+# to_csv('emx2/data/samples.csv', samples_dt)
+# to_csv('emx2/data/labinfo.csv', labinfoDT)
+# to_csv('emx2/data/files.csv', filesDT)
+# to_csv('emx2/data/overview.csv', overviewDT)
 
-rd3.logout()
+# rd3.logout()

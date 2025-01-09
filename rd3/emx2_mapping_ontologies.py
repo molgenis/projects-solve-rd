@@ -219,7 +219,12 @@ for release in releases:
         'created by': release['createdBy'][0]['id'] if release.get('createdBy') else None
     })
 
-releases_df = pd.DataFrame(releases_used)
+# add a retracted datasets
+releases_used.append({
+    'resource': 'RD3',
+    'name': 'Retracted'
+})
 
+releases_df = pd.DataFrame(releases_used)
 
 emx2.save_schema(table='Datasets', data=releases_df)

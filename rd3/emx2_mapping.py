@@ -36,7 +36,7 @@ for row in families:
 # get the subjects from the first 5 families
 QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
 # add family ID that has diseases specified, so the code can be checked.
-QUERY = QUERY + ',fid=q=FAM0006076' + ',fid=q=FAM0397080'
+QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}'
 # subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
 subjects = rd3.get('solverd_subjects', q=QUERY)
 
@@ -335,8 +335,6 @@ pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
 
 # notes
 subjects_df = pd.DataFrame(subjects)
-subject = subjects_df.loc[subjects_df['subjectID'] == "P0025760"]
-subject = subjects_df.loc[subjects_df['subjectID'] == "P0000038"]
 
 if 'organisation' in subject and all([item for item in subject['organisation']]):
     print('This should be printed when there are organisations present')

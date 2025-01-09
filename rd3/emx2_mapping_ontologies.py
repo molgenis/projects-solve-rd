@@ -1,4 +1,20 @@
-"""Migrate RD3 Ontologies to EMX2"""
+"""Migrate RD3 Ontologies to EMX2
+
+For the migration of data from RD3 to EMX2, you will need to migrate the
+ontologies and reference datasets first. For values that cannot be
+recoded (i.e., diagnoses, HPO terms, etc.), it is better to preserve
+the original dataset. Use this script to compile RD3 (EMX1) datasets and
+reshape them into the new portal data model.
+
+This includes preparing data for the following portal tables.
+
+- Resources
+- Contacts
+- Organisations
+- Diseases
+- Phenotypes
+
+"""
 
 from os import environ
 from dotenv import load_dotenv
@@ -19,16 +35,21 @@ emx2 = Client(
 
 # ///////////////////////////////////////////////////////////////////////////////
 
-# Manually create EMX2 reference/ontology tables
+# Manually create meta datasets
 
 # create generic resource for RD3 datasets
+# this entry is used to group all records in the RD3 dataset
 resources_df = pd.DataFrame([{
     'id': 'RD3',
     'name': 'Solve-RD RD3',
     'type': 'Other type'
 }])
 
+emx2.save_schema(table='Resources', data=resources_df)
+
 # Contacts
+# In RD3, we used a generic account for database management. We will create
+# that here.
 contacts_df = pd.DataFrame([
     {
         'resource': 'RD3',
@@ -40,13 +61,16 @@ contacts_df = pd.DataFrame([
     }
 ])
 
-emx2.save_schema(table='Resources', data=resources_df)
 emx2.save_schema(table='Contacts', data=contacts_df)
 
 
 # ///////////////////////////////////////////////////////////////////////////////
 
-# migrate organisations
+# Migrate organisations
+# In RD3, organisations are formatted as "<Organisation_shortname>-<data submitter>"
+# It is better to preserve these values rather than mapping them to new values.
+
+# retrieve relevant organisation information from RD3
 orgs = rd3.get('solverd_info_organisations')
 orgs_df = pd.DataFrame(orgs)[["value", "description"]]
 
@@ -55,24 +79,27 @@ orgs_df = orgs_df.rename(columns={
     'description': 'name'
 })
 
+# add link to resource (required in EMX2)
 orgs_df['resource'] = resources_df['id'][0]
 
-
-# import resources and orgs
 emx2.save_schema(table="Organisations", data=orgs_df)
 
 # ///////////////////////////////////////////////////////////////////////////////
 
 # Migrate Disease ontology
 # We want to preserve the RD3 data rather than recoding values. Therefore, we
-# will only import the diseases that were registered in RD3.
+# will only import the diseases that were registered in RD3 and that aren't in
+# the EMX2 Diseases ontology
 
+# rerieve existing ontology
 emx2_diseases = emx2.get(table='Diseases', as_df=True)
+
 
 # retrieve RD3 Disease ontology to join with diseases used in RD3
 rd3_diseases = rd3.get('solverd_lookups_disease', batch_size=10000)
 rd3_diseases_df = pd.DataFrame(rd3_diseases, dtype='string')[
     ["id", "label", "ontology", "uri"]]
+
 
 # retrieve diseases registered in RD3 subjects and flatten
 subject_diseases = rd3.get(
@@ -106,15 +133,12 @@ disease_df = disease_df.rename(columns={
 
 # check diseases to import to identify unknown terms
 disease_df['is_new'] = disease_df['name'].map(
-    lambda value: value not in emx2_diseases['name'].to_list())
+    lambda value: value not in emx2_diseases['name'].to_list()
+)
 
-# disease_df[disease_df['is_new']]
+diseases_to_import = disease_df[disease_df['is_new']]
 
-# import diseases
-emx2.save_schema(table="Diseases", data=disease_df)
-
-
-# for sanity check, pull diseases in EMX2 to see which terms already exist
+emx2.save_schema(table="Diseases", data=diseases_to_import)
 
 
 # ///////////////////////////////////////////////////////////////////////////////
@@ -123,14 +147,22 @@ emx2.save_schema(table="Diseases", data=disease_df)
 # Like the disease ontologies, we will preserve the RD3 data where possible and
 # import missing terms in the EMX2 ontology rather than mapping RD3 values.
 
+# retrieve existing HPO ontology
+emx2_hpo = emx2.get(table='Phenotypes', as_df=True)
+
+
 # retrieve the RD3 EMX1 ontology
 rd3_hpo = rd3.get('solverd_lookups_phenotype', batch_size=10000)
-rd3_hpo_df = pd.DataFrame(rd3_hpo, dtype='string')[
-    ['id', 'label', 'description', 'uri']]
+rd3_hpo_df = pd.DataFrame(
+    rd3_hpo, dtype='string'
+)[['id', 'label', 'description', 'uri']]
 
-# retrieve phenotypes registered in RD3
-subject_hpo = rd3.get('solverd_subjects',
-                      attributes='phenotype,hasNotPhenotype', batch_size=10000)
+
+subject_hpo = rd3.get(
+    'solverd_subjects',
+    attributes='phenotype,hasNotPhenotype',
+    batch_size=10000
+)
 
 hpos_used = []
 for subject in subject_hpo:
@@ -163,8 +195,13 @@ hpos_merged_df = hpos_merged_df.rename(
 
 hpos_merged_df['codesystem'] = "HPO"
 
-# import data
-emx2.save_schema(table="Phenotypes", data=hpos_merged_df)
+# identify HPO terms that aren't in EMX2 and import
+hpos_merged_df['is_new'] = hpos_merged_df['name'].map(
+    lambda value: value not in emx2_hpo['name'].to_list())
+hpos_to_import = hpos_merged_df[hpos_merged_df['is_new']]
+
+
+emx2.save_schema(table="Phenotypes", data=hpos_to_import)
 
 # ///////////////////////////////////////////////////////////////////////////////
 

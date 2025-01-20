@@ -35,8 +35,8 @@ for row in families:
 
 # get the subjects from the first 5 families
 QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
-# add family ID that has diseases specified, so the code can be checked.
-QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}'
+# add family ID that has specific variables with data, so the code can be checked.
+QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}' + f',fid=q={environ['FAM_ID_3']}' + f',fid=q={environ['FAM_ID_4']}'
 # subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
 subjects = rd3.get('solverd_subjects', q=QUERY)
 
@@ -187,7 +187,6 @@ for subject in subjects:
         else:
             new_individual_consent_entry['Allow recontacting'] = "No use in MatchMaker"
         emx2_individual_consent.append(new_individual_consent_entry)
-    # TO DO: See notes (word doc). Made my own category in (local) ontology.
     if 'noIncidentalFindings' in subject:
         new_individual_consent_entry = {}
         new_individual_consent_entry['identifier'] = subject['subjectID'] + \
@@ -228,6 +227,17 @@ for subject in subjects:
     # append the new entry to the individuals list
     emx2_individuals.append(new_individual_entry)
 
+# retrieve phenotype observations, disease history and clinical observations
+phenObs = emx2.get(table='Phenotype observations')
+disHist = emx2.get('Disease history')
+clinObs = emx2.get('Clinical observations')
+
+# delete phenotype observations, disease history and clinical observations 
+# because the upload does not replace but adds to the exisiting tables. 
+emx2.delete_records(schema=schema, table='Phenotype observations', data=phenObs)
+emx2.delete_records(table='Disease history', data=disHist)
+emx2.delete_records(table='Clinical observations', data=clinObs)
+
 # save and upload the newly made tables
 emx2.save_schema(table="Pedigree", data=emx2_pedigree)
 emx2.save_schema(table="Individuals", data=emx2_individuals)
@@ -245,7 +255,7 @@ emx2_disease_history = []
 emx2_phenotype_observations = []
 for subject in subjects:
     # mapping 'disease' (solverd_subjects) to Disease history
-    if 'disease' in subject:
+    if 'disease' in subject and subject['disease']:
         for disease in subject['disease']:
             new_disease_history_entry = {}
             new_disease_history_entry['disease'] = disease['label']
@@ -254,7 +264,7 @@ for subject in subjects:
                     new_disease_history_entry['part of clinical observation'] = obs['id']
             emx2_disease_history.append(new_disease_history_entry)
     # mapping 'phenotype' (solverd_subjects) to Phenotype observations (excluded = False)
-    if 'phenotype' in subject:
+    if 'phenotype' in subject and subject['phenotype']:
         for phenotype in subject['phenotype']:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = phenotype['label']
@@ -265,7 +275,7 @@ for subject in subjects:
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
     # mapping the 'hasNotPhenotype' (solverd_subjects) to Phenotype observations (excluded = True)
     if 'hasNotPhenotype' in subject:
-        for notPhenotype in subject['hasNotPhenotype']:
+        for notPhenotype in subject['hasNotPhenotype'] and subject['hasNotPhenotype']:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = notPhenotype['label']
             for obs in clinicalObs:
@@ -273,13 +283,44 @@ for subject in subjects:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = True
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
+    # map 'ageOfOnset' (solverd_subject_info) to ageOfOnset (Disease history) -- 
+    # TO DO: make an ontology table for these groups, using HP0003674.  
+    match = [info['ageOfOnset']['label']
+             for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject['subjectID']]
+    if match:
+        tmp = {obs['id']: obs['individual'] for obs in clinicalObs}
+        for ind in emx2_disease_history:
+            individual = tmp.get(ind['part of clinical observation'])
+
+            if individual: 
+                ind['ageOfOnset'] = "".join(match)
+            # for obs in clinicalObs:
+            #     if obs['individual'] == subject['subjectID']:
+            #         print('true')
+            #         new_disease_history_entry = {}
+            #         new_disease_history_entry['part of clinical observation'] = obs['id']
+            #         new_disease_history_entry['ageOfOnset'] = "".join(map(str, match))
+        #emx2_disease_history.append(new_disease_history_entry)
+    # if 'ageOfOnset' in subject:
+    #     print('true')
+    #     #for notPhenotype in subject['hasNotPhenotype'] and subject['hasNotPhenotype']:
+    #     new_disease_history_entry = {}
+    #     new_disease_history_entry['ageOfOnset'] = subject['ageOfOnset']['label']
+    #     for obs in clinicalObs:
+    #         if obs['individual'] == subject['subjectID']:
+    #             new_disease_history_entry['part of clinical observation'] = obs['id']
+    #         emx2_disease_history.append(new_disease_history_entry)
+        #emx2_disease_history.append(new_disease_history_entry)
+    
+
 
 # save and upload the disease history and phenotype observation tables
 emx2.save_schema(table="Disease history", data=emx2_disease_history)
 emx2.save_schema(table="Phenotype observations",
                  data=emx2_phenotype_observations)
 
-# map samples information
+#######################################################################
+#  map samples information
 emx2_biosamples = []
 for sample in samples:
     new_biosamples_entry = {}
@@ -288,41 +329,38 @@ for sample in samples:
 
     # map 'pathologicalState' (solverd_samples) to 'pathological state' (Biosamples)
     if 'pathologicalState' in sample:
-        new_biosamples_entry['pathological state'] = sample['pathologicalState']
-    else:
-        new_biosamples_entry['pathological state'] = 'Unknown'
+        new_biosamples_entry['pathological state'] = sample['pathologicalState']['value']
 
     # map 'anatomicalLocation' (solverd_samples) to 'anatomical location' (Biosamples)
     if 'anatomicalLocation' in sample:
-        new_biosamples_entry['anatomical location'] = sample['anatomicalLocation']
-    else:
-        new_biosamples_entry['anatomical location'] = 'Unknown'
+        new_biosamples_entry['anatomical location'] = sample['anatomicalLocation']['label']
 
     # map 'belongsToSubject' (solverd_samples) to 'collected from individual' (Biosamples)
     new_biosamples_entry['collected from individual'] = sample['belongsToSubject']['subjectID']
 
-    print(len(emx2_individuals))
-    # try
+    # map 'sex2' (solverd_samples) to 'genotypic sex' (solverd_subjects)
     if 'sex2' in sample:
-        print('true')
         new_individual_entry = {}
         new_individual_entry['genotypic sex'] = sample['sex2']['id']
         new_individual_entry['id'] = sample['belongsToSubject']['subjectID']
         emx2_individuals.append(new_individual_entry)
-    print(len(emx2_individuals))
 
+    # map 'tissueType' (solverd_samples) to 'material type' (Biosamples) - TO DO: 'tumor' is not present in ontology 
+    # if 'tissueType' in sample:
+    #    new_biosamples_entry['material type'] = sample['tissueType']['id']
+    
+    # append the new biosample entry to the list
     emx2_biosamples.append(new_biosamples_entry)
 
 # save and upload the biosamples table
 emx2.save_schema(table="Biosamples", data=emx2_biosamples)
 
-# write to csv
+# write to csv - not used anymore 
 pd.DataFrame(emx2_individuals).to_csv('Individuals.csv', index=False)
 pd.DataFrame(emx2_pedigree).to_csv('Pedigree.csv', index=False)
 pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
 pd.DataFrame(emx2_individual_consent).to_csv(
     'Individual consent.csv', index=False)
-# pd.DataFrame(emx2_organisations).to_csv('Organisations.csv', index=False)
 pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
 # pd.DataFrame(emx2_phenotype_observations).to_csv('Phenotype observations.csv', index=False)
 pd.DataFrame(emx2_individual_observations).to_csv(
@@ -335,8 +373,28 @@ pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
 
 # notes
 subjects_df = pd.DataFrame(subjects)
+subjects_info_df = pd.DataFrame(subjects_info)
 
 if 'organisation' in subject and all([item for item in subject['organisation']]):
     print('This should be printed when there are organisations present')
 
 print(subject['retracted'])
+
+# look at a specific subject
+subject_id=""
+subject = subjects_info_df.loc[subjects_df['subjectID'] == subject_id]
+print(subject)
+print(subject['ageOfOnset'])
+
+subject = subjects_df.loc[subjects_df['subjectID'] == subject_id]
+subject['sex1']['id']
+
+subject_info_tmp = rd3.get('solverd_subjectinfo', q=f"subjectID=q={subject_id},subjectID=q={subject_id}")
+
+for subj in subject_info_tmp:
+    if 'ageOfOnset' in subj and subj['ageOfOnset']:
+        print(subj['ageOfOnset']['label'])
+
+samples_tmp = rd3.get('solverd_samples', q=f"belongsToSubject=={subject_id}")
+
+samples_tmp['anatomicalLocation']

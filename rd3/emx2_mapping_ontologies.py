@@ -225,6 +225,40 @@ releases_used.append({
     'name': 'Retracted'
 })
 
+# Migrate batches to datasets as well
+batches = rd3.get( # retrieve batches from RD3
+    'solverd_samples',
+    batch_size=10000,
+    attributes= 'batch'
+)
+
+# collect all unique batches 
+unique_batches = []
+for batch in batches:
+    if 'batch' in batch:
+        # split and strip in the case of multiple batches (eg., 'BGI_1, BGI_3')
+        batch_split = [batch.strip() for batch in batch['batch'].split(",")]
+        for splitted_batch in batch_split:
+            # check if the batch is already in the list 
+            if splitted_batch not in unique_batches:
+                # if not, add to the list
+                unique_batches.append(splitted_batch)
+
+# append each unique batch to the datasets 
+for batch in unique_batches:
+    releases_used.append({
+        'resource': 'RD3',
+        'name':batch
+    })
+
+# convert to df
 releases_df = pd.DataFrame(releases_used)
 
+# save schema
 emx2.save_schema(table='Datasets', data=releases_df)
+
+# upload gender at birth ontology 
+emx2.save_schema(table="Gender at birth", file='/Users/w.f.oudijk/Documents/RD3/molgenis-emx2/data/_ontologies/GenderAtBirth.csv')
+
+# upload genotypic sex ontology
+emx2.save_schema(table="Genotypic sex", file="/Users/w.f.oudijk/Documents/RD3/molgenis-emx2/data/_ontologies/GenotypicSex.csv")

@@ -36,7 +36,7 @@ for row in families:
 # get the subjects from the first 5 families
 QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
 # add family ID that has specific variables with data, so the code can be checked.
-QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}' + f',fid=q={environ['FAM_ID_3']}' + f',fid=q={environ['FAM_ID_4']}'
+QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}' + f',fid=q={environ['FAM_ID_3']}' + f',fid=q={environ['FAM_ID_4']}' + f',fid=q={environ['FAM_ID_5']}'
 # subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
 subjects = rd3.get('solverd_subjects', q=QUERY)
 
@@ -234,7 +234,7 @@ clinObs = emx2.get('Clinical observations')
 
 # delete phenotype observations, disease history and clinical observations 
 # because the upload does not replace but adds to the exisiting tables. 
-emx2.delete_records(schema=schema, table='Phenotype observations', data=phenObs)
+emx2.delete_records(table='Phenotype observations', data=phenObs)
 emx2.delete_records(table='Disease history', data=disHist)
 emx2.delete_records(table='Clinical observations', data=clinObs)
 
@@ -320,7 +320,7 @@ emx2.save_schema(table="Phenotype observations",
                  data=emx2_phenotype_observations)
 
 #######################################################################
-#  map samples information
+#  map (bio)samples information
 emx2_biosamples = []
 for sample in samples:
     new_biosamples_entry = {}
@@ -348,7 +348,36 @@ for sample in samples:
     # map 'tissueType' (solverd_samples) to 'material type' (Biosamples) - TO DO: 'tumor' is not present in ontology 
     # if 'tissueType' in sample:
     #    new_biosamples_entry['material type'] = sample['tissueType']['id']
-    
+
+    # map 'organisation' (solverd_samples) to 'collected at organisation' (Biosamples)
+    if 'organisation' in sample:
+        new_biosamples_entry['collected at organisation.resource'] = 'RD3'
+        new_biosamples_entry['collected at organisation.id'] = sample['organisation']['value']
+
+    # map 'ERN' (solverd_samples) to 'affiliated organisations' (Biosamples)
+    if 'ERN' in sample:
+        new_biosamples_entry['affiliated organisations.resource'] = 'RD3'
+        new_biosamples_entry['affiliated organisations.id'] = sample['ERN']['shortname']
+
+    # map 'retracted' (solverd_samples) to 'included in datasets' (Biosamples)
+    if 'retracted' in sample and sample['retracted']['id'] == 'Y': 
+        new_biosamples_entry['included in datasets.resource'] = 'RD3'
+        new_biosamples_entry['included in datasets.name'] = 'Retracted'
+
+    # map 'batch' (solverd_samples) to 'included in datasets' (Biosamples)
+    if 'batch' in sample:
+        batches = []
+        resources = []
+        for batch in sample['batch'].split(","): # split on comma in the case of mulitple batches
+            batches.append(batch)
+            resources.append('RD3')
+            new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
+            new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
+
+    # map 'alternativeIdentifier' (solverd_samples) to 'alternate identifiers' (Biosamples)
+    if 'alternativeIdentifier' in sample:
+        new_biosamples_entry['alternate ids'] = sample['alternativeIdentifier']
+
     # append the new biosample entry to the list
     emx2_biosamples.append(new_biosamples_entry)
 
@@ -381,7 +410,9 @@ if 'organisation' in subject and all([item for item in subject['organisation']])
 print(subject['retracted'])
 
 # look at a specific subject
-subject_id=""
+subject_id="P0639766"
+subject_id_2="P0003730"
+
 subject = subjects_info_df.loc[subjects_df['subjectID'] == subject_id]
 print(subject)
 print(subject['ageOfOnset'])
@@ -395,6 +426,19 @@ for subj in subject_info_tmp:
     if 'ageOfOnset' in subj and subj['ageOfOnset']:
         print(subj['ageOfOnset']['label'])
 
-samples_tmp = rd3.get('solverd_samples', q=f"belongsToSubject=={subject_id}")
+samples_tmp = rd3.get('solverd_samples', q=f"belongsToSubject=={subject_id},belongsToSubject=={subject_id_2}")
 
-samples_tmp['anatomicalLocation']
+for sample in samples_tmp:
+    if 'alternativeIdentifier' in sample:
+        print(sample['alternativeIdentifier'])
+        #for b in sample['alternativeIdentifier']:
+            #print(b)
+
+samples_tmp = rd3.get('solverd_samples')
+
+for sample in samples_tmp:
+    if 'alternativeIdentifier' in sample:
+        tmp = sample['alternativeIdentifier'].split(",")
+        #print(len(tmp))
+        if len(tmp) != 1:
+            print('true')

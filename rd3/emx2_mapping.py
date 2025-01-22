@@ -283,35 +283,22 @@ for subject in subjects:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = True
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
-    # map 'ageOfOnset' (solverd_subject_info) to ageOfOnset (Disease history) -- 
-    # TO DO: make an ontology table for these groups, using HP0003674.  
-    match = [info['ageOfOnset']['label']
-             for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject['subjectID']]
-    if match:
-        tmp = {obs['id']: obs['individual'] for obs in clinicalObs}
-        for ind in emx2_disease_history:
-            individual = tmp.get(ind['part of clinical observation'])
+    # map 'ageOfOnset' (solverd_subject_info) to ageOfOnset (Disease history)
+    # find the information of the subject with an ageOfOnset. 
+    match = [info for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject['subjectID']]
+    if match: 
+        # make a dict of the IDs and the auto IDs (part of clinical observation)
+        tmp = {obs['individual']:obs['id'] for obs in clinicalObs}
+        # get the auto ID based on the ID from the individual with an age of onset 
+        target_part_of_clinical_obs = tmp.get(match[0]['subjectID'])
+        # find this individual in the disease history list based on auto ID. 
+        for disease_history_entry in emx2_disease_history:
+            if disease_history_entry['part of clinical observation'] == target_part_of_clinical_obs:
+                # update this entry in the dict with the age at onset
+                disease_history_entry.update({'age group at onset':match[0]['ageOfOnset']['label']})
+                
 
-            if individual: 
-                ind['ageOfOnset'] = "".join(match)
-            # for obs in clinicalObs:
-            #     if obs['individual'] == subject['subjectID']:
-            #         print('true')
-            #         new_disease_history_entry = {}
-            #         new_disease_history_entry['part of clinical observation'] = obs['id']
-            #         new_disease_history_entry['ageOfOnset'] = "".join(map(str, match))
-        #emx2_disease_history.append(new_disease_history_entry)
-    # if 'ageOfOnset' in subject:
-    #     print('true')
-    #     #for notPhenotype in subject['hasNotPhenotype'] and subject['hasNotPhenotype']:
-    #     new_disease_history_entry = {}
-    #     new_disease_history_entry['ageOfOnset'] = subject['ageOfOnset']['label']
-    #     for obs in clinicalObs:
-    #         if obs['individual'] == subject['subjectID']:
-    #             new_disease_history_entry['part of clinical observation'] = obs['id']
-    #         emx2_disease_history.append(new_disease_history_entry)
-        #emx2_disease_history.append(new_disease_history_entry)
-    
+pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
 
 
 # save and upload the disease history and phenotype observation tables
@@ -371,12 +358,38 @@ for sample in samples:
         for batch in sample['batch'].split(","): # split on comma in the case of mulitple batches
             batches.append(batch)
             resources.append('RD3')
+        new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
+        new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
+
+    print(new_biosamples_entry)
+
+    # map 'partOfRelease' (solverd_samples) to 'included in datasets' (Biosamples)
+    if 'partOfRelease' in sample:
+        match = [emx2_sample['included in datasets.resource']
+             for emx2_sample in emx2_biosamples if 'included in datasets.resource' in emx2_sample and emx2_sample['id'] == sample['sampleID']]
+        #print(match)
+        if match:
+            for biosample in emx2_biosamples:
+                print(biosample)
+                for release in sample['partOfRelease']:
+                    if biosample['id'] == sample['sampleID']:
+                        #print(biosample['included in datasets.resource'])
+                        biosample['included in datasets.resource'] = ",".join('RD3')
+                        biosample['included in datasets.name'] = ",".join(release['id'])
+        else:
+            resources = []
+            releases = []
+            for release in sample['partOfRelease']:
+                resources.append('RD3')
+                releases.append(release['id'])
             new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
-            new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
+            new_biosamples_entry['included in datasets.name'] = ",".join(map(str, releases))
 
     # map 'alternativeIdentifier' (solverd_samples) to 'alternate identifiers' (Biosamples)
     if 'alternativeIdentifier' in sample:
         new_biosamples_entry['alternate ids'] = sample['alternativeIdentifier']
+
+    
 
     # append the new biosample entry to the list
     emx2_biosamples.append(new_biosamples_entry)
@@ -390,7 +403,6 @@ pd.DataFrame(emx2_pedigree).to_csv('Pedigree.csv', index=False)
 pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
 pd.DataFrame(emx2_individual_consent).to_csv(
     'Individual consent.csv', index=False)
-pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
 # pd.DataFrame(emx2_phenotype_observations).to_csv('Phenotype observations.csv', index=False)
 pd.DataFrame(emx2_individual_observations).to_csv(
     'Individual observations.csv', index=False)
@@ -410,8 +422,8 @@ if 'organisation' in subject and all([item for item in subject['organisation']])
 print(subject['retracted'])
 
 # look at a specific subject
-subject_id="P0639766"
-subject_id_2="P0003730"
+subject_id=""
+subject_id_2=""
 
 subject = subjects_info_df.loc[subjects_df['subjectID'] == subject_id]
 print(subject)
@@ -421,6 +433,8 @@ subject = subjects_df.loc[subjects_df['subjectID'] == subject_id]
 subject['sex1']['id']
 
 subject_info_tmp = rd3.get('solverd_subjectinfo', q=f"subjectID=q={subject_id},subjectID=q={subject_id}")
+
+match = [info for info in subject_info_tmp if 'ageOfOnset' in info and info['subjectID'] == subject_id]
 
 for subj in subject_info_tmp:
     if 'ageOfOnset' in subj and subj['ageOfOnset']:
@@ -437,8 +451,10 @@ for sample in samples_tmp:
 samples_tmp = rd3.get('solverd_samples')
 
 for sample in samples_tmp:
-    if 'alternativeIdentifier' in sample:
-        tmp = sample['alternativeIdentifier'].split(",")
+    if 'partOfRelease' in sample:
+        for release in sample['partOfRelease']:
+            print(release['name'])
+        #tmp = sample['partOfRelease'].split(",")
         #print(len(tmp))
-        if len(tmp) != 1:
-            print('true')
+        #if len(tmp) != 1:
+        #    print('true')

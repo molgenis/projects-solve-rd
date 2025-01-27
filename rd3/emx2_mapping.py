@@ -361,29 +361,22 @@ for sample in samples:
         new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
         new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
 
-    print(new_biosamples_entry)
+    #print(new_biosamples_entry)
+    #print(emx2_biosamples)
 
-    # map 'partOfRelease' (solverd_samples) to 'included in datasets' (Biosamples)
-    if 'partOfRelease' in sample:
-        match = [emx2_sample['included in datasets.resource']
-             for emx2_sample in emx2_biosamples if 'included in datasets.resource' in emx2_sample and emx2_sample['id'] == sample['sampleID']]
-        #print(match)
-        if match:
-            for biosample in emx2_biosamples:
-                print(biosample)
-                for release in sample['partOfRelease']:
-                    if biosample['id'] == sample['sampleID']:
-                        #print(biosample['included in datasets.resource'])
-                        biosample['included in datasets.resource'] = ",".join('RD3')
-                        biosample['included in datasets.name'] = ",".join(release['id'])
-        else:
-            resources = []
-            releases = []
-            for release in sample['partOfRelease']:
-                resources.append('RD3')
-                releases.append(release['id'])
-            new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
-            new_biosamples_entry['included in datasets.name'] = ",".join(map(str, releases))
+    # map 'partOfRelease' (solverd_samples) to 'included in datasets' (Biosamples) 
+    resources = []
+    releases = []
+    for release in sample['partOfRelease']:
+        resources.append('RD3')
+        releases.append(release['id'])
+    if 'included in datasets.resource' in new_biosamples_entry:
+        #print(f'{sample['sampleID']} and resource list: {new_biosamples_entry['included in datasets.resource']}')
+        new_biosamples_entry['included in datasets.resource'] += "," + ",".join(map(str, resources))
+        new_biosamples_entry['included in datasets.name'] += "," + ",".join(map(str, releases))
+    else: 
+        new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
+        new_biosamples_entry['included in datasets.name'] = ",".join(map(str, releases))
 
     # map 'alternativeIdentifier' (solverd_samples) to 'alternate identifiers' (Biosamples)
     if 'alternativeIdentifier' in sample:

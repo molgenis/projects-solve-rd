@@ -257,6 +257,41 @@ releases_df = pd.DataFrame(releases_used)
 # save schema
 emx2.save_schema(table='Datasets', data=releases_df)
 
+# ///////////////////////////////////////////////////////////////////////////////
+
+# Migrate enrichment kit (capture)
+
+# Gather the capture values of the Experiments table
+labinfo = rd3.get('solverd_labinfo',
+                  attributes='capture',
+                  batch_size=10000)
+
+# Convert to dataframe
+labinfo_df = pd.DataFrame(labinfo)
+
+# Get the new ontology 
+emx2_seq_enrich_kit = emx2.get(table='SequencingEnrichmentKits', as_df=True)
+
+# Gather the values used for capture in SolveRD
+captures = []
+for row in labinfo:
+    if 'capture' in row:
+        captures.append(row['capture'])
+
+# Get the unique values 
+unique_captures = list(set(captures))
+
+# Gather only the values that are not already present in the ontology
+unique_captures_to_add = [capture for capture in unique_captures if capture not in emx2_seq_enrich_kit]
+unique_captures_series = pd.DataFrame({'name': unique_captures_to_add})
+
+# merge the solveRD ontologies with the EMX2 ontologies
+emx2_seq_enrich_kit_complete = pd.merge(emx2_seq_enrich_kit, unique_captures_series, on = ['name', 'name'], how='outer')
+#tmp = pd.concat([emx2_seq_enrich_kit['name'], unique_captures_series])
+
+# upload the new ontologies to emx2
+emx2.save_schema(table="SequencingEnrichmentKits", data=emx2_seq_enrich_kit_complete)
+
 # upload gender at birth ontology 
 emx2.save_schema(table="Gender at birth", file='/Users/w.f.oudijk/Documents/RD3/molgenis-emx2/data/_ontologies/GenderAtBirth.csv')
 

@@ -26,7 +26,7 @@ schema = 'rd3'
 emx2.default_schema = schema  # set default schema
 
 # retrieve first n family identifiers
-families = rd3.get('solverd_subjects', attributes='fid')
+families = rd3.get('solverd_subjects', attributes='fid', batch_size=10000)
 fids = []
 for row in families:
     if 'fid' in row.keys():
@@ -36,7 +36,14 @@ for row in families:
 # get the subjects from the first 5 families
 QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
 # add family ID that has specific variables with data, so the code can be checked.
-QUERY = QUERY + f',fid=q={environ['FAM_ID_1']}' + f',fid=q={environ['FAM_ID_2']}' + f',fid=q={environ['FAM_ID_3']}' + f',fid=q={environ['FAM_ID_4']}' + f',fid=q={environ['FAM_ID_5']}'
+QUERY = QUERY + (
+    f',fid=q={environ['FAM_ID_1']}' + 
+    f',fid=q={environ['FAM_ID_2']}' + 
+    f',fid=q={environ['FAM_ID_3']}' + 
+    f',fid=q={environ['FAM_ID_4']}' + 
+    f',fid=q={environ['FAM_ID_5']}' +
+    f',fid=q={environ['FAM_ID_6']}'
+)
 # subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
 subjects = rd3.get('solverd_subjects', q=QUERY)
 
@@ -45,12 +52,18 @@ subjects = rd3.get('solverd_subjects', q=QUERY)
 # get the subject IDs - necessary to retrieve the subject info
 IDs = [subject['subjectID'] for subject in subjects]
 # print(IDs)
-# get the subject info for the 5 families
+# get the subject info for the families
 QUERY = ','.join([f"subjectID=q={ID}" for ID in IDs])
 subjects_info = rd3.get('solverd_subjectinfo', q=QUERY)
-# get the sample info for the 5 families
+# get the sample info for the families
 QUERY = ','.join([f"belongsToSubject=={ID}" for ID in IDs])
 samples = rd3.get('solverd_samples', q=QUERY)
+# get the labinfo for the families
+sample_ids = [sample['sampleID'] for sample in samples]
+QUERY = ','.join([f'sampleID=={sample_id}' for sample_id in sample_ids])
+labinfos = rd3.get('solverd_labinfo', q=QUERY)
+labinfos_all = rd3.get('solverd_labinfo', batch_size=10000)
+
 
 # map the data to the new model
 emx2_individuals = []
@@ -332,9 +345,16 @@ for sample in samples:
         new_individual_entry['id'] = sample['belongsToSubject']['subjectID']
         emx2_individuals.append(new_individual_entry)
 
-    # map 'tissueType' (solverd_samples) to 'material type' (Biosamples) - TO DO: 'tumor' is not present in ontology 
-    # if 'tissueType' in sample:
-    #    new_biosamples_entry['material type'] = sample['tissueType']['id']
+    # map 'tissueType' (solverd_samples) to 'tissue type' (Biosamples) 
+    if 'tissueType' in sample:
+       new_biosamples_entry['tissue type'] = sample['tissueType']['id']
+
+    # map 'materialType' (solverd_samples) to 'material type' (Biosamples)
+    if 'materialType' in sample:
+        types = []
+        for type in sample['materialType']:
+            types.append(type['id'])
+        new_biosamples_entry['material type'] = ",".join(map(str, types))
 
     # map 'organisation' (solverd_samples) to 'collected at organisation' (Biosamples)
     if 'organisation' in sample:
@@ -361,20 +381,20 @@ for sample in samples:
         new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
         new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
 
-    #print(new_biosamples_entry)
-    #print(emx2_biosamples)
 
     # map 'partOfRelease' (solverd_samples) to 'included in datasets' (Biosamples) 
     resources = []
     releases = []
+    # gather the resources and releases (names)
     for release in sample['partOfRelease']:
         resources.append('RD3')
         releases.append(release['id'])
+    # if this sample already contains the term included in datasets.resource (eg., when the sample also has a batch)
+    # then append to this (string) list
     if 'included in datasets.resource' in new_biosamples_entry:
-        #print(f'{sample['sampleID']} and resource list: {new_biosamples_entry['included in datasets.resource']}')
         new_biosamples_entry['included in datasets.resource'] += "," + ",".join(map(str, resources))
         new_biosamples_entry['included in datasets.name'] += "," + ",".join(map(str, releases))
-    else: 
+    else: # else, make this new term
         new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
         new_biosamples_entry['included in datasets.name'] = ",".join(map(str, releases))
 
@@ -382,13 +402,135 @@ for sample in samples:
     if 'alternativeIdentifier' in sample:
         new_biosamples_entry['alternate ids'] = sample['alternativeIdentifier']
 
-    
+    # map 'flag' (solverd_samples) naar 'failed quality control' (Biosamples)
+    if 'flag' in sample:
+        new_biosamples_entry['failed quality control'] = sample['flag']
+
+    # map 'comments' (solverd_samples) to 'comments' (Biosamples)
+    if 'comments' in sample:
+        new_biosamples_entry['comments'] = sample['comments']
 
     # append the new biosample entry to the list
     emx2_biosamples.append(new_biosamples_entry)
 
+# to check
+pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
+
 # save and upload the biosamples table
 emx2.save_schema(table="Biosamples", data=emx2_biosamples)
+
+##################################################
+# map from table Experiments (solverd_labinfo) to the new model
+
+# retrieve the assay and sequencing runs tables so they can be truncated 
+seqRuns = emx2.get('Sequencing runs')
+sampPreps = emx2.get('Sample preparations')
+protAct = emx2.get('Protocol activity')
+
+# delete Assay because the upload does not replace, but adds to the exisiting tables.
+emx2.delete_records(table='Sequencing runs', data=seqRuns) 
+emx2.delete_records(table='Sample preparations', data=sampPreps)
+emx2.delete_records(table='Protocol activity', data=protAct)
+
+emx2_sample_preparation = []
+emx2_sequencing_runs = []
+for labinfo in labinfos:
+    new_sample_preparation_entry = {}
+    new_sequencing_runs_entry = {}
+
+    # map 'experimentID' (solverd_labinfo) to 'identifier' (Sequencing runs and sample preparation) 
+    new_sequencing_runs_entry['identifier'] = "seq_" + labinfo['experimentID']
+    new_sample_preparation_entry['identifier'] = "sample_" + labinfo['experimentID']
+
+    # map 'sampleID' (solverd_labinfo) to 'input samples' (Protocol parameters)
+    if 'sampleID' in labinfo:
+        sampleIDs = []
+        for sample in labinfo['sampleID']:
+            sampleIDs.append(sample['sampleID'])
+        new_sequencing_runs_entry['input samples'] = ",".join(map(str, sampleIDs))
+        new_sample_preparation_entry['input samples'] = ",".join(map(str, sampleIDs))
+
+    # map 'capture' (solverd_labinfo) to 'library preparation' (Sample preparation)
+    if 'capture' in labinfo:
+        new_sample_preparation_entry['target enrichment kit'] = labinfo['capture']
+
+    # map 'libraryType' (solverd_labinfo) to 'librarySource' (Sequencing runs)
+    # data only contains types Genomic and Transcriptomic
+    if 'libraryType' in labinfo:
+        # get the library type and convert to lowercase
+        libType = labinfo['libraryType']['id'].lower()
+        # add the word source as is defined in the ontology
+        libType += " source"
+        # map
+        new_sequencing_runs_entry['library source'] = libType
+    
+    # map 'library' (solverd_labinfo) to 'libraryLayout' (Sequencing runs)
+    # data only contains 1 and 2, 1 is always single and 2 always paired.
+    if 'library' in labinfo and labinfo['library']:
+        layout = []
+        for lib in labinfo['library']:
+            if lib['id'] == "1":
+                layout.append("SINGLE")
+            elif lib['id'] == "2":
+                layout.append("PAIRED")
+            else:
+                print(f"library {lib['id']} could not be mapped.")
+        new_sequencing_runs_entry['library layout'] = ",".join(map(str, layout))
+    
+    # map 'sequencingCentre' (solverd_labinfo) to 'sequencing centre' (Sequencing runs)
+    if 'sequencingCentre' in labinfo:
+        new_sequencing_runs_entry['sequencing centre.resource'] = 'RD3'
+        new_sequencing_runs_entry['sequencing centre.id'] = labinfo['sequencingCentre']['value']
+
+    # map 'sequencer' (solverd_labinfo) to 'platform' and 'platform model' (Sequencing runs)
+    # make a dictionary to use for mapping the platform to the ontology term
+    platform_dict = {
+        "Illumina": "Illumina platform",
+        "Sequel": "PacBio platform",
+        "DNBSEQ": "Complete Genomics platform"
+    }
+    if 'sequencer' in labinfo:
+        # gather first word (before either a space or a dash) - this word is the platform
+        pattern = re.compile(r'^.*?(?=-)|^\S+')
+        sequencer = labinfo['sequencer']
+        match = pattern.match(sequencer)
+        if match: 
+            platform = match.group()
+        new_sequencing_runs_entry['platform'] = platform_dict[platform]
+
+    # map 'seqType' (solverd_labinfo) to 'library strategy' (Sequencing runs)
+    if 'seqType' in labinfo and labinfo['seqType']:
+        for seqType in labinfo['seqType']:
+            if seqType['label'] == 'ssRNA-seq':
+                new_sequencing_runs_entry['library strategy'] = seqType['label']
+            else:
+                # capitalize first letter in the strategy (as per ontology)
+                new_sequencing_runs_entry['library strategy'] = seqType['label'].title()
+
+    # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
+    if 'mean_cov' in labinfo:
+        new_sequencing_runs_entry['mean read depth'] = labinfo['mean_cov']
+
+    # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
+    if 'median_cov' in labinfo:
+        new_sequencing_runs_entry['median read depth'] = labinfo['median_cov']
+
+    # append the new entry to the sample preparation list
+    if new_sample_preparation_entry: # if not empty
+        emx2_sample_preparation.append(new_sample_preparation_entry)
+    # # append the new entry to the sequencing runs list
+    if new_sequencing_runs_entry: # if not empty
+        emx2_sequencing_runs.append(new_sequencing_runs_entry)
+
+# to check 
+pd.DataFrame(emx2_sequencing_runs).to_csv('Sequencing runs.csv', index=False)
+pd.DataFrame(emx2_sample_preparation).to_csv('Sample preparations.csv', index=False)
+
+# save and upload the sample preparation table
+emx2.save_schema(table="Sample preparations", data=emx2_sample_preparation)
+# # save and upload the sequencing runs table
+emx2.save_schema(table="Sequencing runs", data=emx2_sequencing_runs)
+
 
 # write to csv - not used anymore 
 pd.DataFrame(emx2_individuals).to_csv('Individuals.csv', index=False)
@@ -451,3 +593,58 @@ for sample in samples_tmp:
         #print(len(tmp))
         #if len(tmp) != 1:
         #    print('true')
+
+labinfos_all_df = pd.DataFrame(labinfos_all)
+labinfos_all_df['experimentID'].isnull().any()
+
+labinfos_all_df['library']
+for i in labinfos_all_df['sequencingCentre']:
+    if not i:
+        print("empty")
+        print(i)
+
+tmp = labinfos_all_df['barcode'].dropna()
+sequencers = []
+for i in tmp:
+    sequencers.append(i)
+
+set(sequencers)
+
+labinfos_df = pd.DataFrame(labinfos)
+tmp = labinfos_df['sequencer'].dropna()
+sequencers = []
+for i in tmp:
+    sequencers.append(i)
+
+uniques = set(sequencers)
+import re
+pattern = re.compile(r'^DNBSEQ-G\d+$')
+filtered_uniques = [item for item in uniques if not pattern.match(item)]
+
+
+samples_all = rd3.get('solverd_samples', batch_size=10000)
+samples_all_df = pd.DataFrame(samples_all)
+
+tmp = samples_all_df['tissueType'].dropna()
+values = []
+for i in tmp:
+    #print(i)
+    #for x in i:
+    values.append(i['id'])
+
+set(values)
+
+import re
+
+# Example list
+my_list = ['goal to get', 'goal-to get', 'target one', 'goal after', 'goal-to win']
+
+# Regex pattern to get the first word (before space or dash)
+pattern = re.compile(r'^.*?(?=-)|^\S+')
+
+# Loop through each element in the list and apply the regex
+for item in my_list:
+    match = pattern.match(item)
+    if match:
+        first_word = match.group()
+        print(first_word)

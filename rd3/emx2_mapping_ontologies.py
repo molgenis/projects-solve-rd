@@ -283,14 +283,52 @@ unique_captures = list(set(captures))
 
 # Gather only the values that are not already present in the ontology
 unique_captures_to_add = [capture for capture in unique_captures if capture not in emx2_seq_enrich_kit]
-unique_captures_series = pd.DataFrame({'name': unique_captures_to_add})
+unique_captures_df = pd.DataFrame({'name': unique_captures_to_add})
 
 # merge the solveRD ontologies with the EMX2 ontologies
-emx2_seq_enrich_kit_complete = pd.merge(emx2_seq_enrich_kit, unique_captures_series, on = ['name', 'name'], how='outer')
+emx2_seq_enrich_kit_complete = pd.merge(emx2_seq_enrich_kit, unique_captures_df, on = ['name', 'name'], how='outer')
 #tmp = pd.concat([emx2_seq_enrich_kit['name'], unique_captures_series])
 
 # upload the new ontologies to emx2
 emx2.save_schema(table="SequencingEnrichmentKits", data=emx2_seq_enrich_kit_complete)
+
+# ///////////////////////////////////////////////////////////////////////////////
+
+# Migrate tissue types not yet present in the ontology
+
+# Gather the tissue types values of the samples table
+tissueTypes = rd3.get('solverd_samples',
+                  attributes='tissueType',
+                  batch_size=10000)
+
+# Convert to dataframe
+tissueTypes_df = pd.DataFrame(tissueTypes)
+
+# Get the ontology table
+emx2_tissue_types = emx2.get(table='TissueType', as_df=True)
+
+# Gather the values used for tissue type in SolveRD
+types = []
+for row in tissueTypes:
+    if 'tissueType' in row:
+        types.append(row['tissueType']['id'])
+
+# Get the unique values 
+unique_types = list(set(types))
+
+# Gather only the values that are not already present in the ontology
+unique_types_to_add = [tissue_type for tissue_type in unique_types if tissue_type not in emx2_tissue_types['name'].to_list()]
+unique_types_df = pd.DataFrame({'name': unique_types_to_add})
+
+# merge the solveRD ontologies with the EMX2 ontologies
+emx2_tissue_types_complete = pd.merge(emx2_tissue_types, unique_types_df, on = ['name', 'name'], how='outer')
+
+# upload the new ontology to emx2
+emx2.save_schema(table="TissueType", data=emx2_tissue_types_complete)
+
+# ///////////////////////////////////////////////////////////////////////////////
+
+# Upload Gender at birth and Genotypic sex - these were empty.
 
 # upload gender at birth ontology 
 emx2.save_schema(table="Gender at birth", file='/Users/w.f.oudijk/Documents/RD3/molgenis-emx2/data/_ontologies/GenderAtBirth.csv')

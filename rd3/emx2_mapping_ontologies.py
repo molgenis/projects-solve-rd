@@ -251,6 +251,16 @@ for batch in unique_batches:
         'name':batch
     })
 
+# Migrate datasets from solve-rd as well
+datasets = rd3.get('solverd_info_datasets',
+                   attributes='id') # retrieve info from lookup table
+# loop through the datasets and append to the list
+for dataset in datasets:
+    releases_used.append({
+        'resource': 'RD3',
+        'name': dataset['id']
+    })
+
 # convert to df
 releases_df = pd.DataFrame(releases_used)
 
@@ -296,10 +306,8 @@ emx2.save_schema(table="SequencingEnrichmentKits", data=emx2_seq_enrich_kit_comp
 
 # Migrate tissue types not yet present in the ontology
 
-# Gather the tissue types values of the samples table
-tissueTypes = rd3.get('solverd_samples',
-                  attributes='tissueType',
-                  batch_size=10000)
+# Gather the tissue types values 
+tissueTypes = rd3.get('solverd_lookups_tissueType')
 
 # Convert to dataframe
 tissueTypes_df = pd.DataFrame(tissueTypes)
@@ -307,21 +315,15 @@ tissueTypes_df = pd.DataFrame(tissueTypes)
 # Get the ontology table
 emx2_tissue_types = emx2.get(table='TissueType', as_df=True)
 
-# Gather the values used for tissue type in SolveRD
-types = []
-for row in tissueTypes:
-    if 'tissueType' in row:
-        types.append(row['tissueType']['id'])
+# Gather the IDs used for tissue type in SolveRD
+types = [row['id'] for row in tissueTypes]
 
-# Get the unique values 
-unique_types = list(set(types))
-
-# Gather only the values that are not already present in the ontology
-unique_types_to_add = [tissue_type for tissue_type in unique_types if tissue_type not in emx2_tissue_types['name'].to_list()]
-unique_types_df = pd.DataFrame({'name': unique_types_to_add})
+# Gather only the values that are not already present in the new ontology
+types_to_add = [tissue_type for tissue_type in types if tissue_type not in emx2_tissue_types['name'].to_list()]
+types_to_add_df = pd.DataFrame({'name': types_to_add})
 
 # merge the solveRD ontologies with the EMX2 ontologies
-emx2_tissue_types_complete = pd.merge(emx2_tissue_types, unique_types_df, on = ['name', 'name'], how='outer')
+emx2_tissue_types_complete = pd.merge(emx2_tissue_types, types_to_add_df, on = ['name', 'name'], how='outer')
 
 # upload the new ontology to emx2
 emx2.save_schema(table="TissueType", data=emx2_tissue_types_complete)

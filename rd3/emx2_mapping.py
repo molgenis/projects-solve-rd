@@ -10,12 +10,13 @@ import molgenis.client
 # from rd3tools.utils import flatten_data
 import pandas as pd
 load_dotenv()
+import re
 
-# connect to the environment and log in
+# connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-# connect to emx2
+# connect to EMX2
 emx2 = Client(
     'http://localhost:8080/',
     schema='rd3',
@@ -47,38 +48,39 @@ QUERY = QUERY + (
 # subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
 subjects = rd3.get('solverd_subjects', q=QUERY)
 
-# print(fids[:5])
-
 # get the subject IDs - necessary to retrieve the subject info
 IDs = [subject['subjectID'] for subject in subjects]
-# print(IDs)
 # get the subject info for the families
 QUERY = ','.join([f"subjectID=q={ID}" for ID in IDs])
 subjects_info = rd3.get('solverd_subjectinfo', q=QUERY)
+
 # get the sample info for the families
 QUERY = ','.join([f"belongsToSubject=={ID}" for ID in IDs])
 samples = rd3.get('solverd_samples', q=QUERY)
+
 # get the labinfo for the families
 sample_ids = [sample['sampleID'] for sample in samples]
 QUERY = ','.join([f'sampleID=={sample_id}' for sample_id in sample_ids])
 labinfos = rd3.get('solverd_labinfo', q=QUERY)
 labinfos_all = rd3.get('solverd_labinfo', batch_size=10000)
 
+# get the files for the families - TO DO: does not work
+QUERY = ','.join([f"subjectID=={ID}" for ID in IDs])
+files = rd3.get('solverd_files', q=QUERY, batch_size=10000)
 
-# map the data to the new model
+##################################################
+# Migrate subjects (solverd_subjects) to the new model
+
+# initialize lists for the tables in EMX2
 emx2_individuals = []
 emx2_pedigree = []
-emx2_resources = []
 emx2_pedigree_members = []
-# emx2_organisations = []
 emx2_clinical_observations = []
 emx2_individual_observations = []
 emx2_individual_consent = []
 # loop through the subjects in RD3
 for subject in subjects:
     new_individual_entry = {}
-    new_pedigree_entry = {}
-    new_pedigree_members_entry = {}
 
     # map 'subjectID' (solverd_subjects) to 'id' (Individuals)
     new_individual_entry['id'] = subject['subjectID']
@@ -100,6 +102,7 @@ for subject in subjects:
 
     # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'identifier' (Pedigree)
     if 'fid' in subject:
+        new_pedigree_entry = {} # initialize new entry
         new_individual_entry['pedigree'] = subject['fid']
         # to make this work the fid also needs to be added to the pedigree table in emx2.
         # check for uniqueness
@@ -159,17 +162,17 @@ for subject in subjects:
         new_individual_entry['affiliated institutions.resource'] = ','.join(
             map(str, resources))
 
-    # create clinical and individual observations: only map the individual identifier.
-    # Clinical observations
-    new_clinical_observation_entry = {}
+    # create clinical and individual observations
+    # Clinical observations: map identifier and solved info
+    new_clinical_observation_entry = {} # initialize new entry
     new_clinical_observation_entry['individual'] = subject['subjectID']
     if 'solved' in subject:
         new_clinical_observation_entry['is solved'] = subject['solved']
     if 'date_solved' in subject:
         new_clinical_observation_entry['date solved'] = subject['date_solved']
     emx2_clinical_observations.append(new_clinical_observation_entry)
-    # Individual observations
-    new_individual_observation_entry = {}
+    # Individual observations: only map the identifier
+    new_individual_observation_entry = {} # initialize new entry
     new_individual_observation_entry['individual'] = subject['subjectID']
     emx2_individual_observations.append(new_individual_observation_entry)
 
@@ -190,9 +193,9 @@ for subject in subjects:
     new_individual_entry['included in datasets.name'] = ','.join(
         map(str, partOfReleaseList))
 
-    # map 'consent' (solverd_subjects) to
+    # map 'consent' (solverd_subjects) to Individual consent 
     if 'matchMakerPermission' in subject:
-        new_individual_consent_entry = {}
+        new_individual_consent_entry = {} 
         new_individual_consent_entry['identifier'] = subject['subjectID'] + '-matchmaker'
         new_individual_consent_entry['Person consenting'] = subject['subjectID']
         if subject['matchMakerPermission']:
@@ -259,11 +262,14 @@ emx2.save_schema(table="Individual observations",
                  data=emx2_individual_observations)
 emx2.save_schema(table="Clinical observations",
                  data=emx2_clinical_observations)
+emx2.save_schema(table="Individual consent",
+                 data=emx2_individual_consent)
 # obtain the clinical observations table (with automatically generated ID)
 clinicalObs = emx2.get(schema=schema, table="Clinical observations")
 
 
 # again loop through subjects to map phenotype and diseases
+# this is done seperately because the IDs first need to be automatically created when uploading clinical observations
 emx2_disease_history = []
 emx2_phenotype_observations = []
 for subject in subjects:
@@ -310,9 +316,8 @@ for subject in subjects:
                 # update this entry in the dict with the age at onset
                 disease_history_entry.update({'age group at onset':match[0]['ageOfOnset']['label']})
                 
-
+# to check
 pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
-
 
 # save and upload the disease history and phenotype observation tables
 emx2.save_schema(table="Disease history", data=emx2_disease_history)
@@ -320,7 +325,23 @@ emx2.save_schema(table="Phenotype observations",
                  data=emx2_phenotype_observations)
 
 #######################################################################
-#  map (bio)samples information
+#  Migrate (bio)samples information to the new model
+
+# retrieve and delete Biosamples, this table relies on other tables, so these also need to be removed.
+# retrieve the protocol activity, sequencing runs, and sample preparations tables, so they can be truncated 
+# seqRuns = emx2.get('Sequencing runs')
+# sampPreps = emx2.get('Sample preparations')
+# protAct = emx2.get('Protocol activity')
+# biosamp = emx2.get(table='Biosamples')
+
+# # delete the tables because the upload does not replace, but adds to the exisiting tables.
+# emx2.delete_records(table='Sequencing runs', data=seqRuns) 
+# emx2.delete_records(table='Sample preparations', data=sampPreps)
+# emx2.delete_records(table='Protocol activity', data=protAct)
+# # now, Biosamples can be removed.
+# emx2.delete_records(table='Biosamples', data=biosamp)
+
+# initialize list to gather the biosamples info for the new model
 emx2_biosamples = []
 for sample in samples:
     new_biosamples_entry = {}
@@ -420,20 +441,22 @@ pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
 emx2.save_schema(table="Biosamples", data=emx2_biosamples)
 
 ##################################################
-# map from table Experiments (solverd_labinfo) to the new model
+# Migrate the Experiments (solverd_labinfo) to the new model
 
-# retrieve the assay and sequencing runs tables so they can be truncated 
-seqRuns = emx2.get('Sequencing runs')
-sampPreps = emx2.get('Sample preparations')
-protAct = emx2.get('Protocol activity')
+# retrieve the protocol activity, sequencing runs, and sample preparations tables, so they can be truncated 
+# seqRuns = emx2.get('Sequencing runs')
+# sampPreps = emx2.get('Sample preparations')
+# protAct = emx2.get('Protocol activity')
 
-# delete Assay because the upload does not replace, but adds to the exisiting tables.
-emx2.delete_records(table='Sequencing runs', data=seqRuns) 
-emx2.delete_records(table='Sample preparations', data=sampPreps)
-emx2.delete_records(table='Protocol activity', data=protAct)
+# # delete the tables because the upload does not replace, but adds to the exisiting tables.
+# emx2.delete_records(table='Sequencing runs', data=seqRuns) 
+# emx2.delete_records(table='Sample preparations', data=sampPreps)
+# emx2.delete_records(table='Protocol activity', data=protAct)
 
+# initialize lists for the data for the new model
 emx2_sample_preparation = []
 emx2_sequencing_runs = []
+# loop through the experiment info
 for labinfo in labinfos:
     new_sample_preparation_entry = {}
     new_sequencing_runs_entry = {}
@@ -482,7 +505,7 @@ for labinfo in labinfos:
         new_sequencing_runs_entry['sequencing centre.resource'] = 'RD3'
         new_sequencing_runs_entry['sequencing centre.id'] = labinfo['sequencingCentre']['value']
 
-    # map 'sequencer' (solverd_labinfo) to 'platform' and 'platform model' (Sequencing runs)
+    # map 'sequencer' (solverd_labinfo) to 'platform' and 'platform' (Sequencing runs)
     # make a dictionary to use for mapping the platform to the ontology term
     platform_dict = {
         "Illumina": "Illumina platform",
@@ -498,10 +521,22 @@ for labinfo in labinfos:
             platform = match.group()
         new_sequencing_runs_entry['platform'] = platform_dict[platform]
 
+        # also map to 'platform model' (Sequencing runs)
+        pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
+        if not pattern.match(labinfo['sequencer']): # don't map all DNBSEQ sequencers
+            # differently named in ontology 
+            if labinfo['sequencer'] == 'Sequel II': 
+                new_sequencing_runs_entry['platform model'] = 'PacBio Sequel II'
+            # does not map to any category in the ontology; print message
+            elif labinfo['sequencer'] == 'Sequel IIe' or labinfo['sequencer'] == 'Illumina HiSeq 1500':
+                print(f'The following sequencer is not present in the ontology: {labinfo['sequencer']}')
+            else: # the platform model is as is in the ontology and can thus be mapped
+                new_sequencing_runs_entry['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
+
     # map 'seqType' (solverd_labinfo) to 'library strategy' (Sequencing runs)
     if 'seqType' in labinfo and labinfo['seqType']:
         for seqType in labinfo['seqType']:
-            if seqType['label'] == 'ssRNA-seq':
+            if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
                 new_sequencing_runs_entry['library strategy'] = seqType['label']
             else:
                 # capitalize first letter in the strategy (as per ontology)
@@ -515,6 +550,40 @@ for labinfo in labinfos:
     if 'median_cov' in labinfo:
         new_sequencing_runs_entry['median read depth'] = labinfo['median_cov']
 
+    # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
+    if 'c20' in labinfo:
+        new_sequencing_runs_entry['percentage Tr20'] = labinfo['c20']
+
+    # map 'partOfRelease' (solverd_labinfo) to 'included in datasets' (Sequencing runs and Sample preparations)
+    partOfReleaseList = []
+    resourcesList = []
+    if 'partOfRelease' in labinfo:
+        for release in labinfo['partOfRelease']:
+            partOfReleaseList.append(release['id'])
+            resourcesList.append('RD3')
+    # map 'retracted' (solverd_labinfo) to 'included in datasets'
+    # check if the individual needs to be retracted from the tables.
+    if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
+        # add the lists to the new individual entry
+        resourcesList.append("RD3")
+        partOfReleaseList.append('Retracted')
+    # map 'includedInDatasets' (solverd_labinfo) to 'included in datasets' as well
+    if 'includedInDatasets' in labinfo:
+        for dataset in labinfo['includedInDatasets']:
+            partOfReleaseList.append(dataset['id'])
+            resourcesList.append('RD3')
+    # append to Sequencing runs
+    new_sequencing_runs_entry['included in datasets.resource'] = ','.join(
+        resourcesList)
+    new_sequencing_runs_entry['included in datasets.name'] = ','.join(
+        map(str, partOfReleaseList))
+    # append to Sample preparation
+    new_sample_preparation_entry['included in datasets.resource'] = ','.join(
+        resourcesList)
+    new_sample_preparation_entry['included in datasets.name'] = ','.join(
+        map(str, partOfReleaseList))
+
+    
     # append the new entry to the sample preparation list
     if new_sample_preparation_entry: # if not empty
         emx2_sample_preparation.append(new_sample_preparation_entry)
@@ -531,6 +600,26 @@ emx2.save_schema(table="Sample preparations", data=emx2_sample_preparation)
 # # save and upload the sequencing runs table
 emx2.save_schema(table="Sequencing runs", data=emx2_sequencing_runs)
 
+##################################################
+# Migrate table Files (solverd_files) to the new model
+
+emx2_files = []
+for file in files: # loop through the files
+    new_files_entry = {}
+
+    # map 'EGA' (solverd_files) to 'alterntive ids' (Files)
+    if 'EGA' in file:
+        new_files_entry['alternative ids'] = file['EGA']
+    
+    # append the new entry to the files list
+    if new_files_entry:
+        emx2_files.append(new_files_entry)
+
+# to check
+pd.DataFrame(emx2_files).to_csv('Files.csv', index=False)
+
+# save and upload the files table
+emx2.save_schema(table="Files", data=emx2_files)
 
 # write to csv - not used anymore 
 pd.DataFrame(emx2_individuals).to_csv('Individuals.csv', index=False)
@@ -597,13 +686,13 @@ for sample in samples_tmp:
 labinfos_all_df = pd.DataFrame(labinfos_all)
 labinfos_all_df['experimentID'].isnull().any()
 
-labinfos_all_df['library']
+labinfos_all_df['sequencer']
 for i in labinfos_all_df['sequencingCentre']:
     if not i:
         print("empty")
         print(i)
 
-tmp = labinfos_all_df['barcode'].dropna()
+tmp = labinfos_all_df['sequencer'].dropna()
 sequencers = []
 for i in tmp:
     sequencers.append(i)
@@ -616,10 +705,11 @@ sequencers = []
 for i in tmp:
     sequencers.append(i)
 
-uniques = set(sequencers)
+uniques = set(sequencer.rstrip() for sequencer in sequencers)
 import re
-pattern = re.compile(r'^DNBSEQ-G\d+$')
+pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
 filtered_uniques = [item for item in uniques if not pattern.match(item)]
+filtered_uniques
 
 
 samples_all = rd3.get('solverd_samples', batch_size=10000)

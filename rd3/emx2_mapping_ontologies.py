@@ -22,6 +22,7 @@ import molgenis.client
 import pandas as pd
 from molgenis_emx2_pyclient import Client
 load_dotenv()
+import re
 
 # connect to the environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
@@ -327,6 +328,37 @@ emx2_tissue_types_complete = pd.merge(emx2_tissue_types, types_to_add_df, on = [
 
 # upload the new ontology to emx2
 emx2.save_schema(table="TissueType", data=emx2_tissue_types_complete)
+
+# ///////////////////////////////////////////////////////////////////////////////
+
+# Migrate sequencing instrument models 
+
+# Gather the sequencing instrument models from RD3
+insModels = rd3.get('solverd_labinfo', attributes='sequencer', batch_size=10000)
+
+# Gather the emx2 sequencer ontologies
+emx2_sequencers = emx2.get('SequencingInstrumentModels', as_df=True)
+
+# don't migrate all DNBSEQ sequencers
+pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
+sequencers_to_add = [] # initialize
+for insModel in insModels: # loop through the models used in solve-rd
+    if ('sequencer' in insModel # check if not NA 
+        and not pattern.match(insModel['sequencer']) # do not map the DNBSEQ sequencers
+        and insModel['sequencer'] not in emx2_sequencers['name'] # check if sequencer is already present in ontology from EMX2
+        and insModel['sequencer'] != "Sequel II"): # Sequel II is already present in ontology under different name (PacBio Sequel II)
+        # gather the sequencers used in solve-RD, except for all exceptions in the if statement
+        sequencers_to_add.append(insModel['sequencer'].rstrip()) 
+        
+sequencers_to_add = list(set(sequencers_to_add)) # gather the unique sequencers
+
+# merge the solveRD sequencers with the emx2 ontology
+emx2_sequencers_complete = pd.merge(emx2_sequencers, 
+                                    pd.DataFrame({'name': sequencers_to_add}), how='outer')
+
+# save and upload the ontology with the additional categories 
+emx2.save_schema(table="SequencingInstrumentModels", data=emx2_sequencers_complete)
+
 
 # ///////////////////////////////////////////////////////////////////////////////
 

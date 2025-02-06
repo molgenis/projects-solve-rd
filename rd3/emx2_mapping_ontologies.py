@@ -359,6 +359,48 @@ emx2_sequencers_complete = pd.merge(emx2_sequencers,
 # save and upload the ontology with the additional categories 
 emx2.save_schema(table="SequencingInstrumentModels", data=emx2_sequencers_complete)
 
+# ///////////////////////////////////////////////////////////////////////////////
+
+# Migrate anatomical locations
+
+# Gather the anatomical locations from RD3
+anatLoc = rd3.get('solverd_lookups_anatomicallocation')
+#anatLoc_df = pd.DataFrame(anatLoc)
+#anatLoc_df['name'] = pd.to_numeric(anatLoc_df['id'])
+
+anatLocs_used = []
+for row in anatLoc:
+    anatLocs_used.append({
+        'name': int(row['id']),
+        'label': row['label'],
+        'codesystem': row['ontology'],
+        'ontologyTermURI': row['uri'],
+        'code': int(row['id'])
+    })
+
+anatLocs_used_df = pd.DataFrame(anatLocs_used)
+
+# Gather the emx2 anatomical locations ontology
+emx2_anatLoc = emx2.get('AnatomicalLocation', as_df=True)
+
+# merge the solveRD anatomical locations with the emx2 ontology
+emx2_anatomical_locations_complete = pd.merge(emx2_anatLoc, anatLocs_used_df, on = ['name', 'name'], how='outer')
+emx2_anatomical_locations_complete = pd.DataFrame(emx2_anatomical_locations_complete)
+
+# drop duplicate columns
+emx2_anatomical_locations_complete = emx2_anatomical_locations_complete.drop(['label_x', 'codesystem_x', 'ontologyTermURI_x', 'code_x'], axis=1)
+# rename to correspond to ontology column names
+emx2_anatomical_locations_complete = emx2_anatomical_locations_complete.rename(
+    columns={
+        "label_y": "label",
+        "ontologyTermURI_y": "ontologyTermURI",
+        "codesystem_y": "codesystem",
+        "code_y": "code"
+    }
+)
+
+# save and upload the complete ontology 
+emx2.save_schema(table="AnatomicalLocation", data=emx2_anatomical_locations_complete)
 
 # ///////////////////////////////////////////////////////////////////////////////
 

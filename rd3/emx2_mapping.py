@@ -11,6 +11,7 @@ import molgenis.client
 import pandas as pd
 load_dotenv()
 import re
+import random
 
 # connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
@@ -35,7 +36,9 @@ for row in families:
             fids.append(row['fid'])
 
 # get the subjects from the first 5 families
-QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
+#QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
+QUERY = ','.join([f"fid=q={fid}" for fid in random.sample(fids, 20)])
+
 # add family ID that has specific variables with data, so the code can be checked.
 QUERY = QUERY + (
     f',fid=q={environ['FAM_ID_1']}' + 
@@ -95,6 +98,38 @@ labinfos = rd3.get('solverd_labinfo', q=QUERY)
 # # write to csv
 # files_solveRD_df.to_csv('Files_solveRD.csv', index=False)
 
+##################################################
+# First empty the current database because the uploads don't replace but add to the existing tables. 
+
+# retrieve the data from the tables 
+phenObs = emx2.get(table='Phenotype observations')
+disHist = emx2.get('Disease history')
+clinObs = emx2.get('Clinical observations')
+indCons = emx2.get(table='Individual consent')
+indObs = emx2.get(table='Individual observations')
+pedMems = emx2.get(table='Pedigree members')
+filesDat = emx2.get(table='Files')
+seqRuns = emx2.get('Sequencing runs')
+sampPreps = emx2.get('Sample preparations')
+protAct = emx2.get('Protocol activity')
+biosamplesDat = emx2.get(table='Biosamples')
+inds = emx2.get(table='Individuals')
+pedigree = emx2.get(table='Pedigree')
+
+# delete the data in the tables 
+emx2.delete_records(table='Phenotype observations', data=phenObs)
+emx2.delete_records(table='Disease history', data=disHist)
+emx2.delete_records(table='Clinical observations', data=clinObs)
+emx2.delete_records(table='Individual consent', data=indCons)
+emx2.delete_records(table='Individual observations', data=indObs)
+emx2.delete_records(table='Pedigree members', data=pedMems)
+emx2.delete_records(table='Files', data=filesDat)
+emx2.delete_records(table='Sequencing runs', data=seqRuns) 
+emx2.delete_records(table='Sample preparations', data=sampPreps)
+emx2.delete_records(table='Protocol activity', data=protAct)
+emx2.delete_records(table='Biosamples', data=biosamplesDat)
+emx2.delete_records(table='Individuals', data=inds)
+emx2.delete_records(table='Pedigree', data=pedigree)
 
 ##################################################
 # Migrate subjects (solverd_subjects) to the new model
@@ -104,7 +139,7 @@ emx2_individuals = []
 emx2_pedigree = []
 emx2_pedigree_members = []
 emx2_clinical_observations = []
-emx2_individual_observations = []
+# emx2_individual_observations = []
 emx2_individual_consent = []
 # loop through the subjects in RD3
 for subject in subjects:
@@ -121,7 +156,7 @@ for subject in subjects:
         elif subject_sex1 == 'F':
             new_individual_entry['gender at birth'] = 'assigned female at birth'
         else:
-            print(f"Value {subject_sex1} cannot be mapped")
+            print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
 
     # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
     match = [info['dateOfBirth']
@@ -199,27 +234,34 @@ for subject in subjects:
     if 'date_solved' in subject:
         new_clinical_observation_entry['date solved'] = subject['date_solved']
     emx2_clinical_observations.append(new_clinical_observation_entry)
-    # Individual observations: only map the identifier
-    new_individual_observation_entry = {} # initialize new entry
-    new_individual_observation_entry['individual'] = subject['subjectID']
-    emx2_individual_observations.append(new_individual_observation_entry)
+    # # Individual observations: only map the identifier
+    # new_individual_observation_entry = {} # initialize new entry
+    # new_individual_observation_entry['individual'] = subject['subjectID']
+    # emx2_individual_observations.append(new_individual_observation_entry)
 
-    # map 'partOfRelease' to 'included in datasets'
-    partOfReleaseList = []  # list to gather the releases
+    # map to 'included in datasets' (Individuals)
     resourcesList = []  # list to gather resources
-    # loop through the releases of this subject
-    for release in subject['partOfRelease']:
-        partOfReleaseList.append(release['id'])
-        resourcesList.append('RD3')
-    # check if the individual needs to be retracted from the tables.
+    namesList = []  # list to gather the names
+    # map 'partOfRelease
+    if 'partOfRelease' in subject:
+        # loop through the releases of this subject
+        for release in subject['partOfRelease']:
+            resourcesList.append('RD3')
+            namesList.append(release['id'])
+    # map 'retracted' (solverd_subjects)
     if 'retracted' in subject and subject['retracted']['id'] == 'Y':
-        # add the lists to the new individual entry
         resourcesList.append("RD3")
-        partOfReleaseList.append('Retracted')
+        namesList.append('Retracted')
+    # map 'includedInDatasets' (solverd_subjects)
+    if 'includedInDatasets' in subject:
+        for dataset in subject['includedInDatasets']:
+            resourcesList.append('RD3')
+            namesList.append(dataset['id'])
+    # add the lists to the new entry
     new_individual_entry['included in datasets.resource'] = ','.join(
         resourcesList)
     new_individual_entry['included in datasets.name'] = ','.join(
-        map(str, partOfReleaseList))
+        map(str, namesList))
 
     # map 'consent' (solverd_subjects) to Individual consent 
     if 'matchMakerPermission' in subject:
@@ -271,23 +313,10 @@ for subject in subjects:
     # append the new entry to the individuals list
     emx2_individuals.append(new_individual_entry)
 
-# retrieve phenotype observations, disease history and clinical observations
-phenObs = emx2.get(table='Phenotype observations')
-disHist = emx2.get('Disease history')
-clinObs = emx2.get('Clinical observations')
-
-# delete phenotype observations, disease history and clinical observations 
-# because the upload does not replace but adds to the exisiting tables. 
-emx2.delete_records(table='Phenotype observations', data=phenObs)
-emx2.delete_records(table='Disease history', data=disHist)
-emx2.delete_records(table='Clinical observations', data=clinObs)
-
 # save and upload the newly made tables
 emx2.save_schema(table="Pedigree", data=emx2_pedigree)
 emx2.save_schema(table="Individuals", data=emx2_individuals)
 emx2.save_schema(table="Pedigree members", data=emx2_pedigree_members)
-emx2.save_schema(table="Individual observations",
-                 data=emx2_individual_observations)
 emx2.save_schema(table="Clinical observations",
                  data=emx2_clinical_observations)
 emx2.save_schema(table="Individual consent",
@@ -382,7 +411,9 @@ for sample in samples:
 
     # map 'anatomicalLocation' (solverd_samples) to 'anatomical location' (Biosamples)
     if 'anatomicalLocation' in sample:
-        new_biosamples_entry['anatomical location'] = sample['anatomicalLocation']['label']
+        new_biosamples_entry['anatomical location'] = sample['anatomicalLocation']['id']
+        if sample['anatomicalLocation']['label'] == 'Other':
+            new_biosamples_entry['anatomical location other'] = sample['anatomicalLocationComment']
 
     # map 'belongsToSubject' (solverd_samples) to 'collected from individual' (Biosamples)
     new_biosamples_entry['collected from individual'] = sample['belongsToSubject']['subjectID']
@@ -402,7 +433,7 @@ for sample in samples:
     if 'materialType' in sample:
         types = []
         for type in sample['materialType']:
-            types.append(type['id'])
+            types.append(type['label'])
         new_biosamples_entry['material type'] = ",".join(map(str, types))
 
     # map 'organisation' (solverd_samples) to 'collected at organisation' (Biosamples)
@@ -415,45 +446,48 @@ for sample in samples:
         new_biosamples_entry['affiliated organisations.resource'] = 'RD3'
         new_biosamples_entry['affiliated organisations.id'] = sample['ERN']['shortname']
 
-    # map 'retracted' (solverd_samples) to 'included in datasets' (Biosamples)
+    # map to 'included in datasets' (Biosamples)
+    resourcesList = [] # gathers all resources
+    namesList = [] # gathers the names
+    # map 'retracted' (solverd_samples) to 'included in datasets'
     if 'retracted' in sample and sample['retracted']['id'] == 'Y': 
-        new_biosamples_entry['included in datasets.resource'] = 'RD3'
-        new_biosamples_entry['included in datasets.name'] = 'Retracted'
+        resourcesList.append('RD3')
+        namesList.append('Retracted')
 
-    # map 'batch' (solverd_samples) to 'included in datasets' (Biosamples)
+    # map 'batch' (solverd_samples) to 'included in datasets'
     if 'batch' in sample:
-        batches = []
-        resources = []
         for batch in sample['batch'].split(","): # split on comma in the case of mulitple batches
-            batches.append(batch)
-            resources.append('RD3')
-        new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
-        new_biosamples_entry['included in datasets.name'] = ",".join(map(str, batches))
+            resourcesList.append('RD3')
+            namesList.append(batch)
 
-
-    # map 'partOfRelease' (solverd_samples) to 'included in datasets' (Biosamples) 
-    resources = []
-    releases = []
+    # map 'partOfRelease' (solverd_samples) to 'included in datasets'
     # gather the resources and releases (names)
-    for release in sample['partOfRelease']:
-        resources.append('RD3')
-        releases.append(release['id'])
-    # if this sample already contains the term included in datasets.resource (eg., when the sample also has a batch)
-    # then append to this (string) list
-    if 'included in datasets.resource' in new_biosamples_entry:
-        new_biosamples_entry['included in datasets.resource'] += "," + ",".join(map(str, resources))
-        new_biosamples_entry['included in datasets.name'] += "," + ",".join(map(str, releases))
-    else: # else, make this new term
-        new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resources))
-        new_biosamples_entry['included in datasets.name'] = ",".join(map(str, releases))
+    if 'partOfRelease' in sample:
+        for release in sample['partOfRelease']:
+            resourcesList.append('RD3')
+            namesList.append(release['id'])
+
+    # map 'includedInDatasets' (solverd_samples) to 'included in datasets'
+    if 'includedInDatasets' in sample:
+        for dataset in sample['includedInDatasets']:
+            resourcesList.append('RD3')
+            namesList.append(dataset['id'])
+            
+    # add the lists to a new entry 
+    new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resourcesList))
+    new_biosamples_entry['included in datasets.name'] = ",".join(map(str, namesList))
 
     # map 'alternativeIdentifier' (solverd_samples) to 'alternate identifiers' (Biosamples)
     if 'alternativeIdentifier' in sample:
         new_biosamples_entry['alternate ids'] = sample['alternativeIdentifier']
 
-    # map 'flag' (solverd_samples) naar 'failed quality control' (Biosamples)
+    # map 'flag' (solverd_samples) to 'failed quality control' (Biosamples)
     if 'flag' in sample:
         new_biosamples_entry['failed quality control'] = sample['flag']
+
+    # map 'percentageTumorCells' (solverd_samples) to 'percentage tumor cells' (Biosamples)
+    if 'percentageTumorCells' in sample:
+        new_biosamples_entry['percentage tumor cells'] = sample['percentageTumorCells']
 
     # map 'comments' (solverd_samples) to 'comments' (Biosamples)
     if 'comments' in sample:
@@ -582,36 +616,47 @@ for labinfo in labinfos:
     if 'c20' in labinfo:
         new_sequencing_runs_entry['percentage Tr20'] = labinfo['c20']
 
-    # map 'partOfRelease' (solverd_labinfo) to 'included in datasets' (Sequencing runs and Sample preparations)
-    partOfReleaseList = []
+    # map to 'included in datasets' (Sequencing runs and Sample preparations)
+
+    # initialize lists to gather the datasets
     resourcesList = []
+    namesList = []
+    
+    # map 'partOfRelease'
     if 'partOfRelease' in labinfo:
         for release in labinfo['partOfRelease']:
-            partOfReleaseList.append(release['id'])
             resourcesList.append('RD3')
-    # map 'retracted' (solverd_labinfo) to 'included in datasets'
+            namesList.append(release['id'])
+
+    # map 'retracted' (solverd_labinfo) 
     # check if the individual needs to be retracted from the tables.
     if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
         # add the lists to the new individual entry
         resourcesList.append("RD3")
-        partOfReleaseList.append('Retracted')
-    # map 'includedInDatasets' (solverd_labinfo) to 'included in datasets' as well
+        namesList.append('Retracted')
+
+    # map 'includedInDatasets' (solverd_labinfo) 
     if 'includedInDatasets' in labinfo:
         for dataset in labinfo['includedInDatasets']:
-            partOfReleaseList.append(dataset['id'])
             resourcesList.append('RD3')
-    # append to Sequencing runs
+            namesList.append(dataset['id'])
+
+    # add the lists to the Sequencing runs entry
     new_sequencing_runs_entry['included in datasets.resource'] = ','.join(
         resourcesList)
     new_sequencing_runs_entry['included in datasets.name'] = ','.join(
-        map(str, partOfReleaseList))
-    # append to Sample preparation
+        map(str, namesList))
+    # append the lists to the Sample preparation entry
     new_sample_preparation_entry['included in datasets.resource'] = ','.join(
         resourcesList)
     new_sample_preparation_entry['included in datasets.name'] = ','.join(
-        map(str, partOfReleaseList))
-
+        map(str, namesList))
     
+    # map 'comments' (solverd_labinfo) to 'comments' (Sample preparation and Sequencing runs)
+    if 'comments' in labinfo:
+        new_sample_preparation_entry['comments'] = labinfo['comments']
+        new_sequencing_runs_entry['comments'] = labinfo['comments']
+
     # append the new entry to the sample preparation list
     if new_sample_preparation_entry: # if not empty
         emx2_sample_preparation.append(new_sample_preparation_entry)
@@ -675,11 +720,10 @@ for index, row in files.iterrows(): # loop through the files
         sampleIDs.append(sample['sampleID'])
     new_files_entry['biosamples'] = ",".join(map(str, sampleIDs))
 
-    # map 'experimentID' (solverd_files) to 'generated by protocol' (Files) - TO DO: files can be generated by multiple experiments since we added
-    # a prefix to experiment_ID. 
-    # print(eval(row['experimentID'])['experimentID'])
-    # if not pd.isna(row['experimentID']):
-    #     new_files_entry['generated by protocol'] = eval(row['experimentID'])['experimentID']
+    # map 'experimentID' (solverd_files) to 'generated by protocol' (Files) 
+    #print(eval(row['experimentID'])['experimentID'])
+    if not pd.isna(row['experimentID']):
+        new_files_entry['generated by protocol'] = f'sample_{eval(row['experimentID'])['experimentID']},seq_{eval(row['experimentID'])['experimentID']}'
 
     # map 'partOfRelease' (solverd_files) to 'included in datasets' (Files)
     partOfReleaseList = []
@@ -710,8 +754,6 @@ pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
 pd.DataFrame(emx2_individual_consent).to_csv(
     'Individual consent.csv', index=False)
 # pd.DataFrame(emx2_phenotype_observations).to_csv('Phenotype observations.csv', index=False)
-pd.DataFrame(emx2_individual_observations).to_csv(
-    'Individual observations.csv', index=False)
 pd.DataFrame(emx2_clinical_observations).to_csv(
     'Clinical observations.csv', index=False)
 pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
@@ -806,6 +848,13 @@ for sample in samples_tmp:
 
 # set(values)
 
+subjects_all = rd3.get('solverd_subjects', batch_size=10000, attributes='sex1')
+
+genders = []
+for subject in subjects_all:
+    if 'sex1' in subject:
+        genders.append(subject['sex1']['id'])
+set(genders)
 import re
 
 # Example list
@@ -820,3 +869,10 @@ for item in my_list:
     if match:
         first_word = match.group()
         print(first_word)
+
+# make a query for creating the url with subjects
+url_query = [f'subjectID=q={id}' for id in IDs]
+url_query = [f"belongsToSubject=={ID}" for ID in IDs]
+url_query = ",".join(map(str, url_query))
+url_query = ",".join(map(str, IDs))
+url_query

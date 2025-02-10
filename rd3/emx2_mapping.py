@@ -1,17 +1,17 @@
 """
 Mapping script for RD3 EMX1 to EMX2
-  
+
 """
 
 from molgenis_emx2_pyclient import Client
 from os import environ, path
 from dotenv import load_dotenv
 import molgenis.client
-# from rd3tools.utils import flatten_data
 import pandas as pd
 load_dotenv()
 import re
 import random
+import json
 
 # connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
@@ -98,6 +98,10 @@ labinfos = rd3.get('solverd_labinfo', q=QUERY)
 # # write to csv
 # files_solveRD_df.to_csv('Files_solveRD.csv', index=False)
 
+# get all data
+subjects = rd3.get('solverd_subjects', batch_size=10000)
+samples = rd3.get('solverd_samples', batch_size=10000)
+
 ##################################################
 # First empty the current database because the uploads don't replace but add to the existing tables. 
 
@@ -139,7 +143,6 @@ emx2_individuals = []
 emx2_pedigree = []
 emx2_pedigree_members = []
 emx2_clinical_observations = []
-# emx2_individual_observations = []
 emx2_individual_consent = []
 # loop through the subjects in RD3
 for subject in subjects:
@@ -234,11 +237,7 @@ for subject in subjects:
     if 'date_solved' in subject:
         new_clinical_observation_entry['date solved'] = subject['date_solved']
     emx2_clinical_observations.append(new_clinical_observation_entry)
-    # # Individual observations: only map the identifier
-    # new_individual_observation_entry = {} # initialize new entry
-    # new_individual_observation_entry['individual'] = subject['subjectID']
-    # emx2_individual_observations.append(new_individual_observation_entry)
-
+   
     # map to 'included in datasets' (Individuals)
     resourcesList = []  # list to gather resources
     namesList = []  # list to gather the names
@@ -300,15 +299,16 @@ for subject in subjects:
 
     # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
     for sample in samples:
-        if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
-            if 'sex2' in sample:
-                if sample['sex2']['id'] == 'M':
-                    new_individual_entry['genotypic sex'] = 'XY Genotype'
-                elif sample['sex2']['id'] == 'F':
-                    new_individual_entry['genotypic sex'] = 'XX Genotype'
-                else:
-                    print('The genotypic sex could not be mapped.')
-                    print(sample['sex2']['id'])
+        if 'belongsToSubject' in sample:
+            if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
+                if 'sex2' in sample:
+                    if sample['sex2']['id'] == 'M':
+                        new_individual_entry['genotypic sex'] = 'XY Genotype'
+                    elif sample['sex2']['id'] == 'F':
+                        new_individual_entry['genotypic sex'] = 'XX Genotype'
+                    else:
+                        print('The genotypic sex could not be mapped.')
+                        print(sample['sex2']['id'])
 
     # append the new entry to the individuals list
     emx2_individuals.append(new_individual_entry)
@@ -384,23 +384,13 @@ emx2.save_schema(table="Phenotype observations",
 #######################################################################
 #  Migrate (bio)samples information to the new model
 
-# retrieve and delete Biosamples, this table relies on other tables, so these also need to be removed.
-# retrieve the protocol activity, sequencing runs, and sample preparations tables, so they can be truncated 
-# seqRuns = emx2.get('Sequencing runs')
-# sampPreps = emx2.get('Sample preparations')
-# protAct = emx2.get('Protocol activity')
-# biosamp = emx2.get(table='Biosamples')
-
-# # delete the tables because the upload does not replace, but adds to the exisiting tables.
-# emx2.delete_records(table='Sequencing runs', data=seqRuns) 
-# emx2.delete_records(table='Sample preparations', data=sampPreps)
-# emx2.delete_records(table='Protocol activity', data=protAct)
-# # now, Biosamples can be removed.
-# emx2.delete_records(table='Biosamples', data=biosamp)
+samples_tmp = pd.read_csv('Samples_solveRD.csv').to_dict()
+with open('samples.json', 'r') as file:
+    samples_tmp = json.load(file)
 
 # initialize list to gather the biosamples info for the new model
 emx2_biosamples = []
-for sample in samples:
+for sample in samples_tmp:
     new_biosamples_entry = {}
     # map 'sampleID' (solverd_samples) to 'id' (Biosamples)
     new_biosamples_entry['id'] = sample['sampleID']
@@ -416,7 +406,8 @@ for sample in samples:
             new_biosamples_entry['anatomical location other'] = sample['anatomicalLocationComment']
 
     # map 'belongsToSubject' (solverd_samples) to 'collected from individual' (Biosamples)
-    new_biosamples_entry['collected from individual'] = sample['belongsToSubject']['subjectID']
+    if 'belongsToSubject' in sample:
+        new_biosamples_entry['collected from individual'] = sample['belongsToSubject']['subjectID']
 
     # map 'sex2' (solverd_samples) to 'genotypic sex' (solverd_subjects)
     if 'sex2' in sample:
@@ -689,9 +680,8 @@ for index, row in files.iterrows(): # loop through the files
     # map 'name' (solverd_files) to 'name' (Files)
     new_files_entry['name'] = path.basename(row['name'])
 
-    # map 'fenderFilePath' (solverd_files) to 'path' (Files) -- TO DO: does not work. Path is required.  
+    # map 'fenderFilePath' (solverd_files) to 'path' (Files)
     new_files_entry['path'] = ",".join(map(str, [row['name'], row['fenderFilePath']]))
-    # new_files_entry['path'] = "tmp/path"
 
     # map 'fileFormat' (solverd_files) to 'format' (Files)
     format_dict = { # dictionary for the categories with different capitalization in old vs. new version

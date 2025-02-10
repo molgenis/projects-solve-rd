@@ -72,18 +72,36 @@ emx2.save_schema(table='Contacts', data=contacts_df)
 # It is better to preserve these values rather than mapping them to new values.
 
 # retrieve relevant organisation information from RD3
-orgs = rd3.get('solverd_info_organisations')
-orgs_df = pd.DataFrame(orgs)[["value", "description"]]
+orgs = rd3.get('solverd_info_organisations', attributes='value,description')
+#orgs_df = pd.DataFrame(orgs)[["value", "description"]]
 
-orgs_df = orgs_df.rename(columns={
-    'value': 'id',
-    'description': 'name'
-})
+organisations = []
+# orgs_df = orgs_df.rename(columns={
+#     'value': 'id',
+#     'description': 'name'
+# })
+
+for org in orgs:
+    organisations.append({
+        'id': org['value'],
+        'name': org['value']
+    })
+
+# Migrate ERNs 
+ERNs = rd3.get('solverd_info_erns')
+# loop through the ERNs and append to the list
+for ERN_item in ERNs:
+    organisations.append({
+        'id': ERN_item['shortname'],
+        'name': ERN_item['fullname']
+    })
+
+organisations_df = pd.DataFrame(organisations)
 
 # add link to resource (required in EMX2)
-orgs_df['resource'] = resources_df['id'][0]
+organisations_df['resource'] = resources_df['id'][0]
 
-emx2.save_schema(table="Organisations", data=orgs_df)
+emx2.save_schema(table="Organisations", data=organisations_df)
 
 # ///////////////////////////////////////////////////////////////////////////////
 

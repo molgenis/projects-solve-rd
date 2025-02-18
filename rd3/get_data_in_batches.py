@@ -33,15 +33,48 @@ for batch in range(0, num_rows, step):
     solveRD_samples.extend(samples)
 
 # write the dictionary to a json file
-with open('samples.json', 'w') as file:
+with open('samples_17022025.json', 'w') as file:
     json.dump(solveRD_samples, file)
 
 # ///////////////////////////////////////////////////////////////////////////////
 # Get the Experiments (solverd_labinfo) data.
 
-# TO DO
+# initialize list to gather all experiments
+solveRD_experiments = []
+
+# define the number of rows (experiments) in the table
+num_rows = 26302
+
+# define the batch size
+step = 1000
+
+# loop through the batches and gather the rows (experiments) for each batch
+for batch in range(0, num_rows, step):
+    experiments = rd3.get('solverd_labinfo', start=batch, num=step)
+    solveRD_experiments.extend(experiments)
+
+# write the dictionary to a json file
+with open('experiments_17022025.json', 'w') as file:
+    json.dump(solveRD_experiments, file)
 
 # ///////////////////////////////////////////////////////////////////////////////
 # Get the Files (solverd_files) data.
 
-# TO DO
+# initialize list to gather all files
+solveRD_files = []
+
+# define the number of rows (files) in the table
+num_rows = 697223
+
+# define the batch size
+step = 10000
+
+# loop through the batches and gather the rows (files) for each batch
+for batch in range(0, num_rows, step):
+    print(batch)
+    files = rd3.get('solverd_files', start=batch, num=step)
+    solveRD_files.extend(files)
+
+# write the dictionary to a json file
+with open('files_18022025.json', 'w') as file:
+    json.dump(solveRD_files, file)

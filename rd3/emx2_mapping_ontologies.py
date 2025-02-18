@@ -28,11 +28,20 @@ import re
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
+# locally
+# emx2 = Client(
+#     'http://localhost:8080/',
+#     schema='rd3',
+#     token=environ['MOLGENIS_EMX2_TOKEN']
+# )
+
+# Erdera server
 emx2 = Client(
-    'http://localhost:8080/',
-    schema='rd3',
-    token=environ['MOLGENIS_EMX2_TOKEN']
+    'https://erdera.molgeniscloud.org',
+    schema='RD3v2',
+    token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
 )
+
 
 # ///////////////////////////////////////////////////////////////////////////////
 
@@ -382,14 +391,14 @@ emx2.save_schema(table="SequencingInstrumentModels", data=emx2_sequencers_comple
 # Migrate anatomical locations
 
 # Gather the anatomical locations from RD3
-anatLoc = rd3.get('solverd_lookups_anatomicallocation')
+anatLoc = rd3.get('solverd_lookups_anatomicallocation', batch_size=1000)
 #anatLoc_df = pd.DataFrame(anatLoc)
 #anatLoc_df['name'] = pd.to_numeric(anatLoc_df['id'])
 
 anatLocs_used = []
 for row in anatLoc:
     anatLocs_used.append({
-        'name': int(row['id']),
+        'name': row['id'],
         'label': row['label'],
         'codesystem': row['ontology'],
         'ontologyTermURI': row['uri'],

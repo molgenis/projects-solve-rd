@@ -10,74 +10,81 @@ import molgenis.client
 import pandas as pd
 load_dotenv()
 import re
-import random
+#import random
 import json
+# from zipfile import ZipFile
 
 # connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # connect to EMX2
+# emx2 = Client(
+#     'http://localhost:8080/',
+#     schema='rd3',
+#     token=environ['MOLGENIS_EMX2_TOKEN']
+# )
+
 emx2 = Client(
-    'http://localhost:8080/',
-    schema='rd3',
-    token=environ['MOLGENIS_EMX2_TOKEN']
+    'https://erdera.molgeniscloud.org',
+    schema='RD3v2',
+    token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
 )
 
-schema = 'rd3'
+# schema = 'rd3'
+# schema = 'SolveRD'
+schema = 'RD3v2'
 emx2.default_schema = schema  # set default schema
 
-# retrieve first n family identifiers
-families = rd3.get('solverd_subjects', attributes='fid', batch_size=10000)
-fids = []
-for row in families:
-    if 'fid' in row.keys():
-        if row['fid'] not in fids:
-            fids.append(row['fid'])
+##################################################
+# This was used to get the subset of data. Based on this subset, this mapping script
+# was written. This is no longer used. The mapping was done on all data. 
 
-# get the subjects from the first 5 families
-#QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
-QUERY = ','.join([f"fid=q={fid}" for fid in random.sample(fids, 20)])
+# # retrieve first n family identifiers
+# families = rd3.get('solverd_subjects', attributes='fid', batch_size=10000)
+# fids = []
+# for row in families:
+#     if 'fid' in row.keys():
+#         if row['fid'] not in fids:
+#             fids.append(row['fid'])
 
-# add family ID that has specific variables with data, so the code can be checked.
-QUERY = QUERY + (
-    f',fid=q={environ['FAM_ID_1']}' + 
-    f',fid=q={environ['FAM_ID_2']}' + 
-    f',fid=q={environ['FAM_ID_3']}' + 
-    f',fid=q={environ['FAM_ID_4']}' + 
-    f',fid=q={environ['FAM_ID_5']}' +
-    f',fid=q={environ['FAM_ID_6']}'
-)
-# subjects = rd3.get('solverd_subjects', q=QUERY, uploadable=True)
-subjects = rd3.get('solverd_subjects', q=QUERY)
+# # get the subjects from the first 5 families (1st row) or 20 random families (2nd row)
+# QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
+# # QUERY = ','.join([f"fid=q={fid}" for fid in random.sample(fids, 20)])
 
-# get the subject IDs - necessary to retrieve the subject info
-IDs = [subject['subjectID'] for subject in subjects]
-# get the subject info for the families
-QUERY = ','.join([f"subjectID=q={ID}" for ID in IDs])
-subjects_info = rd3.get('solverd_subjectinfo', q=QUERY)
+# # add family ID that has specific variables with data, so the code can be checked.
+# QUERY = QUERY + (
+#     f',fid=q={environ['FAM_ID_1']}' + 
+#     f',fid=q={environ['FAM_ID_2']}' + 
+#     f',fid=q={environ['FAM_ID_3']}' + 
+#     f',fid=q={environ['FAM_ID_4']}' + 
+#     f',fid=q={environ['FAM_ID_5']}' +
+#     f',fid=q={environ['FAM_ID_6']}'
+# )
 
-# get the sample info for the families
-QUERY = ','.join([f"belongsToSubject=={ID}" for ID in IDs])
-samples = rd3.get('solverd_samples', q=QUERY)
+# subjects = rd3.get('solverd_subjects', q=QUERY)
 
-# get the labinfo for the families
-sample_ids = [sample['sampleID'] for sample in samples]
-QUERY = ','.join([f'sampleID=={sample_id}' for sample_id in sample_ids])
-labinfos = rd3.get('solverd_labinfo', q=QUERY)
-#labinfos_all = rd3.get('solverd_labinfo', batch_size=10000)
+# # get the subject IDs to retrieve the subject info
+# IDs = [subject['subjectID'] for subject in subjects]
+# # get the subject info for the families
+# QUERY = ','.join([f"subjectID=q={ID}" for ID in IDs])
+# subjects_info = rd3.get('solverd_subjectinfo', q=QUERY)
+
+# # get the samples for the families
+# QUERY = ','.join([f"belongsToSubject=={ID}" for ID in IDs])
+# samples = rd3.get('solverd_samples', q=QUERY)
+
+# # get the labinfo (experiments) for the families
+# sample_ids = [sample['sampleID'] for sample in samples]
+# QUERY = ','.join([f'sampleID=={sample_id}' for sample_id in sample_ids])
+# labinfos = rd3.get('solverd_labinfo', q=QUERY)
 
 # get the files for the families 
-
 # Retrieving the files data for all IDs at once takes too long. 
 # thus, divide the IDs in batches and retrieve the data per batch. 
 # this data is collected and written to a file. This file can
 # consequently be used for the mapping. 
 
-# QUERY = ','.join([f"subjectID=={ID}" for ID in IDs])
-# files = rd3.get('solverd_files', q=QUERY, batch_size=10000)
-
-# retrieve Files from solve-rd
 # files_solveRD = []
 
 # # Divide the IDs into batches to speed up the process
@@ -98,42 +105,45 @@ labinfos = rd3.get('solverd_labinfo', q=QUERY)
 # # write to csv
 # files_solveRD_df.to_csv('Files_solveRD.csv', index=False)
 
-# get all data
-subjects = rd3.get('solverd_subjects', batch_size=10000)
-samples = rd3.get('solverd_samples', batch_size=10000)
+##################################################
+# read the complete datasets
+
+# retrieve subjects and subject information from server - this might be updated
+subjects = rd3.get('solverd_subjects', batch_size=5000)
+subjects_info = rd3.get('solverd_subjectinfo', batch_size=5000)
+
+# get samples from solve-RD
+with open('samples_17022025.json', 'r') as file:
+    samples = json.load(file)
+
+# get experiments from solve-RD
+with open('experiments_17022025.json', 'r') as file:
+    labinfos = json.load(file)
+
+# get experiments from solve-RD
+with open('files_11022025.json', 'r') as file:
+    files = json.load(file)
 
 ##################################################
 # First empty the current database because the uploads don't replace but add to the existing tables. 
 
-# retrieve the data from the tables 
-phenObs = emx2.get(table='Phenotype observations')
-disHist = emx2.get('Disease history')
-clinObs = emx2.get('Clinical observations')
-indCons = emx2.get(table='Individual consent')
-indObs = emx2.get(table='Individual observations')
-pedMems = emx2.get(table='Pedigree members')
-filesDat = emx2.get(table='Files')
-seqRuns = emx2.get('Sequencing runs')
-sampPreps = emx2.get('Sample preparations')
-protAct = emx2.get('Protocol activity')
-biosamplesDat = emx2.get(table='Biosamples')
-inds = emx2.get(table='Individuals')
-pedigree = emx2.get(table='Pedigree')
-
-# delete the data in the tables 
-emx2.delete_records(table='Phenotype observations', data=phenObs)
-emx2.delete_records(table='Disease history', data=disHist)
-emx2.delete_records(table='Clinical observations', data=clinObs)
-emx2.delete_records(table='Individual consent', data=indCons)
-emx2.delete_records(table='Individual observations', data=indObs)
-emx2.delete_records(table='Pedigree members', data=pedMems)
-emx2.delete_records(table='Files', data=filesDat)
-emx2.delete_records(table='Sequencing runs', data=seqRuns) 
-emx2.delete_records(table='Sample preparations', data=sampPreps)
-emx2.delete_records(table='Protocol activity', data=protAct)
-emx2.delete_records(table='Biosamples', data=biosamplesDat)
-emx2.delete_records(table='Individuals', data=inds)
-emx2.delete_records(table='Pedigree', data=pedigree)
+# truncate the tables
+emx2.truncate(table='Phenotype observations', schema=schema)
+emx2.truncate(table='Disease history', schema=schema)
+emx2.truncate(table='Clinical observations', schema=schema)
+emx2.truncate(table='Individual consent', schema=schema)
+emx2.truncate(table='Individual observations', schema=schema)
+emx2.truncate(table='Pedigree members', schema=schema)
+# Delete files in batches
+for batch in range(0, len(files), 1000):
+    emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
+# emx2.truncate(table='Files', schema=schema)
+emx2.truncate(table='Sequencing runs', schema=schema)
+emx2.truncate(table='Sample preparations', schema=schema)
+emx2.truncate(table='Protocol activity', schema=schema)
+emx2.truncate(table='Biosamples', schema=schema)
+emx2.truncate(table='Individuals', schema=schema)
+emx2.truncate(table='Pedigree', schema=schema)
 
 ##################################################
 # Migrate subjects (solverd_subjects) to the new model
@@ -144,6 +154,10 @@ emx2_pedigree = []
 emx2_pedigree_members = []
 emx2_clinical_observations = []
 emx2_individual_consent = []
+# keep track of the parents' and patients' IDs.
+track_mothers = {}
+track_fathers = {}
+patients = []
 # loop through the subjects in RD3
 for subject in subjects:
     new_individual_entry = {}
@@ -176,32 +190,129 @@ for subject in subjects:
             new_pedigree_entry['identifier'] = subject['fid']
             emx2_pedigree.append(new_pedigree_entry)
 
-    # map 'mid' and 'fid'(solverd_subjects) to Pedigree_members
-    if 'fid' in subject and 'clinical_status' in subject:
-        if subject['clinical_status']:
+    ####
+    # Mapping pedigree. 
+    # If an individual has either a maternal or paternal ID, this person is a patient.
+    # If an individual is a parent and has a parent, a grandparent relationship is determined.
+    # If an individual is a patient and has a child, the individual is added multiple times to the 
+    #   pedigree members table: both as a patient (with itself as the relative) and as a parent
+    #   (with the child as the relative).
+    # If an individual has a family ID, but no other information, the person is added to the table
+    #   with itself as the relative. This happens later in the code (lines 426 - 440).
+    ####
+
+    if 'fid' in subject:
+        # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
+        if 'pid' in subject or 'mid' in subject:
             new_pedigree_members_entry = {}
             new_pedigree_members_entry['pedigree'] = subject['fid']
             new_pedigree_members_entry['individual'] = subject['subjectID']
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
             new_pedigree_members_entry['relative'] = subject['subjectID']
             new_pedigree_members_entry['relation'] = 'Patient'
-            new_pedigree_members_entry['affected'] = True
             emx2_pedigree_members.append(new_pedigree_members_entry)
-        if 'mid' in subject and subject['clinical_status']:
+            # keep track of the patients
+            patients.append(subject['subjectID'])
+        # Map Parents - based on MaternalID and PaternalID
+        for subj in subjects:
+            if subj['subjectID'] == subject['subjectID']:
+                continue
             new_pedigree_members_entry = {}
             new_pedigree_members_entry['pedigree'] = subject['fid']
-            new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
-            new_pedigree_members_entry['relative'] = subject['subjectID']
-            new_pedigree_members_entry['relation'] = 'Biological Mother'
-            new_pedigree_members_entry['affected'] = False
-            emx2_pedigree_members.append(new_pedigree_members_entry)
-        if 'pid' in subject and subject['clinical_status']:
-            new_pedigree_members_entry = {}
-            new_pedigree_members_entry['pedigree'] = subject['fid']
-            new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
-            new_pedigree_members_entry['relative'] = subject['subjectID']
-            new_pedigree_members_entry['relation'] = 'Biological Father'
-            new_pedigree_members_entry['affected'] = False
-            emx2_pedigree_members.append(new_pedigree_members_entry)
+            new_pedigree_members_entry['individual'] = subject['subjectID']
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            # Map Biological Mother
+            if 'mid' in subj and subj['mid']['subjectID'] == subject['subjectID']:
+                new_pedigree_members_entry['relative'] = subj['subjectID']
+                new_pedigree_members_entry['relation'] = "Biological Mother"
+                # if 'mid' in subject or 'pid' in subject:
+                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
+                # add the child and mother IDs to the dictionary
+                track_mothers[subj['subjectID']] = subject['subjectID']
+            # Map Biological Father
+            elif 'pid' in subj and subj['pid']['subjectID'] == subject['subjectID']:
+                new_pedigree_members_entry['relative'] = subj['subjectID']
+                new_pedigree_members_entry['relation'] = "Biological Father"
+                # add the child and father's IDs to the dictionary
+                track_fathers[subj['subjectID']] = subject['subjectID']
+                # if 'mid' in subject or 'pid' in subject:
+                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
+            if 'relative' in new_pedigree_members_entry: # only append new entry if individual has a parent
+                emx2_pedigree_members.append(new_pedigree_members_entry)
+        # Map maternal grandparents
+        if subject['subjectID'] in patients and subject['subjectID'] in track_mothers.values():
+            # Map Biological Maternal Grandmother
+            if 'mid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = subject['fid']
+                    new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
+                    # if 'clinical_status' in subject:
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['mid']['subjectID']) if (
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Maternal Grandmother"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
+            # Map Biological Maternal Grandfather
+            if 'pid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = subject['fid']
+                    new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['pid']['subjectID']) if (
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Maternal Grandfather"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
+        # Map Paternal Grandparents
+        if subject['subjectID'] in patients and subject['subjectID'] in track_fathers.values():
+            # Map Biological Paternal Grandmother
+            if 'mid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = subject['fid']
+                    new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['mid']['subjectID']) if(
+                            'clinical_status' in subject_clin)]
+                if clinical_status:
+                    new_pedigree_members_entry['affected'] = clinical_status[0]
+                new_pedigree_members_entry['relative'] = grandchild_id
+                new_pedigree_members_entry['relation'] = "Biological Paternal Grandmother"
+                emx2_pedigree_members.append(new_pedigree_members_entry)
+            # Map Biological Paternal Grandfather
+            if 'pid' in subject: 
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = subject['fid']
+                    new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['pid']['subjectID']) if(
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Paternal Grandfather"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
 
     # map 'organisation' and 'ERN' (solverd_subjects) to 'affiliated institutions' (Individuals)
     institutions = []  # new list to save the institutions
@@ -313,6 +424,51 @@ for subject in subjects:
     # append the new entry to the individuals list
     emx2_individuals.append(new_individual_entry)
 
+# Map the individuals that do have a family id but no other information about the relationships
+# gather all individuals in the current pedigree members table
+# Additionally map sibling relationships. 
+individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members] 
+# loop through the subjects
+for subject in subjects:
+    # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
+    if 'fid' in subject and subject['subjectID'] not in individuals_in_pedigree:
+        new_pedigree_members_entry = {}
+        new_pedigree_members_entry['pedigree'] = subject['fid']
+        new_pedigree_members_entry['individual'] = subject['subjectID']
+        if 'clinical_status' in subject:
+            new_pedigree_members_entry['affected'] = subject['clinical_status']
+        new_pedigree_members_entry['relative'] = subject['subjectID'] # itself
+        emx2_pedigree_members.append(new_pedigree_members_entry)
+    # Map Full Sibling relationships
+    # first, check if an individual has both parents' IDs and check if the sex is a known category.
+    if 'mid' and 'pid' in subject and 'sex1' in subject and subject['sex1']['id'] in ['F', 'M']: 
+        # get the parents' IDs
+        mother = track_mothers.get(subject['subjectID'])
+        father = track_fathers.get(subject['subjectID'])
+
+        # collect the siblings for the individual
+        siblings = []
+        for child in track_mothers:
+            if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject['subjectID']:
+                siblings.append(child)
+
+        # loop through the siblings and add to the list of pedigree members
+        for sibling in siblings:
+            new_pedigree_members_entry = {}
+            new_pedigree_members_entry['pedigree'] = subject['fid']
+            new_pedigree_members_entry['individual'] = subject['subjectID']
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            new_pedigree_members_entry['relative'] = sibling
+            if subject['sex1']['id'] == 'F':
+                new_pedigree_members_entry['relation'] = 'Full Sister'
+            if subject['sex1']['id'] == 'M':
+                new_pedigree_members_entry['relation'] = 'Full Brother'
+            emx2_pedigree_members.append(new_pedigree_members_entry)
+
+# to check - unnecessary
+# pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
+
 # save and upload the newly made tables
 emx2.save_schema(table="Pedigree", data=emx2_pedigree)
 emx2.save_schema(table="Individuals", data=emx2_individuals)
@@ -374,7 +530,7 @@ for subject in subjects:
                 disease_history_entry.update({'age group at onset':match[0]['ageOfOnset']['label']})
                 
 # to check
-pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
+# pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
 
 # save and upload the disease history and phenotype observation tables
 emx2.save_schema(table="Disease history", data=emx2_disease_history)
@@ -384,13 +540,9 @@ emx2.save_schema(table="Phenotype observations",
 #######################################################################
 #  Migrate (bio)samples information to the new model
 
-samples_tmp = pd.read_csv('Samples_solveRD.csv').to_dict()
-with open('samples.json', 'r') as file:
-    samples_tmp = json.load(file)
-
 # initialize list to gather the biosamples info for the new model
 emx2_biosamples = []
-for sample in samples_tmp:
+for sample in samples:
     new_biosamples_entry = {}
     # map 'sampleID' (solverd_samples) to 'id' (Biosamples)
     new_biosamples_entry['id'] = sample['sampleID']
@@ -488,23 +640,13 @@ for sample in samples_tmp:
     emx2_biosamples.append(new_biosamples_entry)
 
 # to check
-pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
+# pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
 
 # save and upload the biosamples table
 emx2.save_schema(table="Biosamples", data=emx2_biosamples)
 
 ##################################################
 # Migrate the Experiments (solverd_labinfo) to the new model
-
-# retrieve the protocol activity, sequencing runs, and sample preparations tables, so they can be truncated 
-# seqRuns = emx2.get('Sequencing runs')
-# sampPreps = emx2.get('Sample preparations')
-# protAct = emx2.get('Protocol activity')
-
-# # delete the tables because the upload does not replace, but adds to the exisiting tables.
-# emx2.delete_records(table='Sequencing runs', data=seqRuns) 
-# emx2.delete_records(table='Sample preparations', data=sampPreps)
-# emx2.delete_records(table='Protocol activity', data=protAct)
 
 # initialize lists for the data for the new model
 emx2_sample_preparation = []
@@ -580,9 +722,6 @@ for labinfo in labinfos:
             # differently named in ontology 
             if labinfo['sequencer'] == 'Sequel II': 
                 new_sequencing_runs_entry['platform model'] = 'PacBio Sequel II'
-            # does not map to any category in the ontology; print message
-            elif labinfo['sequencer'] == 'Sequel IIe' or labinfo['sequencer'] == 'Illumina HiSeq 1500':
-                print(f'The following sequencer is not present in the ontology: {labinfo['sequencer']}')
             else: # the platform model is as is in the ontology and can thus be mapped
                 new_sequencing_runs_entry['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
 
@@ -656,8 +795,8 @@ for labinfo in labinfos:
         emx2_sequencing_runs.append(new_sequencing_runs_entry)
 
 # to check 
-pd.DataFrame(emx2_sequencing_runs).to_csv('Sequencing runs.csv', index=False)
-pd.DataFrame(emx2_sample_preparation).to_csv('Sample preparations.csv', index=False)
+# pd.DataFrame(emx2_sequencing_runs).to_csv('Sequencing runs.csv', index=False)
+# pd.DataFrame(emx2_sample_preparation).to_csv('Sample preparations.csv', index=False)
 
 # save and upload the sample preparation table
 emx2.save_schema(table="Sample preparations", data=emx2_sample_preparation)
@@ -667,21 +806,25 @@ emx2.save_schema(table="Sequencing runs", data=emx2_sequencing_runs)
 ##################################################
 # Migrate table Files (solverd_files) to the new model
 
-# retrieve the solve-RD files from csv 
-files = pd.read_csv('Files_solveRD.csv')
-
+# initialize the emx2 files list
 emx2_files = []
-for index, row in files.iterrows(): # loop through the files
+# loop through the files
+for file in files:
     new_files_entry = {}
 
     # map 'EGA' (solverd_files) to 'alternative ids' (Files)
-    new_files_entry['alternate ids'] = row['EGA']
+    if 'EGA' in file:
+        new_files_entry['alternate ids'] = file['EGA']
 
     # map 'name' (solverd_files) to 'name' (Files)
-    new_files_entry['name'] = path.basename(row['name'])
-
-    # map 'fenderFilePath' (solverd_files) to 'path' (Files)
-    new_files_entry['path'] = ",".join(map(str, [row['name'], row['fenderFilePath']]))
+    if 'name' in file:
+        new_files_entry['name'] = file['name']
+        
+    # map 'name' and 'fenderFilePath' (solverd_files) to 'path' (Files)    
+    if 'fenderFilePath' in file: # if fenderFilePath is in the file, combine with name
+        new_files_entry['path'] = ",".join(map(str, [file['name'], file['fenderFilePath']]))
+    else: # else, only use name
+        new_files_entry['path'] = file['name']
 
     # map 'fileFormat' (solverd_files) to 'format' (Files)
     format_dict = { # dictionary for the categories with different capitalization in old vs. new version
@@ -690,179 +833,54 @@ for index, row in files.iterrows(): # loop through the files
         'phenopacket': 'phenopacketJSON'
     }
     # if format is in dictionary, it needs the 'new' name (from the dictionary)
-    if eval(row['fileFormat'])['label'] in format_dict:
-        new_files_entry['format'] = format_dict[eval(row['fileFormat'])['label']]
+    if file['fileFormat']['label'] in format_dict:
+        new_files_entry['format'] = format_dict[file['fileFormat']['label']]
     else: # else, it can directly be mapped
-        new_files_entry['format'] = eval(row['fileFormat'])['label']
+        new_files_entry['format'] = file['fileFormat']['label']
 
     # map 'md5' (solverd_files) to 'md5 checksum' (Files)
-    new_files_entry['md5 checksum'] = row['md5']
+    if 'md5' in file:
+        new_files_entry['md5 checksum'] = file['md5']
 
     # map 'subjectID' (solverd_files) to 'Individuals' (Files)
-    subjectIDs = []
-    for subject in eval(row['subjectID']):
-        subjectIDs.append(subject['subjectID'])
-    new_files_entry['individuals'] = ",".join(map(str, subjectIDs))
+    if 'subjectID' in file:
+        subjectIDs = []
+        for subject in file['subjectID']:
+            subjectIDs.append(subject['subjectID'])
+        new_files_entry['individuals'] = ",".join(map(str, subjectIDs))
 
     # map 'sampleID' (solverd_files) to 'Biosamples' (Files)
-    sampleIDs = []
-    for sample in eval(row['sampleID']):
-        sampleIDs.append(sample['sampleID'])
-    new_files_entry['biosamples'] = ",".join(map(str, sampleIDs))
+    if 'sampleID' in sample:
+        sampleIDs = []
+        for sample in file['sampleID']:
+            sampleIDs.append(sample['sampleID'])
+        new_files_entry['biosamples'] = ",".join(map(str, sampleIDs))
 
     # map 'experimentID' (solverd_files) to 'generated by protocol' (Files) 
-    #print(eval(row['experimentID'])['experimentID'])
-    if not pd.isna(row['experimentID']):
-        new_files_entry['generated by protocol'] = f'sample_{eval(row['experimentID'])['experimentID']},seq_{eval(row['experimentID'])['experimentID']}'
+    if 'experimentID' in file:
+        new_files_entry['generated by protocol'] = f'sample_{file['experimentID']['experimentID']},seq_{file['experimentID']['experimentID']}'
 
     # map 'partOfRelease' (solverd_files) to 'included in datasets' (Files)
-    partOfReleaseList = []
-    resourcesList = []
-    if not pd.isna(row['partOfRelease']):
-        for release in eval(row['partOfRelease']):
-            #print(row['partOfRelease'])
+    if 'partOfRelease' in file:
+        partOfReleaseList = []
+        resourcesList = []
+        for release in file['partOfRelease']:
             partOfReleaseList.append(release['id'])
             resourcesList.append('RD3')
-    # append to Sequencing runs
-    new_files_entry['included of datasets.resource'] = ','.join(resourcesList)
-    new_files_entry['included of datasets.name'] = ','.join(map(str, partOfReleaseList))
-    
+        # append to Sequencing runs
+        new_files_entry['included in datasets.resource'] = ','.join(resourcesList)
+        new_files_entry['included in datasets.name'] = ','.join(map(str, partOfReleaseList))
+        
     # append the new entry to the files list
     if new_files_entry:
         emx2_files.append(new_files_entry)
 
-# to check
-pd.DataFrame(emx2_files).to_csv('Files.csv', index=False)
+# TO DO: this does not yet work. I upload the zip file manually in the UI upload. 
+
+# convert to zip - otherwise too big for upload 
+pd.DataFrame(emx2_files).to_csv('Files.csv.zip', index=False, compression='gzip')
 
 # save and upload the files table
-emx2.save_schema(table="Files", data=emx2_files)
-
-# write to csv - not used anymore 
-pd.DataFrame(emx2_individuals).to_csv('Individuals.csv', index=False)
-pd.DataFrame(emx2_pedigree).to_csv('Pedigree.csv', index=False)
-pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
-pd.DataFrame(emx2_individual_consent).to_csv(
-    'Individual consent.csv', index=False)
-# pd.DataFrame(emx2_phenotype_observations).to_csv('Phenotype observations.csv', index=False)
-pd.DataFrame(emx2_clinical_observations).to_csv(
-    'Clinical observations.csv', index=False)
-pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
-# pd.DataFrame(emx2_datasets).to_csv('Datasets.csv', index=False)
-# pd.DataFrame(emx2_resources).to_csv('Resources.csv', index=False)
-
-# notes
-subjects_df = pd.DataFrame(subjects)
-subjects_info_df = pd.DataFrame(subjects_info)
-
-if 'organisation' in subject and all([item for item in subject['organisation']]):
-    print('This should be printed when there are organisations present')
-
-print(subject['retracted'])
-
-# look at a specific subject
-subject_id=""
-subject_id_2=""
-
-subject = subjects_info_df.loc[subjects_df['subjectID'] == subject_id]
-print(subject)
-print(subject['ageOfOnset'])
-
-subject = subjects_df.loc[subjects_df['subjectID'] == subject_id]
-subject['sex1']['id']
-
-subject_info_tmp = rd3.get('solverd_subjectinfo', q=f"subjectID=q={subject_id},subjectID=q={subject_id}")
-
-match = [info for info in subject_info_tmp if 'ageOfOnset' in info and info['subjectID'] == subject_id]
-
-for subj in subject_info_tmp:
-    if 'ageOfOnset' in subj and subj['ageOfOnset']:
-        print(subj['ageOfOnset']['label'])
-
-samples_tmp = rd3.get('solverd_samples', q=f"belongsToSubject=={subject_id},belongsToSubject=={subject_id_2}")
-
-for sample in samples_tmp:
-    if 'alternativeIdentifier' in sample:
-        print(sample['alternativeIdentifier'])
-        #for b in sample['alternativeIdentifier']:
-            #print(b)
-
-samples_tmp = rd3.get('solverd_samples')
-
-for sample in samples_tmp:
-    if 'partOfRelease' in sample:
-        for release in sample['partOfRelease']:
-            print(release['name'])
-        #tmp = sample['partOfRelease'].split(",")
-        #print(len(tmp))
-        #if len(tmp) != 1:
-        #    print('true')
-
-#labinfos_all_df = pd.DataFrame(labinfos_all)
-#labinfos_all_df['experimentID'].isnull().any()
-
-# labinfos_all_df['sequencer']
-# for i in labinfos_all_df['sequencingCentre']:
-#     if not i:
-#         print("empty")
-#         print(i)
-
-# tmp = labinfos_all_df['sequencer'].dropna()
-# sequencers = []
-# for i in tmp:
-#     sequencers.append(i)
-
-# set(sequencers)
-
-# labinfos_df = pd.DataFrame(labinfos)
-# tmp = labinfos_df['sequencer'].dropna()
-# sequencers = []
-# for i in tmp:
-#     sequencers.append(i)
-
-# uniques = set(sequencer.rstrip() for sequencer in sequencers)
-# import re
-# pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
-# filtered_uniques = [item for item in uniques if not pattern.match(item)]
-# filtered_uniques
+emx2.save_schema(table='Files', file='Files.csv.zip')
 
 
-# samples_all = rd3.get('solverd_samples', batch_size=10000)
-# samples_all_df = pd.DataFrame(samples_all)
-
-# tmp = samples_all_df['tissueType'].dropna()
-# values = []
-# for i in tmp:
-#     #print(i)
-#     #for x in i:
-#     values.append(i['id'])
-
-# set(values)
-
-subjects_all = rd3.get('solverd_subjects', batch_size=10000, attributes='sex1')
-
-genders = []
-for subject in subjects_all:
-    if 'sex1' in subject:
-        genders.append(subject['sex1']['id'])
-set(genders)
-import re
-
-# Example list
-my_list = ['goal to get', 'goal-to get', 'target one', 'goal after', 'goal-to win']
-
-# Regex pattern to get the first word (before space or dash)
-pattern = re.compile(r'^.*?(?=-)|^\S+')
-
-# Loop through each element in the list and apply the regex
-for item in my_list:
-    match = pattern.match(item)
-    if match:
-        first_word = match.group()
-        print(first_word)
-
-# make a query for creating the url with subjects
-url_query = [f'subjectID=q={id}' for id in IDs]
-url_query = [f"belongsToSubject=={ID}" for ID in IDs]
-url_query = ",".join(map(str, url_query))
-url_query = ",".join(map(str, IDs))
-url_query

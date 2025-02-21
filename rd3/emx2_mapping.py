@@ -683,14 +683,14 @@ for labinfo in labinfos:
         new_sequencing_runs_entry['library source'] = libType
     
     # map 'library' (solverd_labinfo) to 'libraryLayout' (Sequencing runs)
-    # data only contains 1 and 2, 1 is always single and 2 always paired.
+    # data only contains 1 and 2, 1 is always paired and 2 always single.
     if 'library' in labinfo and labinfo['library']:
         layout = []
         for lib in labinfo['library']:
             if lib['id'] == "1":
-                layout.append("SINGLE")
-            elif lib['id'] == "2":
                 layout.append("PAIRED")
+            elif lib['id'] == "2":
+                layout.append("SINGLE")
             else:
                 print(f"library {lib['id']} could not be mapped.")
         new_sequencing_runs_entry['library layout'] = ",".join(map(str, layout))
@@ -882,5 +882,3 @@ pd.DataFrame(emx2_files).to_csv('Files.csv.zip', index=False, compression='gzip'
 
 # save and upload the files table
 emx2.save_schema(table='Files', file='Files.csv.zip')
-
-

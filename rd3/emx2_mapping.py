@@ -19,19 +19,19 @@ rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # connect to EMX2
-# emx2 = Client(
-#     'http://localhost:8080/',
-#     schema='rd3',
-#     token=environ['MOLGENIS_EMX2_TOKEN']
-# )
-
 emx2 = Client(
-    'https://erdera.molgeniscloud.org',
-    schema='RD3v2',
-    token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
+    'http://localhost:8080/',
+    schema='rd3',
+    token=environ['MOLGENIS_EMX2_TOKEN']
 )
 
-# schema = 'rd3'
+# emx2 = Client(
+    # 'https://erdera.molgeniscloud.org',
+    # schema='RD3v2',
+    # token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
+# )
+
+schema = 'rd3'
 # schema = 'SolveRD'
 schema = 'RD3v2'
 emx2.default_schema = schema  # set default schema
@@ -135,8 +135,8 @@ emx2.truncate(table='Individual consent', schema=schema)
 emx2.truncate(table='Individual observations', schema=schema)
 emx2.truncate(table='Pedigree members', schema=schema)
 # Delete files in batches
-for batch in range(0, len(files), 1000):
-    emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
+# for batch in range(0, len(files), 1000):
+#     emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
 # emx2.truncate(table='Files', schema=schema)
 emx2.truncate(table='Sequencing runs', schema=schema)
 emx2.truncate(table='Sample preparations', schema=schema)
@@ -144,6 +144,19 @@ emx2.truncate(table='Protocol activity', schema=schema)
 emx2.truncate(table='Biosamples', schema=schema)
 emx2.truncate(table='Individuals', schema=schema)
 emx2.truncate(table='Pedigree', schema=schema)
+
+##################################################
+# function to fill a new pedigree members entry
+
+def fill_new_pedigree_members_entry(entry, pedigree, individual, relative, relation, affected):
+    entry['pedigree'] = pedigree
+    entry['individual'] = individual
+    entry['relative'] = relative
+    entry['relation'] = relation
+    if affected not in [True, False]:
+        print(f'affected: {affected}')
+    entry['affected'] = affected
+    return entry
 
 ##################################################
 # Migrate subjects (solverd_subjects) to the new model
@@ -172,8 +185,8 @@ for subject in subjects:
             new_individual_entry['gender at birth'] = 'assigned male at birth'
         elif subject_sex1 == 'F':
             new_individual_entry['gender at birth'] = 'assigned female at birth'
-        else:
-            print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
+        # else:
+        #     print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
 
     # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
     match = [info['dateOfBirth']
@@ -205,12 +218,14 @@ for subject in subjects:
         # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
         if 'pid' in subject or 'mid' in subject:
             new_pedigree_members_entry = {}
-            new_pedigree_members_entry['pedigree'] = subject['fid']
-            new_pedigree_members_entry['individual'] = subject['subjectID']
+            pedigree = subject['fid']
+            individual = subject['subjectID']
             if 'clinical_status' in subject:
-                new_pedigree_members_entry['affected'] = subject['clinical_status']
-            new_pedigree_members_entry['relative'] = subject['subjectID']
-            new_pedigree_members_entry['relation'] = 'Patient'
+                affected = subject['clinical_status']
+            relative = subject['subjectID']
+            relation = 'Patient'
+            new_pedigree_members_entry = fill_new_pedigree_members_entry(new_pedigree_members_entry, 
+            pedigree, individual, relative, relation, affected)
             emx2_pedigree_members.append(new_pedigree_members_entry)
             # keep track of the patients
             patients.append(subject['subjectID'])
@@ -219,10 +234,10 @@ for subject in subjects:
             if subj['subjectID'] == subject['subjectID']:
                 continue
             new_pedigree_members_entry = {}
-            new_pedigree_members_entry['pedigree'] = subject['fid']
-            new_pedigree_members_entry['individual'] = subject['subjectID']
+            pedigree = subject['fid']
+            individual = subject['subjectID']
             if 'clinical_status' in subject:
-                new_pedigree_members_entry['affected'] = subject['clinical_status']
+                affected = subject['clinical_status']
             # Map Biological Mother
             if 'mid' in subj and subj['mid']['subjectID'] == subject['subjectID']:
                 new_pedigree_members_entry['relative'] = subj['subjectID']
@@ -427,7 +442,7 @@ for subject in subjects:
 # Map the individuals that do have a family id but no other information about the relationships
 # gather all individuals in the current pedigree members table
 # Additionally map sibling relationships. 
-individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members] 
+individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members]
 # loop through the subjects
 for subject in subjects:
     # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
@@ -882,3 +897,4 @@ pd.DataFrame(emx2_files).to_csv('Files.csv.zip', index=False, compression='gzip'
 
 # save and upload the files table
 emx2.save_schema(table='Files', file='Files.csv.zip')
+

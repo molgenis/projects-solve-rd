@@ -14,7 +14,7 @@ venv
 # RD3
 data
 apps/app-get-started/dist
-
+private
 downloads
 
 # excel

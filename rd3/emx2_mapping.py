@@ -33,7 +33,7 @@ emx2 = Client(
 
 schema = 'rd3'
 # schema = 'SolveRD'
-schema = 'RD3v2'
+# schema = 'RD3v2'
 emx2.default_schema = schema  # set default schema
 
 ##################################################
@@ -146,19 +146,6 @@ emx2.truncate(table='Individuals', schema=schema)
 emx2.truncate(table='Pedigree', schema=schema)
 
 ##################################################
-# function to fill a new pedigree members entry
-
-def fill_new_pedigree_members_entry(entry, pedigree, individual, relative, relation, affected):
-    entry['pedigree'] = pedigree
-    entry['individual'] = individual
-    entry['relative'] = relative
-    entry['relation'] = relation
-    if affected not in [True, False]:
-        print(f'affected: {affected}')
-    entry['affected'] = affected
-    return entry
-
-##################################################
 # Migrate subjects (solverd_subjects) to the new model
 
 # initialize lists for the tables in EMX2
@@ -185,8 +172,8 @@ for subject in subjects:
             new_individual_entry['gender at birth'] = 'assigned male at birth'
         elif subject_sex1 == 'F':
             new_individual_entry['gender at birth'] = 'assigned female at birth'
-        # else:
-        #     print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
+        else:
+            print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
 
     # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
     match = [info['dateOfBirth']
@@ -211,21 +198,22 @@ for subject in subjects:
     #   pedigree members table: both as a patient (with itself as the relative) and as a parent
     #   (with the child as the relative).
     # If an individual has a family ID, but no other information, the person is added to the table
-    #   with itself as the relative. This happens later in the code (lines 426 - 440).
+    #   with itself as the relative. This happens later in the code (lines 430 - 444).
+    # If individuals have the same mother and father, they are mapped as full siblings. This also
+    #   happens later in the code (lines 445 - 470). 
+    # If a family only has one member, we assume this individual is a patient. This is done at the end.
     ####
 
     if 'fid' in subject:
         # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
         if 'pid' in subject or 'mid' in subject:
             new_pedigree_members_entry = {}
-            pedigree = subject['fid']
-            individual = subject['subjectID']
+            new_pedigree_members_entry['pedigree'] = subject['fid']
+            new_pedigree_members_entry['individual'] = subject['subjectID']
             if 'clinical_status' in subject:
-                affected = subject['clinical_status']
-            relative = subject['subjectID']
-            relation = 'Patient'
-            new_pedigree_members_entry = fill_new_pedigree_members_entry(new_pedigree_members_entry, 
-            pedigree, individual, relative, relation, affected)
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            new_pedigree_members_entry['relative'] = subject['subjectID']
+            new_pedigree_members_entry['relation'] = 'Patient'
             emx2_pedigree_members.append(new_pedigree_members_entry)
             # keep track of the patients
             patients.append(subject['subjectID'])
@@ -234,10 +222,10 @@ for subject in subjects:
             if subj['subjectID'] == subject['subjectID']:
                 continue
             new_pedigree_members_entry = {}
-            pedigree = subject['fid']
-            individual = subject['subjectID']
+            new_pedigree_members_entry['pedigree'] = subject['fid']
+            new_pedigree_members_entry['individual'] = subject['subjectID']
             if 'clinical_status' in subject:
-                affected = subject['clinical_status']
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
             # Map Biological Mother
             if 'mid' in subj and subj['mid']['subjectID'] == subject['subjectID']:
                 new_pedigree_members_entry['relative'] = subj['subjectID']
@@ -480,6 +468,21 @@ for subject in subjects:
             if subject['sex1']['id'] == 'M':
                 new_pedigree_members_entry['relation'] = 'Full Brother'
             emx2_pedigree_members.append(new_pedigree_members_entry)
+        
+# get all family IDs
+families = [member['pedigree'] for member in emx2_pedigree_members]
+# get the family IDs with only one member 
+uniques = [family for family in families if families.count(family) == 1]
+# there are four familyIDs that consist of two families,
+# these should be left as is. 
+for famID in uniques[:]:
+    if len(famID.split(',')) > 1:
+        uniques.remove(famID) # remove from the list 
+
+# set the individual's relation to Patient in these families
+for member in emx2_pedigree_members:
+    if member['pedigree'] in uniques:
+        member['relation'] = 'Patient'
 
 # to check - unnecessary
 # pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)

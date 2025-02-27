@@ -10,30 +10,27 @@ import molgenis.client
 import pandas as pd
 load_dotenv()
 import re
-#import random
 import json
-# from zipfile import ZipFile
 
 # connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
 rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
 # connect to EMX2
-emx2 = Client(
-    'http://localhost:8080/',
-    schema='rd3',
-    token=environ['MOLGENIS_EMX2_TOKEN']
-)
-
 # emx2 = Client(
-    # 'https://erdera.molgeniscloud.org',
-    # schema='RD3v2',
-    # token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
+#     'http://localhost:8080/',
+#     schema='rd3',
+#     token=environ['MOLGENIS_EMX2_TOKEN']
 # )
 
-schema = 'rd3'
-# schema = 'SolveRD'
-# schema = 'RD3v2'
+emx2 = Client(
+    'https://erdera.molgeniscloud.org',
+    schema='RD3v2',
+    token=environ['MOLGENIS_EMX2_ERDERA_TOKEN']
+)
+
+# schema = 'rd3' # for localhost
+schema = 'RD3v2' # for erdera server
 emx2.default_schema = schema  # set default schema
 
 ##################################################
@@ -198,9 +195,9 @@ for subject in subjects:
     #   pedigree members table: both as a patient (with itself as the relative) and as a parent
     #   (with the child as the relative).
     # If an individual has a family ID, but no other information, the person is added to the table
-    #   with itself as the relative. This happens later in the code (lines 430 - 444).
+    #   with itself as the relative. This happens later in the code (lines 427 - 441).
     # If individuals have the same mother and father, they are mapped as full siblings. This also
-    #   happens later in the code (lines 445 - 470). 
+    #   happens later in the code (lines 442 - 467). 
     # If a family only has one member, we assume this individual is a patient. This is done at the end.
     ####
 

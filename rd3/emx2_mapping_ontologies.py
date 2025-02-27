@@ -13,6 +13,13 @@ This includes preparing data for the following portal tables.
 - Organisations
 - Diseases
 - Phenotypes
+- Datasets
+- SequencingEnrichmentKits
+- TissueType
+- SequencingInstrumentModels
+- AnatomicalLocation
+- Gender at birth
+- Genotypic sex
 
 """
 
@@ -82,13 +89,8 @@ emx2.save_schema(table='Contacts', data=contacts_df)
 
 # retrieve relevant organisation information from RD3
 orgs = rd3.get('solverd_info_organisations', attributes='value,description')
-#orgs_df = pd.DataFrame(orgs)[["value", "description"]]
 
 organisations = []
-# orgs_df = orgs_df.rename(columns={
-#     'value': 'id',
-#     'description': 'name'
-# })
 
 for org in orgs:
     organisations.append({
@@ -392,8 +394,6 @@ emx2.save_schema(table="SequencingInstrumentModels", data=emx2_sequencers_comple
 
 # Gather the anatomical locations from RD3
 anatLoc = rd3.get('solverd_lookups_anatomicallocation', batch_size=1000)
-#anatLoc_df = pd.DataFrame(anatLoc)
-#anatLoc_df['name'] = pd.to_numeric(anatLoc_df['id'])
 
 anatLocs_used = []
 for row in anatLoc:

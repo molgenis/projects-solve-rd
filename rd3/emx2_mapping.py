@@ -12,408 +12,21 @@ load_dotenv('/Users/w.f.oudijk/Documents/RD3/Scripts/.env')
 import re
 import json
 
-class map_solve_rd:
-    """This class maps the solve-RD data to the new RD3 model"""
-    def __init__(self):
-        # connect to the RD3 EMX1 environment and log in
-        self.rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
-        self.rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-        # connect to RD3 EMX2 environment
-        self.schema = environ['EMX2_SCHEMA']
-        self.emx2 = Client(
-            environ['EMX2_URL'],
-            schema=self.schema,
-            token=environ['EMX2_TOKEN']
-        )
-        self.emx2.default_schema = self.schema  # set default schema
+# connect to the RD3 EMX1 environment and log in
+rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
+rd3.login(environ['MOLGENIS_PROD_USR'], environ['MOLGENIS_PROD_PWD'])
 
-        self.individuals = {}
-        self.subjects = self.rd3.get('solverd_subjects', batch_size=5000)
-        self.subjects_info = self.rd3.get('solverd_subjectinfo', batch_size=5000)
+# connect to RD3 EMX2 environment
+schema = environ['EMX2_SCHEMA']
+emx2 = Client(
+    environ['EMX2_URL'],
+    schema=schema,
+    token=environ['EMX2_TOKEN']
+)
+emx2.default_schema = schema  # set default schema
 
-    def map_individuals(self):
-        """This function maps the subjects to the individuals table"""
-        # initialize lists for the tables in EMX2
-        emx2_individuals = []
-        emx2_pedigree = []
-        emx2_pedigree_members = []
-        emx2_clinical_observations = []
-        emx2_individual_consent = []
-        # keep track of the parents' and patients' IDs.
-        track_mothers = {}
-        track_fathers = {}
-        patients = []
-        # loop through the subjects in RD3
-        for subject in self.subjects:
-            subject_id = subject.get('subjectID')
-            self.individuals[subject_id] = {'id': subject_id}            
-
-    def map_sex(self):
-        for subject in self.subjects:
-            subject_id = subject.get('subjectID')
-            if subject_id not in self.individuals:
-                continue
-
-            # dictionary of possible gender values 
-            gender_dict = {
-                'M': 'assigned male at birth',
-                'F': 'assigned female at birth'
-            }
-            # get sex info
-            sex_info = subject.get('sex1', {})
-            sex_id = sex_info.get('id')
-
-            if sex_id in gender_dict:
-                self.individuals[subject_id]['gender at birth'] = gender_dict[sex_id]
-            elif sex_id is not None:
-                print(f"Gender at birth value {sex_id} cannot be mapped for individual {subject_id}")
-
-            # # map 'sex1' (solverd_subjects) to 'gender at birth' (Individuals)
-            # if 'sex1' in subject:
-            #     subject_sex1 = subject['sex1']['id']
-            #     if subject_sex1 == 'M':
-            #         new_individual_entry['gender at birth'] = 'assigned male at birth'
-            #     elif subject_sex1 == 'F':
-            #         new_individual_entry['gender at birth'] = 'assigned female at birth'
-            #     else:
-            #         print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
-
-            # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
-            match = [info['dateOfBirth']
-                    for info in self.subjects_info if 'dateOfBirth' in info and info['subjectID'] == subject_id]
-            self.individuals['year of birth'] = "".join(map(str, match))
-
-    def get_results(self):
-        return list(self.individuals.values())
-
-mapper = map_solve_rd()
-mapper.map_individuals()
-mapper.map_sex()
-res = mapper.get_results()
-            
-    # def map_pedigree(self): 
-    #     for subject in self.subjects:
-    #         subject_id = subject.get('subjectID')
-    #         if subject_id not in self.individuals:
-    #             continue   
-    #         # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'identifier' (Pedigree)
-    #         if 'fid' in subject:
-    #             new_pedigree_entry = {} # initialize new entry
-    #             new_individual_entry['pedigree'] = subject['fid']
-    #             # to make this work the fid also needs to be added to the pedigree table in emx2.
-    #             # check for uniqueness
-    #             if not any(entry['identifier'] == subject['fid'] for entry in emx2_pedigree):
-    #                 new_pedigree_entry['identifier'] = subject['fid']
-    #                 emx2_pedigree.append(new_pedigree_entry)
-
-    #         ####
-    #         # Mapping pedigree. 
-    #         # If an individual has either a maternal or paternal ID, this person is a patient.
-    #         # If an individual is a parent and has a parent, a grandparent relationship is determined.
-    #         # If an individual is a patient and has a child, the individual is added multiple times to the 
-    #         #   pedigree members table: both as a patient (with itself as the relative) and as a parent
-    #         #   (with the child as the relative).
-    #         # If an individual has a family ID, but no other information, the person is added to the table
-    #         #   with itself as the relative. This happens later in the code (lines 427 - 441).
-    #         # If individuals have the same mother and father, they are mapped as full siblings. This also
-    #         #   happens later in the code (lines 442 - 467). 
-    #         # If a family only has one member, we assume this individual is a patient. This is done at the end.
-    #         ####
-
-    #         if 'fid' in subject:
-    #             # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
-    #             if 'pid' in subject or 'mid' in subject:
-    #                 new_pedigree_members_entry = {}
-    #                 new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                 new_pedigree_members_entry['individual'] = subject['subjectID']
-    #                 if 'clinical_status' in subject:
-    #                     new_pedigree_members_entry['affected'] = subject['clinical_status']
-    #                 new_pedigree_members_entry['relative'] = subject['subjectID']
-    #                 new_pedigree_members_entry['relation'] = 'Patient'
-    #                 emx2_pedigree_members.append(new_pedigree_members_entry)
-    #                 # keep track of the patients
-    #                 patients.append(subject['subjectID'])
-    #             # Map Parents - based on MaternalID and PaternalID
-    #             for subj in subjects:
-    #                 if subj['subjectID'] == subject['subjectID']:
-    #                     continue
-    #                 new_pedigree_members_entry = {}
-    #                 new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                 new_pedigree_members_entry['individual'] = subject['subjectID']
-    #                 if 'clinical_status' in subject:
-    #                     new_pedigree_members_entry['affected'] = subject['clinical_status']
-    #                 # Map Biological Mother
-    #                 if 'mid' in subj and subj['mid']['subjectID'] == subject['subjectID']:
-    #                     new_pedigree_members_entry['relative'] = subj['subjectID']
-    #                     new_pedigree_members_entry['relation'] = "Biological Mother"
-    #                     # if 'mid' in subject or 'pid' in subject:
-    #                         # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
-    #                     # add the child and mother IDs to the dictionary
-    #                     track_mothers[subj['subjectID']] = subject['subjectID']
-    #                 # Map Biological Father
-    #                 elif 'pid' in subj and subj['pid']['subjectID'] == subject['subjectID']:
-    #                     new_pedigree_members_entry['relative'] = subj['subjectID']
-    #                     new_pedigree_members_entry['relation'] = "Biological Father"
-    #                     # add the child and father's IDs to the dictionary
-    #                     track_fathers[subj['subjectID']] = subject['subjectID']
-    #                     # if 'mid' in subject or 'pid' in subject:
-    #                         # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
-    #                 if 'relative' in new_pedigree_members_entry: # only append new entry if individual has a parent
-    #                     emx2_pedigree_members.append(new_pedigree_members_entry)
-    #             # Map maternal grandparents
-    #             if subject['subjectID'] in patients and subject['subjectID'] in track_mothers.values():
-    #                 # Map Biological Maternal Grandmother
-    #                 if 'mid' in subject:
-    #                     # get the identifier for the grandchild
-    #                     grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
-    #                     for grandchild_id in grandchild_ids:
-    #                         new_pedigree_members_entry = {}
-    #                         new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                         new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
-    #                         # if 'clinical_status' in subject:
-    #                         clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-    #                             subject_clin['subjectID'] == subject['mid']['subjectID']) if (
-    #                                 'clinical_status' in subject_clin)]
-    #                         if clinical_status:
-    #                             new_pedigree_members_entry['affected'] = clinical_status[0]
-    #                         new_pedigree_members_entry['relative'] = grandchild_id
-    #                         new_pedigree_members_entry['relation'] = "Biological Maternal Grandmother"
-    #                         emx2_pedigree_members.append(new_pedigree_members_entry)
-    #                 # Map Biological Maternal Grandfather
-    #                 if 'pid' in subject:
-    #                     # get the identifier for the grandchild
-    #                     grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
-    #                     for grandchild_id in grandchild_ids:
-    #                         new_pedigree_members_entry = {}
-    #                         new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                         new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
-    #                         # retrieve clinical status of grandparent
-    #                         clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-    #                             subject_clin['subjectID'] == subject['pid']['subjectID']) if (
-    #                                 'clinical_status' in subject_clin)]
-    #                         if clinical_status:
-    #                             new_pedigree_members_entry['affected'] = clinical_status[0]
-    #                         new_pedigree_members_entry['relative'] = grandchild_id
-    #                         new_pedigree_members_entry['relation'] = "Biological Maternal Grandfather"
-    #                         emx2_pedigree_members.append(new_pedigree_members_entry)
-    #             # Map Paternal Grandparents
-    #             if subject['subjectID'] in patients and subject['subjectID'] in track_fathers.values():
-    #                 # Map Biological Paternal Grandmother
-    #                 if 'mid' in subject:
-    #                     # get the identifier for the grandchild
-    #                     grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
-    #                     for grandchild_id in grandchild_ids:
-    #                         new_pedigree_members_entry = {}
-    #                         new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                         new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
-    #                         # retrieve clinical status of grandparent
-    #                         clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-    #                             subject_clin['subjectID'] == subject['mid']['subjectID']) if(
-    #                                 'clinical_status' in subject_clin)]
-    #                     if clinical_status:
-    #                         new_pedigree_members_entry['affected'] = clinical_status[0]
-    #                     new_pedigree_members_entry['relative'] = grandchild_id
-    #                     new_pedigree_members_entry['relation'] = "Biological Paternal Grandmother"
-    #                     emx2_pedigree_members.append(new_pedigree_members_entry)
-    #                 # Map Biological Paternal Grandfather
-    #                 if 'pid' in subject: 
-    #                     # get the identifier for the grandchild
-    #                     grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
-    #                     for grandchild_id in grandchild_ids:
-    #                         new_pedigree_members_entry = {}
-    #                         new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                         new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
-    #                         # retrieve clinical status of grandparent
-    #                         clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-    #                             subject_clin['subjectID'] == subject['pid']['subjectID']) if(
-    #                                 'clinical_status' in subject_clin)]
-    #                         if clinical_status:
-    #                             new_pedigree_members_entry['affected'] = clinical_status[0]
-    #                         new_pedigree_members_entry['relative'] = grandchild_id
-    #                         new_pedigree_members_entry['relation'] = "Biological Paternal Grandfather"
-    #                         emx2_pedigree_members.append(new_pedigree_members_entry)
-
-    #         # map 'organisation' and 'ERN' (solverd_subjects) to 'affiliated institutions' (Individuals)
-    #         institutions = []  # new list to save the institutions
-    #         resources = []  # new list to save the resources
-    #         new_organisation_entry = {}
-    #         # check if organisations are present for this subject
-    #         if 'organisation' in subject and subject['organisation']:
-    #             # get the value for every organisation in the list
-    #             orgs = [org['value'] for org in subject['organisation']]
-    #             institutions.append(orgs)
-    #             resources.append('RD3')
-    #         # check if there are any ERNs present for this subject
-    #         if 'ERN' in subject and subject['ERN']:
-    #             # get the shortname for every ERN in the list
-    #             ern = [org['shortname'] for org in subject['ERN']]
-    #             institutions.append(ern)
-    #             resources.append('RD3')
-    #         # add the organisation and ERNs (IDs)
-    #         if all(institutions):  # make sure it is not empty
-    #             new_individual_entry['affiliated institutions.id'] = ', '.join(
-    #                 item[0] for item in institutions)
-    #         # add the organisations and ERNs (resource)
-    #         if all(resources):  # make sure it is not empty
-    #             new_individual_entry['affiliated institutions.resource'] = ','.join(
-    #                 map(str, resources))
-
-    #         # create clinical and individual observations
-    #         # Clinical observations: map identifier and solved info
-    #         new_clinical_observation_entry = {} # initialize new entry
-    #         new_clinical_observation_entry['individual'] = subject['subjectID']
-    #         if 'solved' in subject:
-    #             new_clinical_observation_entry['is solved'] = subject['solved']
-    #         if 'date_solved' in subject:
-    #             new_clinical_observation_entry['date solved'] = subject['date_solved']
-    #         emx2_clinical_observations.append(new_clinical_observation_entry)
-        
-    #         # map to 'included in datasets' (Individuals)
-    #         resourcesList = []  # list to gather resources
-    #         namesList = []  # list to gather the names
-    #         # map 'partOfRelease
-    #         if 'partOfRelease' in subject:
-    #             # loop through the releases of this subject
-    #             for release in subject['partOfRelease']:
-    #                 resourcesList.append('RD3')
-    #                 namesList.append(release['id'])
-    #         # map 'retracted' (solverd_subjects)
-    #         if 'retracted' in subject and subject['retracted']['id'] == 'Y':
-    #             resourcesList.append("RD3")
-    #             namesList.append('Retracted')
-    #         # map 'includedInDatasets' (solverd_subjects)
-    #         if 'includedInDatasets' in subject:
-    #             for dataset in subject['includedInDatasets']:
-    #                 resourcesList.append('RD3')
-    #                 namesList.append(dataset['id'])
-    #         # add the lists to the new entry
-    #         new_individual_entry['included in datasets.resource'] = ','.join(
-    #             resourcesList)
-    #         new_individual_entry['included in datasets.name'] = ','.join(
-    #             map(str, namesList))
-
-    #         # map 'consent' (solverd_subjects) to Individual consent 
-    #         if 'matchMakerPermission' in subject:
-    #             new_individual_consent_entry = {} 
-    #             new_individual_consent_entry['identifier'] = subject['subjectID'] + '-matchmaker'
-    #             new_individual_consent_entry['Person consenting'] = subject['subjectID']
-    #             if subject['matchMakerPermission']:
-    #                 new_individual_consent_entry['Allow recontacting'] = "Allow use in MatchMaker"
-    #             else:
-    #                 new_individual_consent_entry['Allow recontacting'] = "No use in MatchMaker"
-    #             emx2_individual_consent.append(new_individual_consent_entry)
-    #         if 'noIncidentalFindings' in subject:
-    #             new_individual_consent_entry = {}
-    #             new_individual_consent_entry['identifier'] = subject['subjectID'] + \
-    #                 '-reportIncidental'
-    #             new_individual_consent_entry['Person consenting'] = subject['subjectID']
-    #             if subject['noIncidentalFindings']:
-    #                 new_individual_consent_entry['Allow recontacting'] = "Report incidental findings back"
-    #             else:
-    #                 new_individual_consent_entry['Allow recontacting'] = "No reporting of incidental findings"
-    #             emx2_individual_consent.append(new_individual_consent_entry)
-    #         if 'recontact' in subject:
-    #             new_individual_consent_entry = {}
-    #             new_individual_consent_entry['identifier'] = subject['subjectID'] + \
-    #                 '-recontactIncidental'
-    #             new_individual_consent_entry['Person consenting'] = subject['subjectID']
-    #             if subject['recontact']['label'] == 'Yes':
-    #                 new_individual_consent_entry['Allow recontacting'] = "Recontacting for incidental findings"
-    #             if subject['recontact']['label'] == 'No':
-    #                 new_individual_consent_entry['Allow recontacting'] = "No recontacting for incidential findings"
-    #             emx2_individual_consent.append(new_individual_consent_entry)
-
-    #         # map 'comments' (solverd_subjects) to 'comments' (Individuals)
-    #         if 'comments' in subject:
-    #             new_individual_entry['comments'] = subject['comments']
-
-    #         # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
-    #         for sample in samples:
-    #             if 'belongsToSubject' in sample:
-    #                 if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
-    #                     if 'sex2' in sample:
-    #                         if sample['sex2']['id'] == 'M':
-    #                             new_individual_entry['genotypic sex'] = 'XY Genotype'
-    #                         elif sample['sex2']['id'] == 'F':
-    #                             new_individual_entry['genotypic sex'] = 'XX Genotype'
-    #                         else:
-    #                             print('The genotypic sex could not be mapped.')
-    #                             print(sample['sex2']['id'])
-
-    #         # append the new entry to the individuals list
-    #         emx2_individuals.append(new_individual_entry)
-
-    #     # Map the individuals that do have a family id but no other information about the relationships
-    #     # gather all individuals in the current pedigree members table
-    #     # Additionally map sibling relationships. 
-    #     individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members]
-    #     # loop through the subjects
-    #     for subject in subjects:
-    #         # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
-    #         if 'fid' in subject and subject['subjectID'] not in individuals_in_pedigree:
-    #             new_pedigree_members_entry = {}
-    #             new_pedigree_members_entry['pedigree'] = subject['fid']
-    #             new_pedigree_members_entry['individual'] = subject['subjectID']
-    #             if 'clinical_status' in subject:
-    #                 new_pedigree_members_entry['affected'] = subject['clinical_status']
-    #             new_pedigree_members_entry['relative'] = subject['subjectID'] # itself
-    #             emx2_pedigree_members.append(new_pedigree_members_entry)
-    #         # Map Full Sibling relationships
-    #         # first, check if an individual has both parents' IDs and check if the sex is a known category.
-    #         if 'mid' and 'pid' in subject and 'sex1' in subject and subject['sex1']['id'] in ['F', 'M']: 
-    #             # get the parents' IDs
-    #             mother = track_mothers.get(subject['subjectID'])
-    #             father = track_fathers.get(subject['subjectID'])
-
-    #             # collect the siblings for the individual
-    #             siblings = []
-    #             for child in track_mothers:
-    #                 if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject['subjectID']:
-    #                     siblings.append(child)
-
-    #             # loop through the siblings and add to the list of pedigree members
-    #             for sibling in siblings:
-    #                 new_pedigree_members_entry = {}
-    #                 new_pedigree_members_entry['pedigree'] = subject['fid']
-    #                 new_pedigree_members_entry['individual'] = subject['subjectID']
-    #                 if 'clinical_status' in subject:
-    #                     new_pedigree_members_entry['affected'] = subject['clinical_status']
-    #                 new_pedigree_members_entry['relative'] = sibling
-    #                 if subject['sex1']['id'] == 'F':
-    #                     new_pedigree_members_entry['relation'] = 'Full Sister'
-    #                 if subject['sex1']['id'] == 'M':
-    #                     new_pedigree_members_entry['relation'] = 'Full Brother'
-    #                 emx2_pedigree_members.append(new_pedigree_members_entry)
-                
-    #     # get all family IDs
-    #     families = [member['pedigree'] for member in emx2_pedigree_members]
-    #     # get the family IDs with only one member 
-    #     uniques = [family for family in families if families.count(family) == 1]
-    #     # there are four familyIDs that consist of two families,
-    #     # these should be left as is. 
-    #     for famID in uniques[:]:
-    #         if len(famID.split(',')) > 1:
-    #             uniques.remove(famID) # remove from the list 
-
-    #     # set the individual's relation to Patient in these families
-    #     for member in emx2_pedigree_members:
-    #         if member['pedigree'] in uniques:
-    #             member['relation'] = 'Patient'
-
-    #     # to check - unnecessary
-    #     # pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
-
-    #     # save and upload the newly made tables
-    #     emx2.save_schema(table="Pedigree", data=emx2_pedigree)
-    #     emx2.save_schema(table="Individuals", data=emx2_individuals)
-    #     emx2.save_schema(table="Pedigree members", data=emx2_pedigree_members)
-    #     emx2.save_schema(table="Clinical observations",
-    #                     data=emx2_clinical_observations)
-    #     emx2.save_schema(table="Individual consent",
-    #                     data=emx2_individual_consent)
-
-
+output_path = environ['OUTPUT_PATH']
 
 ##################################################
 # This was used to get the subset of data. Based on this subset, this mapping script
@@ -488,8 +101,8 @@ res = mapper.get_results()
 # read the complete datasets
 
 # retrieve subjects and subject information from server - this might be updated
-# subjects = rd3.get('solverd_subjects', batch_size=5000)
-# subjects_info = rd3.get('solverd_subjectinfo', batch_size=5000)
+subjects = rd3.get('solverd_subjects', batch_size=5000)
+subjects_info = rd3.get('solverd_subjectinfo', batch_size=5000)
 
 # get samples from solve-RD
 with open('samples_17022025.json', 'r') as file:
@@ -525,355 +138,386 @@ emx2.truncate(table='Individuals', schema=schema)
 emx2.truncate(table='Pedigree', schema=schema)
 
 ##################################################
+
+# helper functions 
+def add_consent_entry(emx2_consent, subject_id, suffix, condition, allow_text, deny_text):
+    new_entry = {
+        'id': f'{subject_id}-{suffix}',
+        'individuals': subject_id,
+        'allow recontacting': allow_text if condition else deny_text
+    }
+    emx2_consent.append(new_entry)
+
+
+def add_pedigree_member_entry():
+    print('TODO')
+
+
 # Migrate subjects (solverd_subjects) to the new model
 
-# # initialize lists for the tables in EMX2
-# emx2_individuals = []
-# emx2_pedigree = []
-# emx2_pedigree_members = []
-# emx2_clinical_observations = []
-# emx2_individual_consent = []
-# # keep track of the parents' and patients' IDs.
-# track_mothers = {}
-# track_fathers = {}
-# patients = []
-# # loop through the subjects in RD3
-# for subject in subjects:
-#     new_individual_entry = {}
+# initialize lists for the tables in EMX2
+emx2_individuals = []
+emx2_pedigree = []
+emx2_pedigree_members = []
+emx2_clinical_observations = []
+emx2_individual_consent = []
+# keep track of the parents' and patients' IDs.
+track_mothers = {}
+track_fathers = {}
+patients = []
+# loop through the subjects in RD3
+for subject in subjects:
+    subject_id = subject['subjectID']
+    
+    new_individual_entry = {}
 
-#     # map 'subjectID' (solverd_subjects) to 'id' (Individuals)
-#     new_individual_entry['id'] = subject['subjectID']
+    # map 'subjectID' (solverd_subjects) to 'id' (Individuals)
+    new_individual_entry['id'] = subject_id
 
-#     # map 'sex1' (solverd_subjects) to 'gender at birth' (Individuals)
-#     if 'sex1' in subject:
-#         subject_sex1 = subject['sex1']['id']
-#         if subject_sex1 == 'M':
-#             new_individual_entry['gender at birth'] = 'assigned male at birth'
-#         elif subject_sex1 == 'F':
-#             new_individual_entry['gender at birth'] = 'assigned female at birth'
-#         else:
-#             print(f"Gender at birth value {subject_sex1} cannot be mapped for individual {subject['subjectID']}")
+    # map 'sex1' (solverd_subjects) to 'gender at birth' (Individuals)
+    # dictionary of possible gender values 
+    gender_dict = {
+        'M': 'assigned male at birth',
+        'F': 'assigned female at birth'
+    }
 
-#     # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
-#     match = [info['dateOfBirth']
-#              for info in subjects_info if 'dateOfBirth' in info and info['subjectID'] == subject['subjectID']]
-#     new_individual_entry['year of birth'] = "".join(map(str, match))
+    # get sex info
+    sex_info = subject.get('sex1', {})
+    sex_id = sex_info.get('id')
 
-#     # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'identifier' (Pedigree)
-#     if 'fid' in subject:
-#         new_pedigree_entry = {} # initialize new entry
-#         new_individual_entry['pedigree'] = subject['fid']
-#         # to make this work the fid also needs to be added to the pedigree table in emx2.
-#         # check for uniqueness
-#         if not any(entry['identifier'] == subject['fid'] for entry in emx2_pedigree):
-#             new_pedigree_entry['identifier'] = subject['fid']
-#             emx2_pedigree.append(new_pedigree_entry)
+    if sex_id in gender_dict:
+        new_individual_entry['gender at birth'] = gender_dict[sex_id]
+    elif sex_id is not None:
+        print(f"Gender at birth value {sex_id} cannot be mapped for individual {subject_id}")
 
-#     ####
-#     # Mapping pedigree. 
-#     # If an individual has either a maternal or paternal ID, this person is a patient.
-#     # If an individual is a parent and has a parent, a grandparent relationship is determined.
-#     # If an individual is a patient and has a child, the individual is added multiple times to the 
-#     #   pedigree members table: both as a patient (with itself as the relative) and as a parent
-#     #   (with the child as the relative).
-#     # If an individual has a family ID, but no other information, the person is added to the table
-#     #   with itself as the relative. This happens later in the code (lines 427 - 441).
-#     # If individuals have the same mother and father, they are mapped as full siblings. This also
-#     #   happens later in the code (lines 442 - 467). 
-#     # If a family only has one member, we assume this individual is a patient. This is done at the end.
-#     ####
+    # map 'dateOfBirth' (solverd_subjects) to 'year of birth' (Individuals)
+    match = [info['dateOfBirth']
+             for info in subjects_info if 'dateOfBirth' in info and info['subjectID'] == subject_id]
+    new_individual_entry['year of birth'] = "".join(map(str, match))
 
-#     if 'fid' in subject:
-#         # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
-#         if 'pid' in subject or 'mid' in subject:
-#             new_pedigree_members_entry = {}
-#             new_pedigree_members_entry['pedigree'] = subject['fid']
-#             new_pedigree_members_entry['individual'] = subject['subjectID']
-#             if 'clinical_status' in subject:
-#                 new_pedigree_members_entry['affected'] = subject['clinical_status']
-#             new_pedigree_members_entry['relative'] = subject['subjectID']
-#             new_pedigree_members_entry['relation'] = 'Patient'
-#             emx2_pedigree_members.append(new_pedigree_members_entry)
-#             # keep track of the patients
-#             patients.append(subject['subjectID'])
-#         # Map Parents - based on MaternalID and PaternalID
-#         for subj in subjects:
-#             if subj['subjectID'] == subject['subjectID']:
-#                 continue
-#             new_pedigree_members_entry = {}
-#             new_pedigree_members_entry['pedigree'] = subject['fid']
-#             new_pedigree_members_entry['individual'] = subject['subjectID']
-#             if 'clinical_status' in subject:
-#                 new_pedigree_members_entry['affected'] = subject['clinical_status']
-#             # Map Biological Mother
-#             if 'mid' in subj and subj['mid']['subjectID'] == subject['subjectID']:
-#                 new_pedigree_members_entry['relative'] = subj['subjectID']
-#                 new_pedigree_members_entry['relation'] = "Biological Mother"
-#                 # if 'mid' in subject or 'pid' in subject:
-#                     # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
-#                 # add the child and mother IDs to the dictionary
-#                 track_mothers[subj['subjectID']] = subject['subjectID']
-#             # Map Biological Father
-#             elif 'pid' in subj and subj['pid']['subjectID'] == subject['subjectID']:
-#                 new_pedigree_members_entry['relative'] = subj['subjectID']
-#                 new_pedigree_members_entry['relation'] = "Biological Father"
-#                 # add the child and father's IDs to the dictionary
-#                 track_fathers[subj['subjectID']] = subject['subjectID']
-#                 # if 'mid' in subject or 'pid' in subject:
-#                     # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
-#             if 'relative' in new_pedigree_members_entry: # only append new entry if individual has a parent
-#                 emx2_pedigree_members.append(new_pedigree_members_entry)
-#         # Map maternal grandparents
-#         if subject['subjectID'] in patients and subject['subjectID'] in track_mothers.values():
-#             # Map Biological Maternal Grandmother
-#             if 'mid' in subject:
-#                 # get the identifier for the grandchild
-#                 grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
-#                 for grandchild_id in grandchild_ids:
-#                     new_pedigree_members_entry = {}
-#                     new_pedigree_members_entry['pedigree'] = subject['fid']
-#                     new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
-#                     # if 'clinical_status' in subject:
-#                     clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-#                         subject_clin['subjectID'] == subject['mid']['subjectID']) if (
-#                             'clinical_status' in subject_clin)]
-#                     if clinical_status:
-#                         new_pedigree_members_entry['affected'] = clinical_status[0]
-#                     new_pedigree_members_entry['relative'] = grandchild_id
-#                     new_pedigree_members_entry['relation'] = "Biological Maternal Grandmother"
-#                     emx2_pedigree_members.append(new_pedigree_members_entry)
-#             # Map Biological Maternal Grandfather
-#             if 'pid' in subject:
-#                 # get the identifier for the grandchild
-#                 grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject['subjectID']]
-#                 for grandchild_id in grandchild_ids:
-#                     new_pedigree_members_entry = {}
-#                     new_pedigree_members_entry['pedigree'] = subject['fid']
-#                     new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
-#                     # retrieve clinical status of grandparent
-#                     clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-#                         subject_clin['subjectID'] == subject['pid']['subjectID']) if (
-#                             'clinical_status' in subject_clin)]
-#                     if clinical_status:
-#                         new_pedigree_members_entry['affected'] = clinical_status[0]
-#                     new_pedigree_members_entry['relative'] = grandchild_id
-#                     new_pedigree_members_entry['relation'] = "Biological Maternal Grandfather"
-#                     emx2_pedigree_members.append(new_pedigree_members_entry)
-#         # Map Paternal Grandparents
-#         if subject['subjectID'] in patients and subject['subjectID'] in track_fathers.values():
-#             # Map Biological Paternal Grandmother
-#             if 'mid' in subject:
-#                 # get the identifier for the grandchild
-#                 grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
-#                 for grandchild_id in grandchild_ids:
-#                     new_pedigree_members_entry = {}
-#                     new_pedigree_members_entry['pedigree'] = subject['fid']
-#                     new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
-#                     # retrieve clinical status of grandparent
-#                     clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-#                         subject_clin['subjectID'] == subject['mid']['subjectID']) if(
-#                             'clinical_status' in subject_clin)]
-#                 if clinical_status:
-#                     new_pedigree_members_entry['affected'] = clinical_status[0]
-#                 new_pedigree_members_entry['relative'] = grandchild_id
-#                 new_pedigree_members_entry['relation'] = "Biological Paternal Grandmother"
-#                 emx2_pedigree_members.append(new_pedigree_members_entry)
-#             # Map Biological Paternal Grandfather
-#             if 'pid' in subject: 
-#                 # get the identifier for the grandchild
-#                 grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject['subjectID']]
-#                 for grandchild_id in grandchild_ids:
-#                     new_pedigree_members_entry = {}
-#                     new_pedigree_members_entry['pedigree'] = subject['fid']
-#                     new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
-#                     # retrieve clinical status of grandparent
-#                     clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
-#                         subject_clin['subjectID'] == subject['pid']['subjectID']) if(
-#                             'clinical_status' in subject_clin)]
-#                     if clinical_status:
-#                         new_pedigree_members_entry['affected'] = clinical_status[0]
-#                     new_pedigree_members_entry['relative'] = grandchild_id
-#                     new_pedigree_members_entry['relation'] = "Biological Paternal Grandfather"
-#                     emx2_pedigree_members.append(new_pedigree_members_entry)
+    # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'identifier' (Pedigree)
+    fid = subject.get('fid')
+    if fid:
+        new_pedigree_entry = {} # initialize new entry
+        new_individual_entry['pedigree'] = fid
+        # to make this work the fid also needs to be added to the pedigree table in emx2.
+        # check for uniqueness
 
-#     # map 'organisation' and 'ERN' (solverd_subjects) to 'affiliated institutions' (Individuals)
-#     institutions = []  # new list to save the institutions
-#     resources = []  # new list to save the resources
-#     new_organisation_entry = {}
-#     # check if organisations are present for this subject
-#     if 'organisation' in subject and subject['organisation']:
-#         # get the value for every organisation in the list
-#         orgs = [org['value'] for org in subject['organisation']]
-#         institutions.append(orgs)
-#         resources.append('RD3')
-#     # check if there are any ERNs present for this subject
-#     if 'ERN' in subject and subject['ERN']:
-#         # get the shortname for every ERN in the list
-#         ern = [org['shortname'] for org in subject['ERN']]
-#         institutions.append(ern)
-#         resources.append('RD3')
-#     # add the organisation and ERNs (IDs)
-#     if all(institutions):  # make sure it is not empty
-#         new_individual_entry['affiliated institutions.id'] = ', '.join(
-#             item[0] for item in institutions)
-#     # add the organisations and ERNs (resource)
-#     if all(resources):  # make sure it is not empty
-#         new_individual_entry['affiliated institutions.resource'] = ','.join(
-#             map(str, resources))
+        if not any(entry['id'] == fid for entry in emx2_pedigree):
+            new_pedigree_entry['id'] = fid
+            emx2_pedigree.append(new_pedigree_entry)
 
-#     # create clinical and individual observations
-#     # Clinical observations: map identifier and solved info
-#     new_clinical_observation_entry = {} # initialize new entry
-#     new_clinical_observation_entry['individual'] = subject['subjectID']
-#     if 'solved' in subject:
-#         new_clinical_observation_entry['is solved'] = subject['solved']
-#     if 'date_solved' in subject:
-#         new_clinical_observation_entry['date solved'] = subject['date_solved']
-#     emx2_clinical_observations.append(new_clinical_observation_entry)
+    ###
+    # Mapping pedigree. 
+    # If an individual has either a maternal or paternal ID, this person is a patient.
+    # If an individual is a parent and has a parent, a grandparent relationship is determined.
+    # If an individual is a patient and has a child, the individual is added multiple times to the 
+    #   pedigree members table: both as a patient (with itself as the relative) and as a parent
+    #   (with the child as the relative).
+    # If an individual has a family ID, but no other information, the person is added to the table
+    #   with itself as the relative. This happens later in the code (lines 427 - 441).
+    # If individuals have the same mother and father, they are mapped as full siblings. This also
+    #   happens later in the code (lines 442 - 467). 
+    # If a family only has one member, we assume this individual is a patient. This is done at the end.
+    ###
+
+    if fid:
+        # Map Patient - if individual has a parent (maternal or paternal), the person is a patient.
+        if 'pid' in subject or 'mid' in subject:
+            new_pedigree_members_entry = {}
+            new_pedigree_members_entry['pedigree'] = fid
+            new_pedigree_members_entry['individual'] = subject_id
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            new_pedigree_members_entry['relative'] = subject_id
+            new_pedigree_members_entry['relation'] = 'Patient'
+            emx2_pedigree_members.append(new_pedigree_members_entry)
+            # keep track of the patients
+            patients.append(subject['subjectID'])
+        # Map Parents - based on MaternalID and PaternalID
+        for subj in subjects:
+            if subj['subjectID'] == subject_id:
+                continue
+            new_pedigree_members_entry = {}
+            new_pedigree_members_entry['pedigree'] = fid
+            new_pedigree_members_entry['individual'] = subject_id
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            # Map Biological Mother
+            if 'mid' in subj and subj['mid']['subjectID'] == subject_id:
+                new_pedigree_members_entry['relative'] = subj['subjectID']
+                new_pedigree_members_entry['relation'] = "Biological Mother"
+                # if 'mid' in subject or 'pid' in subject:
+                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
+                # add the child and mother IDs to the dictionary
+                track_mothers[subj['subjectID']] = subject_id
+            # Map Biological Father
+            elif 'pid' in subj and subj['pid']['subjectID'] == subject_id:
+                new_pedigree_members_entry['relative'] = subj['subjectID']
+                new_pedigree_members_entry['relation'] = "Biological Father"
+                # add the child and father's IDs to the dictionary
+                track_fathers[subj['subjectID']] = subject_id
+                # if 'mid' in subject or 'pid' in subject:
+                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
+            if 'relative' in new_pedigree_members_entry: # only append new entry if individual has a parent
+                emx2_pedigree_members.append(new_pedigree_members_entry)
+        # Map maternal grandparents
+        if subject_id in patients and subject_id in track_mothers.values():
+            # Map Biological Maternal Grandmother
+            if 'mid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject_id]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = fid
+                    new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
+                    # if 'clinical_status' in subject:
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['mid']['subjectID']) if (
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Maternal Grandmother"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
+            # Map Biological Maternal Grandfather
+            if 'pid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_mothers.items() if value == subject_id]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = fid
+                    new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['pid']['subjectID']) if (
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Maternal Grandfather"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
+        # Map Paternal Grandparents
+        if subject_id in patients and subject_id in track_fathers.values():
+            # Map Biological Paternal Grandmother
+            if 'mid' in subject:
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject_id]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = fid
+                    new_pedigree_members_entry['individual'] = subject['mid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['mid']['subjectID']) if(
+                            'clinical_status' in subject_clin)]
+                if clinical_status:
+                    new_pedigree_members_entry['affected'] = clinical_status[0]
+                new_pedigree_members_entry['relative'] = grandchild_id
+                new_pedigree_members_entry['relation'] = "Biological Paternal Grandmother"
+                emx2_pedigree_members.append(new_pedigree_members_entry)
+            # Map Biological Paternal Grandfather
+            if 'pid' in subject: 
+                # get the identifier for the grandchild
+                grandchild_ids = [child_id for child_id, value in track_fathers.items() if value == subject_id]
+                for grandchild_id in grandchild_ids:
+                    new_pedigree_members_entry = {}
+                    new_pedigree_members_entry['pedigree'] = fid
+                    new_pedigree_members_entry['individual'] = subject['pid']['subjectID']
+                    # retrieve clinical status of grandparent
+                    clinical_status = [subject_clin['clinical_status'] for subject_clin in subjects if(
+                        subject_clin['subjectID'] == subject['pid']['subjectID']) if(
+                            'clinical_status' in subject_clin)]
+                    if clinical_status:
+                        new_pedigree_members_entry['affected'] = clinical_status[0]
+                    new_pedigree_members_entry['relative'] = grandchild_id
+                    new_pedigree_members_entry['relation'] = "Biological Paternal Grandfather"
+                    emx2_pedigree_members.append(new_pedigree_members_entry)
+
+    # map 'organisation' and 'ERN' (solverd_subjects) to 'affiliated organisations' (Individuals)
+    organisations = []  # new list to save the institutions
+    new_organisation_entry = {}
+    # check if organisations are present for this subject
+    if 'organisation' in subject and subject['organisation']:
+        # get the value for every organisation in the list
+        orgs = [org['value'] for org in subject['organisation']]
+        organisations.append(orgs)
+    # check if there are any ERNs present for this subject
+    if 'ERN' in subject and subject['ERN']:
+        # get the shortname for every ERN in the list
+        ern = [org['shortname'] for org in subject['ERN']]
+        organisations.append(ern)
+    # add the organisation and ERNs (IDs)
+    if all(organisations):  # make sure it is not empty
+        new_individual_entry['affiliated organisations'] = ', '.join(
+            item[0] for item in organisations)
+
+    # create clinical and individual observations
+    # Clinical observations: map identifier and solved info
+    new_clinical_observation_entry = {} # initialize new entry
+    new_clinical_observation_entry['individuals'] = subject_id
+    new_clinical_observation_entry['is solved'] = subject.get('solved')
+    new_clinical_observation_entry['date solved'] = subject.get('date_solved')
+    emx2_clinical_observations.append(new_clinical_observation_entry)
    
-#     # map to 'included in datasets' (Individuals)
-#     resourcesList = []  # list to gather resources
-#     namesList = []  # list to gather the names
-#     # map 'partOfRelease
-#     if 'partOfRelease' in subject:
-#         # loop through the releases of this subject
-#         for release in subject['partOfRelease']:
-#             resourcesList.append('RD3')
-#             namesList.append(release['id'])
-#     # map 'retracted' (solverd_subjects)
-#     if 'retracted' in subject and subject['retracted']['id'] == 'Y':
-#         resourcesList.append("RD3")
-#         namesList.append('Retracted')
-#     # map 'includedInDatasets' (solverd_subjects)
-#     if 'includedInDatasets' in subject:
-#         for dataset in subject['includedInDatasets']:
-#             resourcesList.append('RD3')
-#             namesList.append(dataset['id'])
-#     # add the lists to the new entry
-#     new_individual_entry['included in datasets.resource'] = ','.join(
-#         resourcesList)
-#     new_individual_entry['included in datasets.name'] = ','.join(
-#         map(str, namesList))
+    # # map 'partOfRelease' to 'included in datasets' (Individuals) --> TODO: bespreek dit, er is geen included in datasets kolom meer in individuals 
+    # namesList = []  # list to gather the names
+    # # map 'partOfRelease
+    # if 'partOfRelease' in subject:
+    #     # loop through the releases of this subject
+    #     for release in subject['partOfRelease']:
+    #         namesList.append(release['id'])
+    # # map 'retracted' (solverd_subjects)
+    # if 'retracted' in subject and subject['retracted']['id'] == 'Y':
+    #     resourcesList.append("RD3")
+    #     namesList.append('Retracted')
+    # # map 'includedInDatasets' (solverd_subjects)
+    # if 'includedInDatasets' in subject:
+    #     for dataset in subject['includedInDatasets']:
+    #         resourcesList.append('RD3')
+    #         namesList.append(dataset['id'])
+    # # add the lists to the new entry
+    # new_individual_entry['included in datasets.resource'] = ','.join(
+    #     resourcesList)
+    # new_individual_entry['included in datasets.name'] = ','.join(
+    #     map(str, namesList))
 
-#     # map 'consent' (solverd_subjects) to Individual consent 
-#     if 'matchMakerPermission' in subject:
-#         new_individual_consent_entry = {} 
-#         new_individual_consent_entry['identifier'] = subject['subjectID'] + '-matchmaker'
-#         new_individual_consent_entry['Person consenting'] = subject['subjectID']
-#         if subject['matchMakerPermission']:
-#             new_individual_consent_entry['Allow recontacting'] = "Allow use in MatchMaker"
-#         else:
-#             new_individual_consent_entry['Allow recontacting'] = "No use in MatchMaker"
-#         emx2_individual_consent.append(new_individual_consent_entry)
-#     if 'noIncidentalFindings' in subject:
-#         new_individual_consent_entry = {}
-#         new_individual_consent_entry['identifier'] = subject['subjectID'] + \
-#             '-reportIncidental'
-#         new_individual_consent_entry['Person consenting'] = subject['subjectID']
-#         if subject['noIncidentalFindings']:
-#             new_individual_consent_entry['Allow recontacting'] = "Report incidental findings back"
-#         else:
-#             new_individual_consent_entry['Allow recontacting'] = "No reporting of incidental findings"
-#         emx2_individual_consent.append(new_individual_consent_entry)
-#     if 'recontact' in subject:
-#         new_individual_consent_entry = {}
-#         new_individual_consent_entry['identifier'] = subject['subjectID'] + \
-#             '-recontactIncidental'
-#         new_individual_consent_entry['Person consenting'] = subject['subjectID']
-#         if subject['recontact']['label'] == 'Yes':
-#             new_individual_consent_entry['Allow recontacting'] = "Recontacting for incidental findings"
-#         if subject['recontact']['label'] == 'No':
-#             new_individual_consent_entry['Allow recontacting'] = "No recontacting for incidential findings"
-#         emx2_individual_consent.append(new_individual_consent_entry)
+    # map 'consent' (solverd_subjects) to Individual consent 
+    if 'matchMakerPermission' in subject:
+        new_individual_consent_entry = {} 
+        new_individual_consent_entry['id'] = subject_id + '-matchmaker'
+        new_individual_consent_entry['individuals'] = subject_id
+        if subject['matchMakerPermission']:
+            new_individual_consent_entry['allow recontacting'] = "Allow use in MatchMaker"
+        else:
+            new_individual_consent_entry['allow recontacting'] = "No use in MatchMaker"
+        emx2_individual_consent.append(new_individual_consent_entry)
+    if 'noIncidentalFindings' in subject:
+        new_individual_consent_entry = {}
+        new_individual_consent_entry['id'] = subject_id + \
+            '-reportIncidental'
+        new_individual_consent_entry['individuals'] = subject_id
+        if subject['noIncidentalFindings']:
+            new_individual_consent_entry['allow recontacting'] = "Report incidental findings back"
+        else:
+            new_individual_consent_entry['allow recontacting'] = "No reporting of incidental findings"
+        emx2_individual_consent.append(new_individual_consent_entry)
+    if 'recontact' in subject:
+        new_individual_consent_entry = {}
+        new_individual_consent_entry['id'] = subject_id + \
+            '-recontactIncidental'
+        new_individual_consent_entry['individuals'] = subject_id
+        if subject['recontact']['label'] == 'Yes':
+            new_individual_consent_entry['allow recontacting'] = "Recontacting for incidental findings"
+        if subject['recontact']['label'] == 'No':
+            new_individual_consent_entry['allow recontacting'] = "No recontacting for incidential findings"
+        emx2_individual_consent.append(new_individual_consent_entry)
 
-#     # map 'comments' (solverd_subjects) to 'comments' (Individuals)
-#     if 'comments' in subject:
-#         new_individual_entry['comments'] = subject['comments']
+    # # map 'comments' (solverd_subjects) to 'comments' (Individuals)
+    # if 'comments' in subject:
+    #     new_individual_entry['comments'] = subject['comments']
 
-#     # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
-#     for sample in samples:
-#         if 'belongsToSubject' in sample:
-#             if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
-#                 if 'sex2' in sample:
-#                     if sample['sex2']['id'] == 'M':
-#                         new_individual_entry['genotypic sex'] = 'XY Genotype'
-#                     elif sample['sex2']['id'] == 'F':
-#                         new_individual_entry['genotypic sex'] = 'XX Genotype'
-#                     else:
-#                         print('The genotypic sex could not be mapped.')
-#                         print(sample['sex2']['id'])
+    # # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
+    # for sample in samples:
+    #     if 'belongsToSubject' in sample:
+    #         if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
+    #             if 'sex2' in sample:
+    #                 if sample['sex2']['id'] == 'M':
+    #                     new_individual_entry['genotypic sex'] = 'XY Genotype'
+    #                 elif sample['sex2']['id'] == 'F':
+    #                     new_individual_entry['genotypic sex'] = 'XX Genotype'
+    #                 else:
+    #                     print('The genotypic sex could not be mapped.')
+    #                     print(sample['sex2']['id'])
 
-#     # append the new entry to the individuals list
-#     emx2_individuals.append(new_individual_entry)
+    # append the new entry to the individuals list
+    emx2_individuals.append(new_individual_entry)
 
-# # Map the individuals that do have a family id but no other information about the relationships
-# # gather all individuals in the current pedigree members table
-# # Additionally map sibling relationships. 
-# individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members]
-# # loop through the subjects
-# for subject in subjects:
-#     # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
-#     if 'fid' in subject and subject['subjectID'] not in individuals_in_pedigree:
-#         new_pedigree_members_entry = {}
-#         new_pedigree_members_entry['pedigree'] = subject['fid']
-#         new_pedigree_members_entry['individual'] = subject['subjectID']
-#         if 'clinical_status' in subject:
-#             new_pedigree_members_entry['affected'] = subject['clinical_status']
-#         new_pedigree_members_entry['relative'] = subject['subjectID'] # itself
-#         emx2_pedigree_members.append(new_pedigree_members_entry)
-#     # Map Full Sibling relationships
-#     # first, check if an individual has both parents' IDs and check if the sex is a known category.
-#     if 'mid' and 'pid' in subject and 'sex1' in subject and subject['sex1']['id'] in ['F', 'M']: 
-#         # get the parents' IDs
-#         mother = track_mothers.get(subject['subjectID'])
-#         father = track_fathers.get(subject['subjectID'])
+# Map the individuals that do have a family id but no other information about the relationships
+# gather all individuals in the current pedigree members table
+# Additionally map sibling relationships. 
+individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members]
+# loop through the subjects
+for subject in subjects:
+    # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
+    if 'fid' in subject and subject['subjectID'] not in individuals_in_pedigree:
+        new_pedigree_members_entry = {}
+        new_pedigree_members_entry['pedigree'] = subject['fid']
+        new_pedigree_members_entry['individual'] = subject['subjectID']
+        if 'clinical_status' in subject:
+            new_pedigree_members_entry['affected'] = subject['clinical_status']
+        new_pedigree_members_entry['relative'] = subject['subjectID'] # itself
+        emx2_pedigree_members.append(new_pedigree_members_entry)
+    # Map Full Sibling relationships
+    # first, check if an individual has both parents' IDs and check if the sex is a known category.
+    if 'mid' and 'pid' in subject and 'sex1' in subject and subject['sex1']['id'] in ['F', 'M']: 
+        # get the parents' IDs
+        mother = track_mothers.get(subject['subjectID'])
+        father = track_fathers.get(subject['subjectID'])
 
-#         # collect the siblings for the individual
-#         siblings = []
-#         for child in track_mothers:
-#             if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject['subjectID']:
-#                 siblings.append(child)
+        # collect the siblings for the individual
+        siblings = []
+        for child in track_mothers:
+            if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject['subjectID']:
+                siblings.append(child)
 
-#         # loop through the siblings and add to the list of pedigree members
-#         for sibling in siblings:
-#             new_pedigree_members_entry = {}
-#             new_pedigree_members_entry['pedigree'] = subject['fid']
-#             new_pedigree_members_entry['individual'] = subject['subjectID']
-#             if 'clinical_status' in subject:
-#                 new_pedigree_members_entry['affected'] = subject['clinical_status']
-#             new_pedigree_members_entry['relative'] = sibling
-#             if subject['sex1']['id'] == 'F':
-#                 new_pedigree_members_entry['relation'] = 'Full Sister'
-#             if subject['sex1']['id'] == 'M':
-#                 new_pedigree_members_entry['relation'] = 'Full Brother'
-#             emx2_pedigree_members.append(new_pedigree_members_entry)
+        # loop through the siblings and add to the list of pedigree members
+        for sibling in siblings:
+            new_pedigree_members_entry = {}
+            new_pedigree_members_entry['pedigree'] = subject['fid']
+            new_pedigree_members_entry['individual'] = subject['subjectID']
+            if 'clinical_status' in subject:
+                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            new_pedigree_members_entry['relative'] = sibling
+            if subject['sex1']['id'] == 'F':
+                new_pedigree_members_entry['relation'] = 'Full Sister'
+            if subject['sex1']['id'] == 'M':
+                new_pedigree_members_entry['relation'] = 'Full Brother'
+            emx2_pedigree_members.append(new_pedigree_members_entry)
         
-# # get all family IDs
-# families = [member['pedigree'] for member in emx2_pedigree_members]
-# # get the family IDs with only one member 
-# uniques = [family for family in families if families.count(family) == 1]
-# # there are four familyIDs that consist of two families,
-# # these should be left as is. 
-# for famID in uniques[:]:
-#     if len(famID.split(',')) > 1:
-#         uniques.remove(famID) # remove from the list 
+# get all family IDs
+families = [member['pedigree'] for member in emx2_pedigree_members]
+# get the family IDs with only one member 
+uniques = [family for family in families if families.count(family) == 1]
+# there are four familyIDs that consist of two families,
+# these should be left as is. 
+for famID in uniques[:]:
+    if len(famID.split(',')) > 1:
+        uniques.remove(famID) # remove from the list 
 
-# # set the individual's relation to Patient in these families
-# for member in emx2_pedigree_members:
-#     if member['pedigree'] in uniques:
-#         member['relation'] = 'Patient'
+# set the individual's relation to Patient in these families
+for member in emx2_pedigree_members:
+    if member['pedigree'] in uniques:
+        member['relation'] = 'Patient'
 
-# # to check - unnecessary
-# # pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
+# to check - unnecessary
+# pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
 
-# # save and upload the newly made tables
-# emx2.save_schema(table="Pedigree", data=emx2_pedigree)
-# emx2.save_schema(table="Individuals", data=emx2_individuals)
-# emx2.save_schema(table="Pedigree members", data=emx2_pedigree_members)
-# emx2.save_schema(table="Clinical observations",
-#                  data=emx2_clinical_observations)
-# emx2.save_schema(table="Individual consent",
-#                  data=emx2_individual_consent)
+# save and upload the newly made tables
+
+# this step is to explode the cases in the pedigree data where an identifier 
+# consists of multiple families, each should have its own row 
+emx2_pedigree_df = pd.DataFrame(emx2_pedigree)
+emx2_pedigree_df.loc[:,'id'] = emx2_pedigree_df['id'].str.split(',')
+emx2_pedigree_df = emx2_pedigree_df.explode('id')
+
+emx2_pedigree_members_df = pd.DataFrame(emx2_pedigree_members)
+emx2_pedigree_members_df.loc[:,'pedigree'] = emx2_pedigree_members_df['pedigree'].str.split(',')
+emx2_pedigree_members_df = emx2_pedigree_members_df.explode('pedigree')
+
+# save and upload
+emx2_pedigree_df.drop_duplicates().to_csv(f'{output_path}Pedigree.csv')
+emx2_pedigree_members_df.drop_duplicates().to_csv(f'{output_path}Pedigree members.csv')
+pd.DataFrame(emx2_individuals).to_csv(f'{output_path}Individuals.csv', index=False)
+pd.DataFrame(emx2_individual_consent).to_csv(f'{output_path}Individual consent.csv', index=False)
+
+emx2.save_schema(table="Pedigree", data=emx2_pedigree_df.drop_duplicates())
+emx2.save_schema(table="Individuals", data=emx2_individuals)
+emx2.save_schema(table="Pedigree members", data=emx2_pedigree_members_df.drop_duplicates())
+emx2.save_schema(table="Clinical observations",
+                 data=emx2_clinical_observations)
+emx2.save_schema(table="Individual consent",
+                 data=emx2_individual_consent)
 # obtain the clinical observations table (with automatically generated ID)
 clinicalObs = emx2.get(schema=schema, table="Clinical observations")
 
@@ -1280,3 +924,5 @@ pd.DataFrame(emx2_files).to_csv('Files.csv.zip', index=False, compression='gzip'
 # save and upload the files table
 emx2.save_schema(table='Files', file='Files.csv.zip')
 
+
+# %%

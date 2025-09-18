@@ -360,27 +360,23 @@ for subject in subjects:
     new_clinical_observation_entry['date solved'] = subject.get('date_solved')
     emx2_clinical_observations.append(new_clinical_observation_entry)
    
-    # # map 'partOfRelease' to 'included in datasets' (Individuals) --> TODO: bespreek dit, er is geen included in datasets kolom meer in individuals 
-    # namesList = []  # list to gather the names
-    # # map 'partOfRelease
-    # if 'partOfRelease' in subject:
-    #     # loop through the releases of this subject
-    #     for release in subject['partOfRelease']:
-    #         namesList.append(release['id'])
-    # # map 'retracted' (solverd_subjects)
-    # if 'retracted' in subject and subject['retracted']['id'] == 'Y':
-    #     resourcesList.append("RD3")
-    #     namesList.append('Retracted')
-    # # map 'includedInDatasets' (solverd_subjects)
-    # if 'includedInDatasets' in subject:
-    #     for dataset in subject['includedInDatasets']:
-    #         resourcesList.append('RD3')
-    #         namesList.append(dataset['id'])
-    # # add the lists to the new entry
-    # new_individual_entry['included in datasets.resource'] = ','.join(
-    #     resourcesList)
-    # new_individual_entry['included in datasets.name'] = ','.join(
-    #     map(str, namesList))
+    # map 'partOfRelease' to 'included in datasets' (Individuals)
+    namesList = []  # list to gather the names
+    # map 'partOfRelease
+    if 'partOfRelease' in subject:
+        # loop through the releases of this subject
+        for release in subject['partOfRelease']:
+            namesList.append(release['id'])
+    # map 'retracted' (solverd_subjects)
+    if 'retracted' in subject and subject['retracted']['id'] == 'Y':
+        namesList.append('Retracted')
+    # map 'includedInDatasets' (solverd_subjects)
+    if 'includedInDatasets' in subject:
+        for dataset in subject['includedInDatasets']:
+            namesList.append(dataset['id'])
+    # add the lists to the new entry
+    new_individual_entry['included in resources'] = ','.join(
+        map(str, namesList))
 
     # map 'consent' (solverd_subjects) to Individual consent 
     if 'matchMakerPermission' in subject:
@@ -413,22 +409,28 @@ for subject in subjects:
             new_individual_consent_entry['allow recontacting'] = "No recontacting for incidential findings"
         emx2_individual_consent.append(new_individual_consent_entry)
 
-    # # map 'comments' (solverd_subjects) to 'comments' (Individuals)
-    # if 'comments' in subject:
-    #     new_individual_entry['comments'] = subject['comments']
+    # map 'comments' (solverd_subjects) to 'comments' (Individuals)
+    new_individual_entry['comments'] = subject.get('comments')
 
-    # # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
-    # for sample in samples:
-    #     if 'belongsToSubject' in sample:
-    #         if sample['belongsToSubject']['subjectID'] == subject['subjectID']:
-    #             if 'sex2' in sample:
-    #                 if sample['sex2']['id'] == 'M':
-    #                     new_individual_entry['genotypic sex'] = 'XY Genotype'
-    #                 elif sample['sex2']['id'] == 'F':
-    #                     new_individual_entry['genotypic sex'] = 'XX Genotype'
-    #                 else:
-    #                     print('The genotypic sex could not be mapped.')
-    #                     print(sample['sex2']['id'])
+    # map 'sex2' (solverd_samples) to 'genotypic sex' (Individuals)
+    sex_map = {
+        'M': 'XY Genotype',
+        'F': 'XX Genotype'
+    }
+
+    for sample in samples:
+        subject_from_sample = sample.get('belongsToSubject', {})
+        sex2 = sample.get('sex2', {})
+        if subject_from_sample.get('subjectID') != subject_id:
+            continue
+        
+        sex_id = sex2.get('id')
+        if sex_id in sex_map:
+            new_individual_entry['genotypic sex'] = sex_map[sex_id]
+        elif sex_id is None:
+            continue
+        else:
+            print(f'The genotypic sex {sex_id} could not be mapped.')
 
     # append the new entry to the individuals list
     emx2_individuals.append(new_individual_entry)
@@ -439,35 +441,34 @@ for subject in subjects:
 individuals_in_pedigree = [member['individual'] for member in emx2_pedigree_members]
 # loop through the subjects
 for subject in subjects:
+    subject_id = subject['subjectID']
     # if the subject has a family ID and is not yet an individual in the list, it needs to be added 
-    if 'fid' in subject and subject['subjectID'] not in individuals_in_pedigree:
+    if 'fid' in subject and subject_id not in individuals_in_pedigree:
         new_pedigree_members_entry = {}
         new_pedigree_members_entry['pedigree'] = subject['fid']
-        new_pedigree_members_entry['individual'] = subject['subjectID']
-        if 'clinical_status' in subject:
-            new_pedigree_members_entry['affected'] = subject['clinical_status']
-        new_pedigree_members_entry['relative'] = subject['subjectID'] # itself
+        new_pedigree_members_entry['individual'] = subject_id
+        new_pedigree_members_entry['affected'] = subject.get('clinical_status')
+        new_pedigree_members_entry['relative'] = subject_id # itself
         emx2_pedigree_members.append(new_pedigree_members_entry)
     # Map Full Sibling relationships
     # first, check if an individual has both parents' IDs and check if the sex is a known category.
     if 'mid' and 'pid' in subject and 'sex1' in subject and subject['sex1']['id'] in ['F', 'M']: 
         # get the parents' IDs
-        mother = track_mothers.get(subject['subjectID'])
-        father = track_fathers.get(subject['subjectID'])
+        mother = track_mothers.get(subject_id)
+        father = track_fathers.get(subject_id)
 
         # collect the siblings for the individual
         siblings = []
         for child in track_mothers:
-            if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject['subjectID']:
+            if track_mothers.get(child) == mother and track_fathers.get(child) == father and child != subject_id:
                 siblings.append(child)
 
         # loop through the siblings and add to the list of pedigree members
         for sibling in siblings:
             new_pedigree_members_entry = {}
             new_pedigree_members_entry['pedigree'] = subject['fid']
-            new_pedigree_members_entry['individual'] = subject['subjectID']
-            if 'clinical_status' in subject:
-                new_pedigree_members_entry['affected'] = subject['clinical_status']
+            new_pedigree_members_entry['individual'] = subject_id
+            new_pedigree_members_entry['affected'] = subject.get('clinical_status')
             new_pedigree_members_entry['relative'] = sibling
             if subject['sex1']['id'] == 'F':
                 new_pedigree_members_entry['relation'] = 'Full Sister'
@@ -480,7 +481,7 @@ families = [member['pedigree'] for member in emx2_pedigree_members]
 # get the family IDs with only one member 
 uniques = [family for family in families if families.count(family) == 1]
 # there are four familyIDs that consist of two families,
-# these should be left as is. 
+# these should be left as is.
 for famID in uniques[:]:
     if len(famID.split(',')) > 1:
         uniques.remove(famID) # remove from the list 
@@ -506,8 +507,8 @@ emx2_pedigree_members_df.loc[:,'pedigree'] = emx2_pedigree_members_df['pedigree'
 emx2_pedigree_members_df = emx2_pedigree_members_df.explode('pedigree')
 
 # save and upload
-emx2_pedigree_df.drop_duplicates().to_csv(f'{output_path}Pedigree.csv')
-emx2_pedigree_members_df.drop_duplicates().to_csv(f'{output_path}Pedigree members.csv')
+emx2_pedigree_df.drop_duplicates().to_csv(f'{output_path}Pedigree.csv', index=False)
+emx2_pedigree_members_df.drop_duplicates().to_csv(f'{output_path}Pedigree members.csv', index=False)
 pd.DataFrame(emx2_individuals).to_csv(f'{output_path}Individuals.csv', index=False)
 pd.DataFrame(emx2_individual_consent).to_csv(f'{output_path}Individual consent.csv', index=False)
 
@@ -521,19 +522,19 @@ emx2.save_schema(table="Individual consent",
 # obtain the clinical observations table (with automatically generated ID)
 clinicalObs = emx2.get(schema=schema, table="Clinical observations")
 
-
 # again loop through subjects to map phenotype and diseases
 # this is done seperately because the IDs first need to be automatically created when uploading clinical observations
 emx2_disease_history = []
 emx2_phenotype_observations = []
 for subject in subjects:
+    subject_id = subject['subjectID']
     # mapping 'disease' (solverd_subjects) to Disease history
     if 'disease' in subject and subject['disease']:
         for disease in subject['disease']:
             new_disease_history_entry = {}
             new_disease_history_entry['disease'] = disease['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject['subjectID']:
+                if obs['individual'] == subject_id:
                     new_disease_history_entry['part of clinical observation'] = obs['id']
             emx2_disease_history.append(new_disease_history_entry)
     # mapping 'phenotype' (solverd_subjects) to Phenotype observations (excluded = False)
@@ -542,7 +543,7 @@ for subject in subjects:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = phenotype['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject['subjectID']:
+                if obs['individual'] == subject_id:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = False
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
@@ -552,13 +553,13 @@ for subject in subjects:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = notPhenotype['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject['subjectID']:
+                if obs['individual'] == subject_id:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = True
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
     # map 'ageOfOnset' (solverd_subject_info) to ageOfOnset (Disease history)
     # find the information of the subject with an ageOfOnset. 
-    match = [info for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject['subjectID']]
+    match = [info for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject_id]
     if match: 
         # make a dict of the IDs and the auto IDs (part of clinical observation)
         tmp = {obs['individual']:obs['id'] for obs in clinicalObs}

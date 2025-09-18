@@ -61,7 +61,8 @@ class map_solveRD_ontologies:
 
 
     def map_resources(self): 
-        """This function maps the resources used in solve-RD"""
+        """This function maps the resources and the data releases used in solve-RD to EMX2 RD3, i.e.,
+        freezes and patches are now structured as Resources."""
         # this entry is used to group all records in the RD3 dataset
         self.resources_df = pd.DataFrame([{
             'id': 'Solve-RD RD3',
@@ -83,6 +84,63 @@ class map_solveRD_ontologies:
             'number of participants with samples': 5,
             'release type': 'Closed dataset' 
         }])
+        
+        releases = self.rd3.get('solverd_info_datareleases')
+        releases_used = []
+        for release in releases:
+            releases_used.append({ 
+                'id': release.get('id'),
+                'name': release.get('name'),
+                'type': 'Other type',
+            })
+
+        # add a retracted datasets
+        releases_used.append({
+            'id': 'Retracted',
+            'name': 'Retracted',
+            'type': 'Other type'
+        })
+
+        # Migrate batches to datasets as well
+        batches = self.rd3.get( # retrieve batches from RD3
+            'solverd_samples',
+            batch_size=10000,
+            attributes= 'batch'
+        )
+
+        # collect all unique batches 
+        unique_batches = []
+        for batch in batches:
+            if 'batch' in batch:
+                # split and strip in the case of multiple batches (eg., 'BGI_1, BGI_3')
+                batch_split = [batch.strip() for batch in batch['batch'].split(",")]
+                for splitted_batch in batch_split:
+                    # check if the batch is already in the list 
+                    if splitted_batch not in unique_batches:
+                        # if not, add to the list
+                        unique_batches.append(splitted_batch)
+
+        # append each unique batch to the datasets 
+        for batch in unique_batches:
+            releases_used.append({
+                'id': batch,
+                'name':batch,
+                'type': 'Other type'
+            })
+
+        # Migrate datasets from solve-rd as well
+        datasets = self.rd3.get('solverd_info_datasets',
+                        attributes='id') # retrieve info from lookup table
+        # loop through the datasets and append to the list
+        for dataset in datasets:
+            releases_used.append({
+                'id': dataset['id'],
+                'name': dataset['id'],
+                'type': 'Other type'
+            })
+
+        # convert to df
+        self.resources_df = pd.concat([pd.DataFrame(releases_used), self.resources_df])
 
         self.resources_df['number of participants'] = self.resources_df['number of participants'].astype('Int64')
         self.resources_df['number of participants with samples'] = self.resources_df['number of participants with samples'].astype('Int64')
@@ -178,9 +236,6 @@ class map_solveRD_ontologies:
             })
 
         organisations_df = pd.DataFrame(organisations)
-
-        # add link to resource (required in EMX2)
-        organisations_df['resource'] = self.resources_df['id'][0]
 
         self.emx2_ontologies.save_schema(table="Organisations", data=organisations_df)
 
@@ -294,66 +349,6 @@ class map_solveRD_ontologies:
 
         self.emx2_ontologies.save_schema(table="Phenotypes", data=hpos_to_import)
 
-    def map_datasets(self):
-        """This function maps the data releases used in solve-rd to EMX2 RD3, i.e.,
-        freezes and patches are now structured as Datasets."""
-        
-        releases = self.rd3.get('solverd_info_datareleases')
-        releases_used = []
-        for release in releases:
-            releases_used.append({
-                'resource': 'Solve-RD RD3',
-                'name': release.get('id'),
-                'description': release.get('name'),
-            })
-
-        # add a retracted datasets
-        releases_used.append({
-            'resource': 'Solve-RD RD3',
-            'name': 'Retracted'
-        })
-
-        # Migrate batches to datasets as well
-        batches = self.rd3.get( # retrieve batches from RD3
-            'solverd_samples',
-            batch_size=10000,
-            attributes= 'batch'
-        )
-
-        # collect all unique batches 
-        unique_batches = []
-        for batch in batches:
-            if 'batch' in batch:
-                # split and strip in the case of multiple batches (eg., 'BGI_1, BGI_3')
-                batch_split = [batch.strip() for batch in batch['batch'].split(",")]
-                for splitted_batch in batch_split:
-                    # check if the batch is already in the list 
-                    if splitted_batch not in unique_batches:
-                        # if not, add to the list
-                        unique_batches.append(splitted_batch)
-
-        # append each unique batch to the datasets 
-        for batch in unique_batches:
-            releases_used.append({
-                'resource': 'Solve-RD RD3',
-                'name':batch
-            })
-
-        # Migrate datasets from solve-rd as well
-        datasets = self.rd3.get('solverd_info_datasets',
-                        attributes='id') # retrieve info from lookup table
-        # loop through the datasets and append to the list
-        for dataset in datasets:
-            releases_used.append({
-                'resource': 'Solve-RD RD3',
-                'name': dataset['id']
-            })
-
-        # convert to df
-        releases_df = pd.DataFrame(releases_used)
-
-        # save schema
-        self.emx2.save_schema(table='Datasets', data=releases_df)
 
     def map_enrichment_kit(self): 
         """This function maps the enrichment kits ontology from solve-rd (EMX1) to EMX2 RD3"""
@@ -451,4 +446,3 @@ class map_solveRD_ontologies:
 
         # save and upload the complete ontology 
         self.emx2_ontologies.save_schema(table="Anatomical location", data=emx2_anatomical_locations_complete)
-

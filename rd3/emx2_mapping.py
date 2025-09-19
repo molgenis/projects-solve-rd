@@ -11,6 +11,7 @@ import pandas as pd
 load_dotenv('/Users/w.f.oudijk/Documents/RD3/Scripts/.env')
 import re
 import json
+import numpy as np
 
 
 # connect to the RD3 EMX1 environment and log in
@@ -124,16 +125,16 @@ emx2.truncate(table='Phenotype observations', schema=schema)
 emx2.truncate(table='Disease history', schema=schema)
 emx2.truncate(table='Clinical observations', schema=schema)
 emx2.truncate(table='Individual consent', schema=schema)
-emx2.truncate(table='Individual observations', schema=schema)
+# emx2.truncate(table='Individual observations', schema=schema)
 emx2.truncate(table='Pedigree members', schema=schema)
 # Delete files in batches
 # for batch in range(0, len(files), 1000):
 #     emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
 # emx2.truncate(table='Files', schema=schema)
-emx2.truncate(table='Sequencing runs', schema=schema)
-emx2.truncate(table='Sample preparations', schema=schema)
-emx2.truncate(table='Protocol activity', schema=schema)
-emx2.truncate(table='Biosamples', schema=schema)
+# emx2.truncate(table='Sequencing runs', schema=schema)
+# emx2.truncate(table='Sample preparations', schema=schema)
+# emx2.truncate(table='Protocol activity', schema=schema)
+# emx2.truncate(table='Biosamples', schema=schema)
 emx2.truncate(table='Individuals', schema=schema)
 emx2.truncate(table='Pedigree', schema=schema)
 
@@ -475,36 +476,27 @@ for subject in subjects:
             if subject['sex1']['id'] == 'M':
                 new_pedigree_members_entry['relation'] = 'Full Brother'
             emx2_pedigree_members.append(new_pedigree_members_entry)
-        
-# get all family IDs
-families = [member['pedigree'] for member in emx2_pedigree_members]
-# get the family IDs with only one member 
-uniques = [family for family in families if families.count(family) == 1]
-# there are four familyIDs that consist of two families,
-# these should be left as is.
-for famID in uniques[:]:
-    if len(famID.split(',')) > 1:
-        uniques.remove(famID) # remove from the list 
-
-# set the individual's relation to Patient in these families
-for member in emx2_pedigree_members:
-    if member['pedigree'] in uniques:
-        member['relation'] = 'Patient'
-
-# to check - unnecessary
-# pd.DataFrame(emx2_pedigree_members).to_csv('Pedigree members.csv', index=False)
-
-# save and upload the newly made tables
 
 # this step is to explode the cases in the pedigree data where an identifier 
 # consists of multiple families, each should have its own row 
 emx2_pedigree_df = pd.DataFrame(emx2_pedigree)
 emx2_pedigree_df.loc[:,'id'] = emx2_pedigree_df['id'].str.split(',')
 emx2_pedigree_df = emx2_pedigree_df.explode('id')
-
+# same for pedigree members
 emx2_pedigree_members_df = pd.DataFrame(emx2_pedigree_members)
 emx2_pedigree_members_df.loc[:,'pedigree'] = emx2_pedigree_members_df['pedigree'].str.split(',')
 emx2_pedigree_members_df = emx2_pedigree_members_df.explode('pedigree')
+
+# get all family IDs
+# families = [member['pedigree'] for member in emx2_pedigree_members]
+families = emx2_pedigree_members_df.pedigree.to_list()
+# get the family IDs with only one member 
+uniques = [family for family in families if families.count(family) == 1]
+
+# set the individual's relation to Patient in these families
+for _, member in emx2_pedigree_members_df.drop_duplicates().iterrows():
+    if member['pedigree'] in uniques and member['relation'] is np.nan:
+        member['relation'] = 'Patient'
 
 # save and upload
 emx2_pedigree_df.drop_duplicates().to_csv(f'{output_path}Pedigree.csv', index=False)
@@ -534,7 +526,7 @@ for subject in subjects:
             new_disease_history_entry = {}
             new_disease_history_entry['disease'] = disease['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject_id:
+                if obs['individuals'] == subject_id:
                     new_disease_history_entry['part of clinical observation'] = obs['id']
             emx2_disease_history.append(new_disease_history_entry)
     # mapping 'phenotype' (solverd_subjects) to Phenotype observations (excluded = False)
@@ -543,7 +535,7 @@ for subject in subjects:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = phenotype['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject_id:
+                if obs['individuals'] == subject_id:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = False
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
@@ -553,7 +545,7 @@ for subject in subjects:
             new_phenotype_observation_entry = {}
             new_phenotype_observation_entry['type'] = notPhenotype['label']
             for obs in clinicalObs:
-                if obs['individual'] == subject_id:
+                if obs['individuals'] == subject_id:
                     new_phenotype_observation_entry['part of clinical observation'] = obs['id']
                     new_phenotype_observation_entry['excluded'] = True
             emx2_phenotype_observations.append(new_phenotype_observation_entry)
@@ -562,7 +554,7 @@ for subject in subjects:
     match = [info for info in subjects_info if 'ageOfOnset' in info and info['subjectID'] == subject_id]
     if match: 
         # make a dict of the IDs and the auto IDs (part of clinical observation)
-        tmp = {obs['individual']:obs['id'] for obs in clinicalObs}
+        tmp = {obs['individuals']:obs['id'] for obs in clinicalObs}
         # get the auto ID based on the ID from the individual with an age of onset 
         target_part_of_clinical_obs = tmp.get(match[0]['subjectID'])
         # find this individual in the disease history list based on auto ID. 
@@ -582,137 +574,110 @@ emx2.save_schema(table="Phenotype observations",
 #######################################################################
 #  Migrate (bio)samples information to the new model
 
-# initialize list to gather the biosamples info for the new model
-emx2_biosamples = []
+# initialize list to gather the sample info for the new model
+ngs_experiments = {}
 for sample in samples:
-    new_biosamples_entry = {}
-    # map 'sampleID' (solverd_samples) to 'id' (Biosamples)
-    new_biosamples_entry['id'] = sample['sampleID']
+    # new_experiment_entry = {}
+    sample_id = sample['sampleID']
+    # map 'sampleID' (solverd_samples) to 'sample id' (Experiments)
+    ngs_experiments[sample_id] = {'sample id': sample_id}
 
-    # map 'pathologicalState' (solverd_samples) to 'pathological state' (Biosamples)
+    # map 'pathologicalState' (solverd_samples) to 'pathological state' (Experiments)
     if 'pathologicalState' in sample:
-        new_biosamples_entry['pathological state'] = sample['pathologicalState']['value']
+        ngs_experiments[sample_id]['pathological state'] = sample.get('pathologicalState').get('value')
 
-    # map 'anatomicalLocation' (solverd_samples) to 'anatomical location' (Biosamples)
+    # map 'anatomicalLocation' (solverd_samples) to 'anatomical location' (Experiments)
     if 'anatomicalLocation' in sample:
-        new_biosamples_entry['anatomical location'] = sample['anatomicalLocation']['id']
-        if sample['anatomicalLocation']['label'] == 'Other':
-            new_biosamples_entry['anatomical location other'] = sample['anatomicalLocationComment']
+        ngs_experiments[sample_id]['anatomical location'] = sample.get('anatomicalLocation').get('id')
+        if sample.get('anatomicalLocation').get('label') == 'Other':
+            ngs_experiments[sample_id]['anatomical location other'] = sample.get('anatomicalLocationComment')
 
     # map 'belongsToSubject' (solverd_samples) to 'collected from individual' (Biosamples)
     if 'belongsToSubject' in sample:
-        new_biosamples_entry['collected from individual'] = sample['belongsToSubject']['subjectID']
+        ngs_experiments[sample_id]['individuals'] = sample.get('belongsToSubject').get('subjectID')
 
-    # map 'sex2' (solverd_samples) to 'genotypic sex' (solverd_subjects)
-    if 'sex2' in sample:
-        new_individual_entry = {}
-        new_individual_entry['genotypic sex'] = sample['sex2']['id']
-        new_individual_entry['id'] = sample['belongsToSubject']['subjectID']
-        emx2_individuals.append(new_individual_entry)
+    # map 'tissueType' (solverd_samples) to 'tissue type' (Experiments): TODO: column needs to be added  
+    #if 'tissueType' in sample:
+    #   new_experiment_entry['tissue type'] = sample['tissueType']['id']
 
-    # map 'tissueType' (solverd_samples) to 'tissue type' (Biosamples) 
-    if 'tissueType' in sample:
-       new_biosamples_entry['tissue type'] = sample['tissueType']['id']
-
-    # map 'materialType' (solverd_samples) to 'material type' (Biosamples)
+    # map 'materialType' (solverd_samples) to 'Sample type' (Biosamples):
     if 'materialType' in sample:
         types = []
         for type in sample['materialType']:
             types.append(type['label'])
-        new_biosamples_entry['material type'] = ",".join(map(str, types))
+        ngs_experiments[sample_id]['sample type'] = ",".join(map(str, types))
 
     # map 'organisation' (solverd_samples) to 'collected at organisation' (Biosamples)
     if 'organisation' in sample:
-        new_biosamples_entry['collected at organisation.resource'] = 'RD3'
-        new_biosamples_entry['collected at organisation.id'] = sample['organisation']['value']
+        ngs_experiments[sample_id]['collected at organisation'] = sample['organisation']['value']
 
     # map 'ERN' (solverd_samples) to 'affiliated organisations' (Biosamples)
     if 'ERN' in sample:
-        new_biosamples_entry['affiliated organisations.resource'] = 'RD3'
-        new_biosamples_entry['affiliated organisations.id'] = sample['ERN']['shortname']
+        ngs_experiments[sample_id]['affiliated organisations'] = sample['ERN']['shortname']
 
-    # map to 'included in datasets' (Biosamples)
-    resourcesList = [] # gathers all resources
+    # map to 'included in resources' (Experiments)
     namesList = [] # gathers the names
-    # map 'retracted' (solverd_samples) to 'included in datasets'
+    # map 'retracted' (solverd_samples) to 'included in resources'
     if 'retracted' in sample and sample['retracted']['id'] == 'Y': 
-        resourcesList.append('RD3')
         namesList.append('Retracted')
 
-    # map 'batch' (solverd_samples) to 'included in datasets'
+    # map 'batch' (solverd_samples) to 'included in resources'
     if 'batch' in sample:
         for batch in sample['batch'].split(","): # split on comma in the case of mulitple batches
-            resourcesList.append('RD3')
             namesList.append(batch)
 
-    # map 'partOfRelease' (solverd_samples) to 'included in datasets'
+    # map 'partOfRelease' (solverd_samples) to 'included in resources'
     # gather the resources and releases (names)
     if 'partOfRelease' in sample:
         for release in sample['partOfRelease']:
-            resourcesList.append('RD3')
             namesList.append(release['id'])
 
-    # map 'includedInDatasets' (solverd_samples) to 'included in datasets'
+    # map 'includedInDatasets' (solverd_samples) to 'included in resources'
     if 'includedInDatasets' in sample:
         for dataset in sample['includedInDatasets']:
-            resourcesList.append('RD3')
             namesList.append(dataset['id'])
             
     # add the lists to a new entry 
-    new_biosamples_entry['included in datasets.resource'] = ",".join(map(str, resourcesList))
-    new_biosamples_entry['included in datasets.name'] = ",".join(map(str, namesList))
+    ngs_experiments[sample_id]['included in resources'] = ",".join(map(str, namesList))
 
-    # map 'alternativeIdentifier' (solverd_samples) to 'alternate identifiers' (Biosamples)
-    if 'alternativeIdentifier' in sample:
-        new_biosamples_entry['alternate ids'] = sample['alternativeIdentifier']
+    # map 'alternativeIdentifier' (solverd_samples) to 'local sample id' (Experiments)
+    ngs_experiments[sample_id]['local sample id'] = sample.get('alternativeIdentifier')
 
-    # map 'flag' (solverd_samples) to 'failed quality control' (Biosamples)
-    if 'flag' in sample:
-        new_biosamples_entry['failed quality control'] = sample['flag']
+    # map 'flag' (solverd_samples) to 'failed quality control' (Experiments)
+    ngs_experiments[sample_id]['failed quality control'] = sample.get('flag')
 
-    # map 'percentageTumorCells' (solverd_samples) to 'percentage tumor cells' (Biosamples)
-    if 'percentageTumorCells' in sample:
-        new_biosamples_entry['percentage tumor cells'] = sample['percentageTumorCells']
+    # map 'percentageTumorCells' (solverd_samples) to 'percentage tumor cells' (Experiments)
+    ngs_experiments[sample_id]['percentage tumor cells'] = sample.get('percentageTumorCells')
 
-    # map 'comments' (solverd_samples) to 'comments' (Biosamples)
-    if 'comments' in sample:
-        new_biosamples_entry['comments'] = sample['comments']
+    # map 'comments' (solverd_samples) to 'comments' (Experiments)
+    ngs_experiments[sample_id]['comments'] = sample.get('comments')
 
-    # append the new biosample entry to the list
-    emx2_biosamples.append(new_biosamples_entry)
-
-# to check
-# pd.DataFrame(emx2_biosamples).to_csv('Biosamples.csv', index=False)
+    # append the new experiment entry to the list
+    #emx2_experiments.append(new_experiment_entry)
 
 # save and upload the biosamples table
-emx2.save_schema(table="Biosamples", data=emx2_biosamples)
+#emx2.save_schema(table="Biosamples", data=emx2_experiments)
 
 ##################################################
 # Migrate the Experiments (solverd_labinfo) to the new model
 
 # initialize lists for the data for the new model
-emx2_sample_preparation = []
-emx2_sequencing_runs = []
+# emx2_experiments = []
 # loop through the experiment info
 for labinfo in labinfos:
-    new_sample_preparation_entry = {}
-    new_sequencing_runs_entry = {}
+    sample_id = None
+    if 'sampleID' in labinfo and (len(labinfo['sampleID']) != 0): 
+        sample_id = labinfo.get('sampleID')[0].get('sampleID')
+    if sample_id is None: 
+        sample_id = f'noID_{len(ngs_experiments)+1}'
+    if sample_id not in ngs_experiments:
+        ngs_experiments[sample_id] = {}
 
-    # map 'experimentID' (solverd_labinfo) to 'identifier' (Sequencing runs and sample preparation) 
-    new_sequencing_runs_entry['identifier'] = "seq_" + labinfo['experimentID']
-    new_sample_preparation_entry['identifier'] = "sample_" + labinfo['experimentID']
+    # map 'experimentID' (solverd_labinfo) to 'id' (Experiments) 
+    ngs_experiments[sample_id]['id'] = labinfo['experimentID']
 
-    # map 'sampleID' (solverd_labinfo) to 'input samples' (Protocol parameters)
-    if 'sampleID' in labinfo:
-        sampleIDs = []
-        for sample in labinfo['sampleID']:
-            sampleIDs.append(sample['sampleID'])
-        new_sequencing_runs_entry['input samples'] = ",".join(map(str, sampleIDs))
-        new_sample_preparation_entry['input samples'] = ",".join(map(str, sampleIDs))
-
-    # map 'capture' (solverd_labinfo) to 'library preparation' (Sample preparation)
-    if 'capture' in labinfo:
-        new_sample_preparation_entry['target enrichment kit'] = labinfo['capture']
+    # map 'capture' (solverd_labinfo) to 'library preparation' (Experiments)
+    ngs_experiments[sample_id]['target enrichment kit'] = labinfo.get('capture')
 
     # map 'libraryType' (solverd_labinfo) to 'librarySource' (Sequencing runs)
     # data only contains types Genomic and Transcriptomic
@@ -722,7 +687,7 @@ for labinfo in labinfos:
         # add the word source as is defined in the ontology
         libType += " source"
         # map
-        new_sequencing_runs_entry['library source'] = libType
+        ngs_experiments[sample_id]['library source'] = libType
     
     # map 'library' (solverd_labinfo) to 'libraryLayout' (Sequencing runs)
     # data only contains 1 and 2, 1 is always paired and 2 always single.
@@ -735,12 +700,11 @@ for labinfo in labinfos:
                 layout.append("SINGLE")
             else:
                 print(f"library {lib['id']} could not be mapped.")
-        new_sequencing_runs_entry['library layout'] = ",".join(map(str, layout))
-    
-    # map 'sequencingCentre' (solverd_labinfo) to 'sequencing centre' (Sequencing runs)
+        ngs_experiments[sample_id]['library layout'] = ",".join(map(str, layout))
+
+    # map 'sequencingCentre' (solverd_labinfo) to 'sequencing centre' (experiments)
     if 'sequencingCentre' in labinfo:
-        new_sequencing_runs_entry['sequencing centre.resource'] = 'RD3'
-        new_sequencing_runs_entry['sequencing centre.id'] = labinfo['sequencingCentre']['value']
+        ngs_experiments[sample_id]['sequencing centre'] = labinfo['sequencingCentre']['value']
 
     # map 'sequencer' (solverd_labinfo) to 'platform' and 'platform' (Sequencing runs)
     # make a dictionary to use for mapping the platform to the ontology term
@@ -756,94 +720,84 @@ for labinfo in labinfos:
         match = pattern.match(sequencer)
         if match: 
             platform = match.group()
-        new_sequencing_runs_entry['platform'] = platform_dict[platform]
+        ngs_experiments[sample_id]['platform'] = platform_dict[platform]
 
         # also map to 'platform model' (Sequencing runs)
         pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
         if not pattern.match(labinfo['sequencer']): # don't map all DNBSEQ sequencers
             # differently named in ontology 
             if labinfo['sequencer'] == 'Sequel II': 
-                new_sequencing_runs_entry['platform model'] = 'PacBio Sequel II'
+                ngs_experiments[sample_id]['platform model'] = 'PacBio Sequel II'
             else: # the platform model is as is in the ontology and can thus be mapped
-                new_sequencing_runs_entry['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
+                ngs_experiments[sample_id]['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
 
-    # map 'seqType' (solverd_labinfo) to 'library strategy' (Sequencing runs)
-    if 'seqType' in labinfo and labinfo['seqType']:
-        for seqType in labinfo['seqType']:
-            if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
-                new_sequencing_runs_entry['library strategy'] = seqType['label']
-            else:
-                # capitalize first letter in the strategy (as per ontology)
-                new_sequencing_runs_entry['library strategy'] = seqType['label'].title()
+    # begin
+    # # map 'seqType' (solverd_labinfo) to 'library strategy' (Sequencing runs)
+    # if 'seqType' in labinfo and labinfo['seqType']:
+    #     for seqType in labinfo['seqType']:
+    #         if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
+    #             ngs_experiments['library strategy'] = seqType['label']
+    #         else:
+    #             # capitalize first letter in the strategy (as per ontology)
+    #             ngs_experiments['library strategy'] = seqType['label'].title()
 
-    # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
-    if 'mean_cov' in labinfo:
-        new_sequencing_runs_entry['mean read depth'] = labinfo['mean_cov']
+    # # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
+    # if 'mean_cov' in labinfo:
+    #     ngs_experiments['mean read depth'] = labinfo['mean_cov']
 
-    # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
-    if 'median_cov' in labinfo:
-        new_sequencing_runs_entry['median read depth'] = labinfo['median_cov']
+    # # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
+    # if 'median_cov' in labinfo:
+    #     ngs_experiments['median read depth'] = labinfo['median_cov']
 
-    # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
-    if 'c20' in labinfo:
-        new_sequencing_runs_entry['percentage Tr20'] = labinfo['c20']
+    # # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
+    # if 'c20' in labinfo:
+    #     ngs_experiments['percentage Tr20'] = labinfo['c20']
 
-    # map to 'included in datasets' (Sequencing runs and Sample preparations)
+    # # map to 'included in datasets' (Sequencing runs and Sample preparations)
 
-    # initialize lists to gather the datasets
-    resourcesList = []
-    namesList = []
+    # # initialize lists to gather the datasets
+    # resourcesList = []
+    # namesList = []
     
-    # map 'partOfRelease'
-    if 'partOfRelease' in labinfo:
-        for release in labinfo['partOfRelease']:
-            resourcesList.append('RD3')
-            namesList.append(release['id'])
+    # # map 'partOfRelease'
+    # if 'partOfRelease' in labinfo:
+    #     for release in labinfo['partOfRelease']:
+    #         resourcesList.append('RD3')
+    #         namesList.append(release['id'])
 
-    # map 'retracted' (solverd_labinfo) 
-    # check if the individual needs to be retracted from the tables.
-    if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
-        # add the lists to the new individual entry
-        resourcesList.append("RD3")
-        namesList.append('Retracted')
+    # # map 'retracted' (solverd_labinfo) 
+    # # check if the individual needs to be retracted from the tables.
+    # if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
+    #     # add the lists to the new individual entry
+    #     resourcesList.append("RD3")
+    #     namesList.append('Retracted')
 
-    # map 'includedInDatasets' (solverd_labinfo) 
-    if 'includedInDatasets' in labinfo:
-        for dataset in labinfo['includedInDatasets']:
-            resourcesList.append('RD3')
-            namesList.append(dataset['id'])
+    # # map 'includedInDatasets' (solverd_labinfo) 
+    # if 'includedInDatasets' in labinfo:
+    #     for dataset in labinfo['includedInDatasets']:
+    #         resourcesList.append('RD3')
+    #         namesList.append(dataset['id'])
 
-    # add the lists to the Sequencing runs entry
-    new_sequencing_runs_entry['included in datasets.resource'] = ','.join(
-        resourcesList)
-    new_sequencing_runs_entry['included in datasets.name'] = ','.join(
-        map(str, namesList))
-    # append the lists to the Sample preparation entry
-    new_sample_preparation_entry['included in datasets.resource'] = ','.join(
-        resourcesList)
-    new_sample_preparation_entry['included in datasets.name'] = ','.join(
-        map(str, namesList))
+    # # add the lists to the Sequencing runs entry
+    # ngs_experiments['included in datasets.resource'] = ','.join(
+    #     resourcesList)
+    # ngs_experiments['included in datasets.name'] = ','.join(
+    #     map(str, namesList))
+    # # append the lists to the Sample preparation entry
+    # ngs_experiments['included in datasets.resource'] = ','.join(
+    #     resourcesList)
+    # ngs_experiments['included in datasets.name'] = ','.join(
+    #     map(str, namesList))
     
-    # map 'comments' (solverd_labinfo) to 'comments' (Sample preparation and Sequencing runs)
-    if 'comments' in labinfo:
-        new_sample_preparation_entry['comments'] = labinfo['comments']
-        new_sequencing_runs_entry['comments'] = labinfo['comments']
+    # # map 'comments' (solverd_labinfo) to 'comments' (Sample preparation and Sequencing runs)
+    # if 'comments' in labinfo:
+    #     ngs_experiments['comments'] = labinfo['comments']
+    #     ngs_experiments['comments'] = labinfo['comments']
+    # end
 
     # append the new entry to the sample preparation list
-    if new_sample_preparation_entry: # if not empty
-        emx2_sample_preparation.append(new_sample_preparation_entry)
-    # # append the new entry to the sequencing runs list
-    if new_sequencing_runs_entry: # if not empty
-        emx2_sequencing_runs.append(new_sequencing_runs_entry)
-
-# to check 
-# pd.DataFrame(emx2_sequencing_runs).to_csv('Sequencing runs.csv', index=False)
-# pd.DataFrame(emx2_sample_preparation).to_csv('Sample preparations.csv', index=False)
-
-# save and upload the sample preparation table
-emx2.save_schema(table="Sample preparations", data=emx2_sample_preparation)
-# # save and upload the sequencing runs table
-emx2.save_schema(table="Sequencing runs", data=emx2_sequencing_runs)
+    # if experiments: # if not empty
+        # emx2_experiments.append(new_experiment_entry)
 
 ##################################################
 # Migrate table Files (solverd_files) to the new model

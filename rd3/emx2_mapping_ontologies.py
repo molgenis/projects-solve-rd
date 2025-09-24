@@ -57,7 +57,7 @@ class map_solveRD_ontologies:
             token=environ['EMX2_TOKEN']
         )
 
-        self.output_path = environ['OUTPUT_PATH']
+        self.output_path = environ['OUTPUT_PATH_TO_CSVS']
 
 
     def map_resources(self): 
@@ -192,7 +192,6 @@ class map_solveRD_ontologies:
             my_zip.write(f'{self.output_path}Resources.csv', 'Resources.csv')
         # upload the zipped file with the molgenis schema and the molgenis members
         await self.emx2.upload_file(schema=self.schema, file_path=zip_file_name)
-
 
     def make_contact(self):
         """This function makes an contact for solve-RD RD3. In RD3, we used a generic account for database management. 
@@ -385,7 +384,7 @@ class map_solveRD_ontologies:
         insModels = self.rd3.get('solverd_labinfo', attributes='sequencer', batch_size=10000)
 
         # Gather the emx2 sequencer ontologies
-        emx2_sequencers = self.emx2.get('Sequencing instrument models', as_df=True)
+        emx2_sequencers = self.emx2_ontologies.get('Sequencing instrument models', as_df=True)
 
         # don't migrate all DNBSEQ sequencers
         pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
@@ -446,3 +445,48 @@ class map_solveRD_ontologies:
 
         # save and upload the complete ontology 
         self.emx2_ontologies.save_schema(table="Anatomical location", data=emx2_anatomical_locations_complete)
+
+    def map_sex_values(self): 
+        """This function maps the sex values used in solve-RD"""
+        sex = self.rd3.get('solverd_lookups_sex')
+
+        sex_emx2 = self.emx2_ontologies.get('Gender at birth')
+
+        gender_dict = {
+            'M': 'assigned male at birth',
+            'F': 'assigned female at birth'
+        }
+
+        for gender in sex: 
+            if gender['id'] in ['U', 'UD']: 
+                sex_emx2.append({
+                    'name': gender['id'],
+                    'label': gender['label'],
+                    'definition': gender['description']
+                })
+        #     if gender['id'] in gender_dict:
+        #         gender['id'] = gender_dict.get(gender['id'])
+
+        # sex_df = pd.DataFrame(sex)
+        # sex_df = sex_df.rename(columns={'id': 'name',
+        #                                 'description': 'definition'})
+
+        # sex_emx2_total = pd.merge(sex_df, pd.DataFrame(sex_emx2), how='right')
+        # sex_emx2_total.loc[sex_emx2_total['label'] == 'Female', 'label'] = None
+        # sex_emx2_total.loc[sex_emx2_total['label'] == 'Male', 'label'] = None
+
+        # # drop unnecessary column
+        # sex_emx2_total = sex_emx2_total.drop(['_href'], axis=1)
+
+        #sex_emx2.to_csv(f'{self.output_path}sex_emx2.csv', index=False)
+
+        # upload 
+        self.emx2_ontologies.save_schema(table='Gender at birth', data=sex_emx2)
+
+    def map_tissue_type(self): 
+        """This function maps the tissue types used in solve-RD to EMX2 ontology"""
+        tissue_types_rd3 = self.rd3.get('solverd_lookups_tissueType')
+        tissue_types_emx2 = self.emx2_ontologies.get('Tissue type')
+
+        
+

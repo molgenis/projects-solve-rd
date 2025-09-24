@@ -12,7 +12,15 @@ load_dotenv('/Users/w.f.oudijk/Documents/RD3/Scripts/.env')
 import re
 import json
 import numpy as np
+import zipfile
+from zipfile import ZipFile
+import asyncio
+import os
+import logging
 
+logging.basicConfig(level='INFO')
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # connect to the RD3 EMX1 environment and log in
 rd3 = molgenis.client.Session(environ['MOLGENIS_PROD_HOST'])
@@ -27,114 +35,43 @@ emx2 = Client(
 )
 emx2.default_schema = schema  # set default schema
 
-output_path = environ['OUTPUT_PATH']
+output_path = environ['OUTPUT_PATH_TO_CSVS']
+input_path = environ['INPUT_PATH_TO_SOLVERD_DATA']
 
 ##################################################
-# This was used to get the subset of data. Based on this subset, this mapping script
-# was written. This is no longer used. The mapping was done on all data. 
-
-# # retrieve first n family identifiers
-# families = rd3.get('solverd_subjects', attributes='fid', batch_size=10000)
-# fids = []
-# for row in families:
-#     if 'fid' in row.keys():
-#         if row['fid'] not in fids:
-#             fids.append(row['fid'])
-
-# # get the subjects from the first 5 families (1st row) or 20 random families (2nd row)
-# QUERY = ','.join([f"fid=q={fid}" for fid in fids[:5]])
-# # QUERY = ','.join([f"fid=q={fid}" for fid in random.sample(fids, 20)])
-
-# # add family ID that has specific variables with data, so the code can be checked.
-# QUERY = QUERY + (
-#     f',fid=q={environ['FAM_ID_1']}' + 
-#     f',fid=q={environ['FAM_ID_2']}' + 
-#     f',fid=q={environ['FAM_ID_3']}' + 
-#     f',fid=q={environ['FAM_ID_4']}' + 
-#     f',fid=q={environ['FAM_ID_5']}' +
-#     f',fid=q={environ['FAM_ID_6']}'
-# )
-
-# subjects = rd3.get('solverd_subjects', q=QUERY)
-
-# # get the subject IDs to retrieve the subject info
-# IDs = [subject['subjectID'] for subject in subjects]
-# # get the subject info for the families
-# QUERY = ','.join([f"subjectID=q={ID}" for ID in IDs])
-# subjects_info = rd3.get('solverd_subjectinfo', q=QUERY)
-
-# # get the samples for the families
-# QUERY = ','.join([f"belongsToSubject=={ID}" for ID in IDs])
-# samples = rd3.get('solverd_samples', q=QUERY)
-
-# # get the labinfo (experiments) for the families
-# sample_ids = [sample['sampleID'] for sample in samples]
-# QUERY = ','.join([f'sampleID=={sample_id}' for sample_id in sample_ids])
-# labinfos = rd3.get('solverd_labinfo', q=QUERY)
-
-# get the files for the families 
-# Retrieving the files data for all IDs at once takes too long. 
-# thus, divide the IDs in batches and retrieve the data per batch. 
-# this data is collected and written to a file. This file can
-# consequently be used for the mapping. 
-
-# files_solveRD = []
-
-# # Divide the IDs into batches to speed up the process
-# ID_batches = [IDs[i:i + 2] for i in range(0, len(IDs), 2)]
-# # loop through the batches
-# for ID_batch in ID_batches:
-#     # make a query for only the IDs in this batch
-#     QUERY = ','.join([f"subjectID=={ID}" for ID in ID_batch])
-#     # retrieve the files for this batch
-#     files = rd3.get('solverd_files', q=QUERY, batch_size=10000)
-#     # append the files to a list to gather the files for all IDs
-#     files_solveRD.append(files)
-
-# # unpack the list - it consists now of lists with dictionaries
-# flattened_files = [item for sublist in files_solveRD for item in sublist]
-# # create a dataframe from the flattened list
-# files_solveRD_df = pd.DataFrame(flattened_files)
-# # write to csv
-# files_solveRD_df.to_csv('Files_solveRD.csv', index=False)
-
-##################################################
-# read the complete datasets
+# read the datasets
 
 # retrieve subjects and subject information from server - this might be updated
 subjects = rd3.get('solverd_subjects', batch_size=5000)
 subjects_info = rd3.get('solverd_subjectinfo', batch_size=5000)
 
 # get samples from solve-RD
-with open('samples_17022025.json', 'r') as file:
+with open(f'{input_path}samples_17022025.json', 'r') as file:
     samples = json.load(file)
 
 # get experiments from solve-RD
-with open('experiments_17022025.json', 'r') as file:
+with open(f'{input_path}experiments_17022025.json', 'r') as file:
     labinfos = json.load(file)
 
 # get experiments from solve-RD
-with open('files_11022025.json', 'r') as file:
+with open(f'{input_path}files_11022025.json', 'r') as file:
     files = json.load(file)
 
 ##################################################
-# First empty the current database because the uploads don't replace but add to the existing tables. 
+# First empty the current database because the uploads don't replace but add to the existing tables. TODO: test if order is now correct
 
 # truncate the tables
 emx2.truncate(table='Phenotype observations', schema=schema)
 emx2.truncate(table='Disease history', schema=schema)
 emx2.truncate(table='Clinical observations', schema=schema)
 emx2.truncate(table='Individual consent', schema=schema)
-# emx2.truncate(table='Individual observations', schema=schema)
 emx2.truncate(table='Pedigree members', schema=schema)
 # Delete files in batches
-# for batch in range(0, len(files), 1000):
-#     emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
-# emx2.truncate(table='Files', schema=schema)
-# emx2.truncate(table='Sequencing runs', schema=schema)
-# emx2.truncate(table='Sample preparations', schema=schema)
-# emx2.truncate(table='Protocol activity', schema=schema)
-# emx2.truncate(table='Biosamples', schema=schema)
+for batch in range(0, len(files), 1000):
+    print(batch)
+    emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
+emx2.truncate(table='NGS sequencing', schema=schema)
+emx2.truncate(table='Experiments', schema=schema)
 emx2.truncate(table='Individuals', schema=schema)
 emx2.truncate(table='Pedigree', schema=schema)
 
@@ -179,7 +116,9 @@ for subject in subjects:
     # dictionary of possible gender values 
     gender_dict = {
         'M': 'assigned male at birth',
-        'F': 'assigned female at birth'
+        'F': 'assigned female at birth',
+        'U': 'U',
+        'UD': 'UD'
     }
 
     # get sex info
@@ -562,9 +501,9 @@ for subject in subjects:
             if disease_history_entry['part of clinical observation'] == target_part_of_clinical_obs:
                 # update this entry in the dict with the age at onset
                 disease_history_entry.update({'age group at onset':match[0]['ageOfOnset']['label']})
-                
-# to check
-# pd.DataFrame(emx2_disease_history).to_csv('Disease history.csv', index=False)
+
+pd.DataFrame(emx2_disease_history).to_csv(f'{output_path}Disease history.csv', index=False)
+pd.DataFrame(emx2_phenotype_observations).to_csv(f'{output_path}Phenotype obersvations.csv', index=False)
 
 # save and upload the disease history and phenotype observation tables
 emx2.save_schema(table="Disease history", data=emx2_disease_history)
@@ -597,8 +536,8 @@ for sample in samples:
         ngs_experiments[sample_id]['individuals'] = sample.get('belongsToSubject').get('subjectID')
 
     # map 'tissueType' (solverd_samples) to 'tissue type' (Experiments): TODO: column needs to be added  
-    #if 'tissueType' in sample:
-    #   new_experiment_entry['tissue type'] = sample['tissueType']['id']
+    if 'tissueType' in sample:
+      ngs_experiments[sample_id]['tissue type'] = sample['tissueType']['id']
 
     # map 'materialType' (solverd_samples) to 'Sample type' (Biosamples):
     if 'materialType' in sample:
@@ -650,13 +589,8 @@ for sample in samples:
     ngs_experiments[sample_id]['percentage tumor cells'] = sample.get('percentageTumorCells')
 
     # map 'comments' (solverd_samples) to 'comments' (Experiments)
-    ngs_experiments[sample_id]['comments'] = sample.get('comments')
-
-    # append the new experiment entry to the list
-    #emx2_experiments.append(new_experiment_entry)
-
-# save and upload the biosamples table
-#emx2.save_schema(table="Biosamples", data=emx2_experiments)
+    if 'comments' in sample:
+        ngs_experiments[sample_id]['comments'] = f'sample_{sample.get('comments')}'
 
 ##################################################
 # Migrate the Experiments (solverd_labinfo) to the new model
@@ -731,96 +665,99 @@ for labinfo in labinfos:
             else: # the platform model is as is in the ontology and can thus be mapped
                 ngs_experiments[sample_id]['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
 
-    # begin
-    # # map 'seqType' (solverd_labinfo) to 'library strategy' (Sequencing runs)
-    # if 'seqType' in labinfo and labinfo['seqType']:
-    #     for seqType in labinfo['seqType']:
-    #         if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
-    #             ngs_experiments['library strategy'] = seqType['label']
-    #         else:
-    #             # capitalize first letter in the strategy (as per ontology)
-    #             ngs_experiments['library strategy'] = seqType['label'].title()
+    # map 'seqType' (solverd_labinfo) to 'library strategy' (Experiments)
+    if 'seqType' in labinfo and labinfo['seqType']:
+        for seqType in labinfo['seqType']:
+            if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
+                ngs_experiments[sample_id]['library strategy'] = seqType['label']
+            else:
+                # capitalize first letter in the strategy (as per ontology)
+                ngs_experiments[sample_id]['library strategy'] = seqType['label'].title()
 
-    # # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
-    # if 'mean_cov' in labinfo:
-    #     ngs_experiments['mean read depth'] = labinfo['mean_cov']
+    # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
+    ngs_experiments[sample_id]['mean read depth'] = labinfo.get('mean_cov')
 
-    # # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
-    # if 'median_cov' in labinfo:
-    #     ngs_experiments['median read depth'] = labinfo['median_cov']
+    # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
+    ngs_experiments[sample_id]['median read depth'] = labinfo.get('median_cov')
 
-    # # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
-    # if 'c20' in labinfo:
-    #     ngs_experiments['percentage Tr20'] = labinfo['c20']
+    # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
+    ngs_experiments[sample_id]['percentage Tr20'] = labinfo.get('c20')
 
-    # # map to 'included in datasets' (Sequencing runs and Sample preparations)
+    # map partOfRelease to 'included in resources' (Experiments)
+    # initialize lists to gather the datasets
+    namesList = []
+    # map 'partOfRelease'
+    if 'partOfRelease' in labinfo:
+        for release in labinfo['partOfRelease']:
+            namesList.append(release['id'])
 
-    # # initialize lists to gather the datasets
-    # resourcesList = []
-    # namesList = []
+    # map 'retracted' (solverd_labinfo) 
+    # check if the individual needs to be retracted from the tables.
+    if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
+        # add the lists to the new individual entry
+        namesList.append('Retracted')
+
+    # map 'includedInDatasets' (solverd_labinfo) 
+    if 'includedInDatasets' in labinfo:
+        for dataset in labinfo['includedInDatasets']:
+            namesList.append(dataset['id'])
+
+    # add the lists to the Sequencing runs entry
+    inc_in_resources = ngs_experiments[sample_id].get('included in resources')
+    if inc_in_resources is not None: 
+        sample_resources = [resource for resource in inc_in_resources.split(',')]
+        namesList += sample_resources
+    ngs_experiments[sample_id]['included in resources'] = ','.join(
+        map(str, set(namesList)))
     
-    # # map 'partOfRelease'
-    # if 'partOfRelease' in labinfo:
-    #     for release in labinfo['partOfRelease']:
-    #         resourcesList.append('RD3')
-    #         namesList.append(release['id'])
+    # map 'comments' (solverd_labinfo) to 'comments' (Experiments)
+    comments_sample = ngs_experiments[sample_id].get('comments') # not None
+    comments_experiment = labinfo.get('comments') 
+    if comments_sample is not None and comments_experiment is not None:
+        comments_experiment = f'experiment_{comments_experiment}'
+        ngs_experiments[sample_id]['comments'] = f'{comments_experiment},{comments_sample}'
+    elif comments_experiment:
+        ngs_experiments[sample_id]['comments'] = f'experiments_{labinfo.get('comments')}'
 
-    # # map 'retracted' (solverd_labinfo) 
-    # # check if the individual needs to be retracted from the tables.
-    # if 'retracted' in labinfo and labinfo['retracted']['id'] == 'Y':
-    #     # add the lists to the new individual entry
-    #     resourcesList.append("RD3")
-    #     namesList.append('Retracted')
-
-    # # map 'includedInDatasets' (solverd_labinfo) 
-    # if 'includedInDatasets' in labinfo:
-    #     for dataset in labinfo['includedInDatasets']:
-    #         resourcesList.append('RD3')
-    #         namesList.append(dataset['id'])
-
-    # # add the lists to the Sequencing runs entry
-    # ngs_experiments['included in datasets.resource'] = ','.join(
-    #     resourcesList)
-    # ngs_experiments['included in datasets.name'] = ','.join(
-    #     map(str, namesList))
-    # # append the lists to the Sample preparation entry
-    # ngs_experiments['included in datasets.resource'] = ','.join(
-    #     resourcesList)
-    # ngs_experiments['included in datasets.name'] = ','.join(
-    #     map(str, namesList))
-    
-    # # map 'comments' (solverd_labinfo) to 'comments' (Sample preparation and Sequencing runs)
-    # if 'comments' in labinfo:
-    #     ngs_experiments['comments'] = labinfo['comments']
-    #     ngs_experiments['comments'] = labinfo['comments']
-    # end
-
-    # append the new entry to the sample preparation list
-    # if experiments: # if not empty
-        # emx2_experiments.append(new_experiment_entry)
+# upload and save
+ngs_experiments_df = pd.DataFrame(ngs_experiments).transpose()
+ngs_experiments_df.to_csv(f'{output_path}NGS sequencing.csv', index=False)
+emx2.save_schema(table='NGS sequencing', data=ngs_experiments_df)
 
 ##################################################
 # Migrate table Files (solverd_files) to the new model
 
+# first, initialize a file storage location entry TODO: voeg organisatie toe nadat ref is gefixt. 
+emx2_file_storage_locations = {
+    'name': 'gearshift',
+    'type': 'Server',
+    }
+
+emx2.save_schema(table='File storage location', data=pd.DataFrame([emx2_file_storage_locations]))
+
 # initialize the emx2 files list
 emx2_files = []
+emx2_file_locations = []
 # loop through the files
 for file in files:
     new_files_entry = {}
+    new_file_location_entry = {}
 
     # map 'EGA' (solverd_files) to 'alternative ids' (Files)
-    if 'EGA' in file:
-        new_files_entry['alternate ids'] = file['EGA']
+    new_files_entry['alternate ids'] = file.get('EGA')
 
-    # map 'name' (solverd_files) to 'name' (Files)
-    if 'name' in file:
-        new_files_entry['name'] = file['name']
-        
-    # map 'name' and 'fenderFilePath' (solverd_files) to 'path' (Files)    
+    # map 'name' (solverd_files) to 'id' (Files) and to 'file' (File locations)
+    new_files_entry['id'] = file.get('name')
+    new_file_location_entry['file'] = file.get('name')
+
+    # set storage location
+    new_file_location_entry['storage location'] = emx2_file_storage_locations.get('name')
+
+    # set path in file location
     if 'fenderFilePath' in file: # if fenderFilePath is in the file, combine with name
-        new_files_entry['path'] = ",".join(map(str, [file['name'], file['fenderFilePath']]))
+        new_file_location_entry['path'] = ",".join(map(str, [file['name'], file['fenderFilePath']]))
     else: # else, only use name
-        new_files_entry['path'] = file['name']
+        new_file_location_entry['path'] = file['name']
 
     # map 'fileFormat' (solverd_files) to 'format' (Files)
     format_dict = { # dictionary for the categories with different capitalization in old vs. new version
@@ -835,8 +772,7 @@ for file in files:
         new_files_entry['format'] = file['fileFormat']['label']
 
     # map 'md5' (solverd_files) to 'md5 checksum' (Files)
-    if 'md5' in file:
-        new_files_entry['md5 checksum'] = file['md5']
+    new_files_entry['md5 checksum'] = file.get('md5')
 
     # map 'subjectID' (solverd_files) to 'Individuals' (Files)
     if 'subjectID' in file:
@@ -845,39 +781,36 @@ for file in files:
             subjectIDs.append(subject['subjectID'])
         new_files_entry['individuals'] = ",".join(map(str, subjectIDs))
 
-    # map 'sampleID' (solverd_files) to 'Biosamples' (Files)
-    if 'sampleID' in sample:
-        sampleIDs = []
-        for sample in file['sampleID']:
-            sampleIDs.append(sample['sampleID'])
-        new_files_entry['biosamples'] = ",".join(map(str, sampleIDs))
-
     # map 'experimentID' (solverd_files) to 'generated by protocol' (Files) 
     if 'experimentID' in file:
-        new_files_entry['generated by protocol'] = f'sample_{file['experimentID']['experimentID']},seq_{file['experimentID']['experimentID']}'
+        new_files_entry['produced by experiment'] = file['experimentID']['experimentID']
 
     # map 'partOfRelease' (solverd_files) to 'included in datasets' (Files)
     if 'partOfRelease' in file:
         partOfReleaseList = []
-        resourcesList = []
         for release in file['partOfRelease']:
             partOfReleaseList.append(release['id'])
-            resourcesList.append('RD3')
         # append to Sequencing runs
-        new_files_entry['included in datasets.resource'] = ','.join(resourcesList)
-        new_files_entry['included in datasets.name'] = ','.join(map(str, partOfReleaseList))
+        new_files_entry['included in resources'] = ','.join(map(str, partOfReleaseList))
         
     # append the new entry to the files list
     if new_files_entry:
         emx2_files.append(new_files_entry)
 
-# TO DO: this does not yet work. I upload the zip file manually in the UI upload. 
-
 # convert to zip - otherwise too big for upload 
-pd.DataFrame(emx2_files).to_csv('Files.csv.zip', index=False, compression='gzip')
+async def upload_files():
+    # write files to csv
+    pd.DataFrame(emx2_files).to_csv(f'{output_path}Files.csv', index=False)
 
-# save and upload the files table
-emx2.save_schema(table='Files', file='Files.csv.zip')
+    zip_file_name=f'{output_path}files.zip'
+    # zip the data
+    with ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as my_zip:
+        my_zip.write(f'{output_path}Files.csv', 'Files.csv')
+    # upload the zipped file with the molgenis schema and the molgenis members
+    await emx2.upload_file(schema=schema, file_path=zip_file_name)
 
+    # remove unzipped file again
+    os.remove(f'{output_path}Files.csv')
 
-# %%
+# run the upload of the zipped Files
+asyncio.run(upload_files())

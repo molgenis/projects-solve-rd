@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 import molgenis.client
 import pandas as pd
 from molgenis_emx2_pyclient import Client
-load_dotenv('/Users/w.f.oudijk/Documents/RD3/Scripts/.env')
+load_dotenv()
 import re
 import zipfile
 from zipfile import ZipFile
@@ -447,15 +447,10 @@ class map_solveRD_ontologies:
         self.emx2_ontologies.save_schema(table="Anatomical location", data=emx2_anatomical_locations_complete)
 
     def map_sex_values(self): 
-        """This function maps the sex values used in solve-RD"""
+        """This function adds 'U' and 'UD' sex values to the EMX2 ontology"""
         sex = self.rd3.get('solverd_lookups_sex')
 
         sex_emx2 = self.emx2_ontologies.get('Gender at birth')
-
-        gender_dict = {
-            'M': 'assigned male at birth',
-            'F': 'assigned female at birth'
-        }
 
         for gender in sex: 
             if gender['id'] in ['U', 'UD']: 
@@ -464,22 +459,6 @@ class map_solveRD_ontologies:
                     'label': gender['label'],
                     'definition': gender['description']
                 })
-        #     if gender['id'] in gender_dict:
-        #         gender['id'] = gender_dict.get(gender['id'])
-
-        # sex_df = pd.DataFrame(sex)
-        # sex_df = sex_df.rename(columns={'id': 'name',
-        #                                 'description': 'definition'})
-
-        # sex_emx2_total = pd.merge(sex_df, pd.DataFrame(sex_emx2), how='right')
-        # sex_emx2_total.loc[sex_emx2_total['label'] == 'Female', 'label'] = None
-        # sex_emx2_total.loc[sex_emx2_total['label'] == 'Male', 'label'] = None
-
-        # # drop unnecessary column
-        # sex_emx2_total = sex_emx2_total.drop(['_href'], axis=1)
-
-        #sex_emx2.to_csv(f'{self.output_path}sex_emx2.csv', index=False)
-
         # upload 
         self.emx2_ontologies.save_schema(table='Gender at birth', data=sex_emx2)
 
@@ -488,5 +467,25 @@ class map_solveRD_ontologies:
         tissue_types_rd3 = self.rd3.get('solverd_lookups_tissueType')
         tissue_types_emx2 = self.emx2_ontologies.get('Tissue type')
 
-        
+        for tissue_type in tissue_types_rd3:
+            if tissue_type['id'] not in [tissue_type_emx2['name'] for tissue_type_emx2 in tissue_types_emx2]:
+                tissue_types_emx2.append({'name': tissue_type['id']})
 
+        self.emx2_ontologies.save_schema(table='Tissue type', data=tissue_types_emx2)
+
+def main():
+    """Run class"""
+    map_class = map_solveRD_ontologies()
+    asyncio.run(map_class.zip_and_upload())
+    # only run the following functions if CatalogueOntologies is new 
+    map_class.map_organisations()
+    map_class.map_diseases()
+    map_class.map_phenotypes()
+    map_class.map_enrichment_kit()
+    map_class.map_seq_instrument_models()
+    map_class.map_anatomical_locations()
+    map_class.map_sex_values()
+    map_class.map_tissue_type()
+
+if __name__ == "__main__":
+    main()

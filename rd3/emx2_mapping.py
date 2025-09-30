@@ -1,14 +1,28 @@
 """
-Mapping script for RD3 EMX1 to EMX2
+Mapping script for RD3 Solve-RD EMX1 to EMX2
 
+1. Create a new schema with the PATIENT_REGISTRY template
+2. Prepare your .env file with the following variables:
+    MOLGENIS_PROD_HOST: url with the solve-RD RD3 data
+    MOLGENIS_PROD_USR: username to solve-RD RD3 database
+    MOLGENIS_PROD_PWD: password to solve-RD RD3 database
+    EMX2_URL: url with the newly generated emx2 RD3 database (to which the data will be uploaded)
+    EMX2_SCHEMA: the schema name of the RD3 EMX2 instance
+    EMX2_TOKEN: token to login to RD3 EMX2
+    OUTPUT_PATH_TO_CSVS: string with the path to where the csvs will be placed
+    INPUT_PATH_TO_SOLVERD_DATA: input path where the samples, labinfos and files from solve-RD are downloaded - 
+        alternatively, these can be retrieved via the EMX1 API, however, this is quite slow. 
+3. Run this script 
+
+The data will be written to csv files in the user-specified output folder and uploaded to the server.
 """
 
 from molgenis_emx2_pyclient import Client
-from os import environ, path
+from os import environ
 from dotenv import load_dotenv
 import molgenis.client
 import pandas as pd
-load_dotenv('/Users/w.f.oudijk/Documents/RD3/Scripts/.env')
+load_dotenv()
 import re
 import json
 import numpy as np
@@ -18,6 +32,7 @@ import asyncio
 import os
 import logging
 
+# set logging
 logging.basicConfig(level='INFO')
 logging.getLogger('requests').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
@@ -39,9 +54,9 @@ output_path = environ['OUTPUT_PATH_TO_CSVS']
 input_path = environ['INPUT_PATH_TO_SOLVERD_DATA']
 
 ##################################################
-# read the datasets
+# read the datasets from solve-RD RD3
 
-# retrieve subjects and subject information from server - this might be updated
+# retrieve subjects and subject information from server
 subjects = rd3.get('solverd_subjects', batch_size=5000)
 subjects_info = rd3.get('solverd_subjectinfo', batch_size=5000)
 
@@ -58,39 +73,6 @@ with open(f'{input_path}files_11022025.json', 'r') as file:
     files = json.load(file)
 
 ##################################################
-# First empty the current database because the uploads don't replace but add to the existing tables. TODO: test if order is now correct
-
-# truncate the tables
-emx2.truncate(table='Phenotype observations', schema=schema)
-emx2.truncate(table='Disease history', schema=schema)
-emx2.truncate(table='Clinical observations', schema=schema)
-emx2.truncate(table='Individual consent', schema=schema)
-emx2.truncate(table='Pedigree members', schema=schema)
-# Delete files in batches
-for batch in range(0, len(files), 1000):
-    print(batch)
-    emx2.delete_records(table='Files', schema=schema, data=files[batch:batch+1000])
-emx2.truncate(table='NGS sequencing', schema=schema)
-emx2.truncate(table='Experiments', schema=schema)
-emx2.truncate(table='Individuals', schema=schema)
-emx2.truncate(table='Pedigree', schema=schema)
-
-##################################################
-
-# helper functions 
-def add_consent_entry(emx2_consent, subject_id, suffix, condition, allow_text, deny_text):
-    new_entry = {
-        'id': f'{subject_id}-{suffix}',
-        'individuals': subject_id,
-        'allow recontacting': allow_text if condition else deny_text
-    }
-    emx2_consent.append(new_entry)
-
-
-def add_pedigree_member_entry():
-    print('TODO')
-
-
 # Migrate subjects (solverd_subjects) to the new model
 
 # initialize lists for the tables in EMX2
@@ -135,7 +117,7 @@ for subject in subjects:
              for info in subjects_info if 'dateOfBirth' in info and info['subjectID'] == subject_id]
     new_individual_entry['year of birth'] = "".join(map(str, match))
 
-    # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'identifier' (Pedigree)
+    # map 'fid' (solverd_subjects) to 'pedigree' (Individuals) and 'id' (Pedigree)
     fid = subject.get('fid')
     if fid:
         new_pedigree_entry = {} # initialize new entry
@@ -155,9 +137,9 @@ for subject in subjects:
     #   pedigree members table: both as a patient (with itself as the relative) and as a parent
     #   (with the child as the relative).
     # If an individual has a family ID, but no other information, the person is added to the table
-    #   with itself as the relative. This happens later in the code (lines 427 - 441).
+    #   with itself as the relative. This happens later in the code (lines 355 - 394).
     # If individuals have the same mother and father, they are mapped as full siblings. This also
-    #   happens later in the code (lines 442 - 467). 
+    #   happens later in the code (lines 355 - 394).
     # If a family only has one member, we assume this individual is a patient. This is done at the end.
     ###
 
@@ -187,8 +169,6 @@ for subject in subjects:
             if 'mid' in subj and subj['mid']['subjectID'] == subject_id:
                 new_pedigree_members_entry['relative'] = subj['subjectID']
                 new_pedigree_members_entry['relation'] = "Biological Mother"
-                # if 'mid' in subject or 'pid' in subject:
-                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
                 # add the child and mother IDs to the dictionary
                 track_mothers[subj['subjectID']] = subject_id
             # Map Biological Father
@@ -197,8 +177,6 @@ for subject in subjects:
                 new_pedigree_members_entry['relation'] = "Biological Father"
                 # add the child and father's IDs to the dictionary
                 track_fathers[subj['subjectID']] = subject_id
-                # if 'mid' in subject or 'pid' in subject:
-                    # print(f'Individual has a parent and is a parent for ind {subject['subjectID']}')
             if 'relative' in new_pedigree_members_entry: # only append new entry if individual has a parent
                 emx2_pedigree_members.append(new_pedigree_members_entry)
         # Map maternal grandparents
@@ -275,7 +253,7 @@ for subject in subjects:
                     emx2_pedigree_members.append(new_pedigree_members_entry)
 
     # map 'organisation' and 'ERN' (solverd_subjects) to 'affiliated organisations' (Individuals)
-    organisations = []  # new list to save the institutions
+    organisations = []  # new list to save the organisations
     new_organisation_entry = {}
     # check if organisations are present for this subject
     if 'organisation' in subject and subject['organisation']:
@@ -292,15 +270,15 @@ for subject in subjects:
         new_individual_entry['affiliated organisations'] = ', '.join(
             item[0] for item in organisations)
 
-    # create clinical and individual observations
-    # Clinical observations: map identifier and solved info
+    # create clinical observations
+    # Clinical observations: map individual id and solved info
     new_clinical_observation_entry = {} # initialize new entry
     new_clinical_observation_entry['individuals'] = subject_id
     new_clinical_observation_entry['is solved'] = subject.get('solved')
     new_clinical_observation_entry['date solved'] = subject.get('date_solved')
     emx2_clinical_observations.append(new_clinical_observation_entry)
    
-    # map 'partOfRelease' to 'included in datasets' (Individuals)
+    # map 'partOfRelease' to 'included in resources' (Individuals)
     namesList = []  # list to gather the names
     # map 'partOfRelease
     if 'partOfRelease' in subject:
@@ -427,7 +405,6 @@ emx2_pedigree_members_df.loc[:,'pedigree'] = emx2_pedigree_members_df['pedigree'
 emx2_pedigree_members_df = emx2_pedigree_members_df.explode('pedigree')
 
 # get all family IDs
-# families = [member['pedigree'] for member in emx2_pedigree_members]
 families = emx2_pedigree_members_df.pedigree.to_list()
 # get the family IDs with only one member 
 uniques = [family for family in families if families.count(family) == 1]
@@ -502,21 +479,22 @@ for subject in subjects:
                 # update this entry in the dict with the age at onset
                 disease_history_entry.update({'age group at onset':match[0]['ageOfOnset']['label']})
 
+# save and upload 
 pd.DataFrame(emx2_disease_history).to_csv(f'{output_path}Disease history.csv', index=False)
 pd.DataFrame(emx2_phenotype_observations).to_csv(f'{output_path}Phenotype obersvations.csv', index=False)
 
-# save and upload the disease history and phenotype observation tables
 emx2.save_schema(table="Disease history", data=emx2_disease_history)
 emx2.save_schema(table="Phenotype observations",
                  data=emx2_phenotype_observations)
 
 #######################################################################
-#  Migrate (bio)samples information to the new model
+#  Migrate (bio)samples information to the new model, the data is mapped to 
+# NGS Sequencing table, which inherits from the Experiments table.
 
-# initialize list to gather the sample info for the new model
+# initialize list to gather the NGS Sequencing info for the new model
 ngs_experiments = {}
 for sample in samples:
-    # new_experiment_entry = {}
+    # get sample ID
     sample_id = sample['sampleID']
     # map 'sampleID' (solverd_samples) to 'sample id' (Experiments)
     ngs_experiments[sample_id] = {'sample id': sample_id}
@@ -531,26 +509,26 @@ for sample in samples:
         if sample.get('anatomicalLocation').get('label') == 'Other':
             ngs_experiments[sample_id]['anatomical location other'] = sample.get('anatomicalLocationComment')
 
-    # map 'belongsToSubject' (solverd_samples) to 'collected from individual' (Biosamples)
+    # map 'belongsToSubject' (solverd_samples) to 'individuals' (Experiments)
     if 'belongsToSubject' in sample:
         ngs_experiments[sample_id]['individuals'] = sample.get('belongsToSubject').get('subjectID')
 
-    # map 'tissueType' (solverd_samples) to 'tissue type' (Experiments): TODO: column needs to be added  
+    # map 'tissueType' (solverd_samples) to 'tissue type' (Experiments):
     if 'tissueType' in sample:
-      ngs_experiments[sample_id]['tissue type'] = sample['tissueType']['id']
+        ngs_experiments[sample_id]['tissue type'] = sample['tissueType']['id']
 
-    # map 'materialType' (solverd_samples) to 'Sample type' (Biosamples):
+    # map 'materialType' (solverd_samples) to 'sample type' (Experiments):
     if 'materialType' in sample:
         types = []
         for type in sample['materialType']:
             types.append(type['label'])
         ngs_experiments[sample_id]['sample type'] = ",".join(map(str, types))
 
-    # map 'organisation' (solverd_samples) to 'collected at organisation' (Biosamples)
+    # map 'organisation' (solverd_samples) to 'collected at organisation' (Experiments)
     if 'organisation' in sample:
         ngs_experiments[sample_id]['collected at organisation'] = sample['organisation']['value']
 
-    # map 'ERN' (solverd_samples) to 'affiliated organisations' (Biosamples)
+    # map 'ERN' (solverd_samples) to 'affiliated organisations' (Experiments)
     if 'ERN' in sample:
         ngs_experiments[sample_id]['affiliated organisations'] = sample['ERN']['shortname']
 
@@ -593,27 +571,33 @@ for sample in samples:
         ngs_experiments[sample_id]['comments'] = f'sample_{sample.get('comments')}'
 
 ##################################################
-# Migrate the Experiments (solverd_labinfo) to the new model
+# Migrate the labinfo (solverd_labinfo) to NGS Sequencing table as well
 
 # initialize lists for the data for the new model
-# emx2_experiments = []
+emx2_experiments = []
 # loop through the experiment info
 for labinfo in labinfos:
+    # get sample id
     sample_id = None
     if 'sampleID' in labinfo and (len(labinfo['sampleID']) != 0): 
         sample_id = labinfo.get('sampleID')[0].get('sampleID')
-    if sample_id is None: 
+    if sample_id is None:
         sample_id = f'noID_{len(ngs_experiments)+1}'
     if sample_id not in ngs_experiments:
         ngs_experiments[sample_id] = {}
 
+    new_experiment_entry = {}
+
     # map 'experimentID' (solverd_labinfo) to 'id' (Experiments) 
-    ngs_experiments[sample_id]['id'] = labinfo['experimentID']
+    new_experiment_entry['id'] = labinfo['experimentID']
 
-    # map 'capture' (solverd_labinfo) to 'library preparation' (Experiments)
-    ngs_experiments[sample_id]['target enrichment kit'] = labinfo.get('capture')
+    # map sample id 
+    new_experiment_entry['sample id'] = sample_id
 
-    # map 'libraryType' (solverd_labinfo) to 'librarySource' (Sequencing runs)
+    # map 'capture' (solverd_labinfo) to 'target enrichment kit' (Experiments) 
+    new_experiment_entry['target enrichment kit'] = labinfo.get('capture')
+
+    # map 'libraryType' (solverd_labinfo) to 'library source' (Experiments)
     # data only contains types Genomic and Transcriptomic
     if 'libraryType' in labinfo:
         # get the library type and convert to lowercase
@@ -621,9 +605,9 @@ for labinfo in labinfos:
         # add the word source as is defined in the ontology
         libType += " source"
         # map
-        ngs_experiments[sample_id]['library source'] = libType
+        new_experiment_entry['library source'] = libType
     
-    # map 'library' (solverd_labinfo) to 'libraryLayout' (Sequencing runs)
+    # map 'library' (solverd_labinfo) to 'library layout' (Experiments)
     # data only contains 1 and 2, 1 is always paired and 2 always single.
     if 'library' in labinfo and labinfo['library']:
         layout = []
@@ -634,13 +618,13 @@ for labinfo in labinfos:
                 layout.append("SINGLE")
             else:
                 print(f"library {lib['id']} could not be mapped.")
-        ngs_experiments[sample_id]['library layout'] = ",".join(map(str, layout))
+        new_experiment_entry['library layout'] = ",".join(map(str, layout))
 
-    # map 'sequencingCentre' (solverd_labinfo) to 'sequencing centre' (experiments)
+    # map 'sequencingCentre' (solverd_labinfo) to 'sequencing centre' (Experiments)
     if 'sequencingCentre' in labinfo:
-        ngs_experiments[sample_id]['sequencing centre'] = labinfo['sequencingCentre']['value']
+        new_experiment_entry['sequencing centre'] = labinfo['sequencingCentre']['value']
 
-    # map 'sequencer' (solverd_labinfo) to 'platform' and 'platform' (Sequencing runs)
+    # map 'sequencer' (solverd_labinfo) to 'platform' (Experiments)
     # make a dictionary to use for mapping the platform to the ontology term
     platform_dict = {
         "Illumina": "Illumina platform",
@@ -654,34 +638,34 @@ for labinfo in labinfos:
         match = pattern.match(sequencer)
         if match: 
             platform = match.group()
-        ngs_experiments[sample_id]['platform'] = platform_dict[platform]
+        new_experiment_entry['platform'] = platform_dict[platform]
 
-        # also map to 'platform model' (Sequencing runs)
+        # also map to 'platform model' (Experiments)
         pattern = re.compile(r'^DNBSEQ-\w{1}\d+$')
         if not pattern.match(labinfo['sequencer']): # don't map all DNBSEQ sequencers
             # differently named in ontology 
             if labinfo['sequencer'] == 'Sequel II': 
-                ngs_experiments[sample_id]['platform model'] = 'PacBio Sequel II'
+                new_experiment_entry['platform model'] = 'PacBio Sequel II'
             else: # the platform model is as is in the ontology and can thus be mapped
-                ngs_experiments[sample_id]['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
+                new_experiment_entry['platform model'] = labinfo['sequencer'].rstrip() # strip ending whitespace
 
     # map 'seqType' (solverd_labinfo) to 'library strategy' (Experiments)
     if 'seqType' in labinfo and labinfo['seqType']:
         for seqType in labinfo['seqType']:
             if seqType['label'] == 'ssRNA-seq': # should not be capatalized (ontology)
-                ngs_experiments[sample_id]['library strategy'] = seqType['label']
+                new_experiment_entry['library strategy'] = seqType['label']
             else:
                 # capitalize first letter in the strategy (as per ontology)
-                ngs_experiments[sample_id]['library strategy'] = seqType['label'].title()
+                new_experiment_entry['library strategy'] = seqType['label'].title()
 
-    # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Sequencing runs) 
-    ngs_experiments[sample_id]['mean read depth'] = labinfo.get('mean_cov')
+    # map 'mean_cov' (solverd_labinfo) to 'mean read depth' (Experiments) 
+    new_experiment_entry['mean read depth'] = labinfo.get('mean_cov')
 
-    # map 'median_cov' (solverd_labinfo) to median read depth' (Sequencing runs)
-    ngs_experiments[sample_id]['median read depth'] = labinfo.get('median_cov')
+    # map 'median_cov' (solverd_labinfo) to median read depth' (Experiments)
+    new_experiment_entry['median read depth'] = labinfo.get('median_cov')
 
-    # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Sequencing runs)
-    ngs_experiments[sample_id]['percentage Tr20'] = labinfo.get('c20')
+    # map 'c20' (solverd_labinfo) to 'percentage Tr20' (Experiments)
+    new_experiment_entry['percentage Tr20'] = labinfo.get('c20')
 
     # map partOfRelease to 'included in resources' (Experiments)
     # initialize lists to gather the datasets
@@ -702,37 +686,50 @@ for labinfo in labinfos:
         for dataset in labinfo['includedInDatasets']:
             namesList.append(dataset['id'])
 
-    # add the lists to the Sequencing runs entry
-    inc_in_resources = ngs_experiments[sample_id].get('included in resources')
+    # update the entry with the sample information (if present)
+    if sample_id in ngs_experiments:
+        new_experiment_entry.update(ngs_experiments[sample_id])
+
+    # add the resources to the resources from the sample (if present)
+    inc_in_resources = new_experiment_entry.get('included in resources')
     if inc_in_resources is not None: 
         sample_resources = [resource for resource in inc_in_resources.split(',')]
         namesList += sample_resources
-    ngs_experiments[sample_id]['included in resources'] = ','.join(
+    new_experiment_entry['included in resources'] = ','.join(
         map(str, set(namesList)))
     
     # map 'comments' (solverd_labinfo) to 'comments' (Experiments)
-    comments_sample = ngs_experiments[sample_id].get('comments') # not None
+    comments_sample = new_experiment_entry.get('comments') # not None
     comments_experiment = labinfo.get('comments') 
     if comments_sample is not None and comments_experiment is not None:
         comments_experiment = f'experiment_{comments_experiment}'
-        ngs_experiments[sample_id]['comments'] = f'{comments_experiment},{comments_sample}'
+        new_experiment_entry['comments'] = f'{comments_experiment},{comments_sample}'
     elif comments_experiment:
-        ngs_experiments[sample_id]['comments'] = f'experiments_{labinfo.get('comments')}'
+        new_experiment_entry['comments'] = f'experiments_{labinfo.get('comments')}'
 
-# upload and save
-ngs_experiments_df = pd.DataFrame(ngs_experiments).transpose()
-ngs_experiments_df.to_csv(f'{output_path}NGS sequencing.csv', index=False)
-emx2.save_schema(table='NGS sequencing', data=ngs_experiments_df)
+    emx2_experiments.append(new_experiment_entry)
+
+# add the samples that do not have experiment info
+sample_ids_emx2 = [experiment['sample id'] for experiment in emx2_experiments]
+for sample_id, sample_info in ngs_experiments.items():
+    if sample_id not in sample_ids_emx2:
+        emx2_experiments.append(sample_info)
+
+# upload and save 
+emx2_experiments_df = pd.DataFrame(emx2_experiments)
+emx2_experiments_df.to_csv(f'{output_path}NGS sequencing.csv', index=False)
+emx2.save_schema(table='NGS sequencing', data=emx2_experiments_df)
 
 ##################################################
 # Migrate table Files (solverd_files) to the new model
 
-# first, initialize a file storage location entry TODO: voeg organisatie toe nadat ref is gefixt. 
+# first, initialize a file storage location entry
 emx2_file_storage_locations = {
     'name': 'gearshift',
     'type': 'Server',
+    'organisation': 'UMCG'
     }
-
+# upload
 emx2.save_schema(table='File storage location', data=pd.DataFrame([emx2_file_storage_locations]))
 
 # initialize the emx2 files list
@@ -753,7 +750,7 @@ for file in files:
     # set storage location
     new_file_location_entry['storage location'] = emx2_file_storage_locations.get('name')
 
-    # set path in file location
+    # set path in File locations
     if 'fenderFilePath' in file: # if fenderFilePath is in the file, combine with name
         new_file_location_entry['path'] = ",".join(map(str, [file['name'], file['fenderFilePath']]))
     else: # else, only use name
@@ -774,18 +771,18 @@ for file in files:
     # map 'md5' (solverd_files) to 'md5 checksum' (Files)
     new_files_entry['md5 checksum'] = file.get('md5')
 
-    # map 'subjectID' (solverd_files) to 'Individuals' (Files)
+    # map 'subjectID' (solverd_files) to 'individuals' (Files)
     if 'subjectID' in file:
         subjectIDs = []
         for subject in file['subjectID']:
             subjectIDs.append(subject['subjectID'])
         new_files_entry['individuals'] = ",".join(map(str, subjectIDs))
 
-    # map 'experimentID' (solverd_files) to 'generated by protocol' (Files) 
+    # map 'experimentID' (solverd_files) to 'produced by experiments' (Files) 
     if 'experimentID' in file:
         new_files_entry['produced by experiment'] = file['experimentID']['experimentID']
 
-    # map 'partOfRelease' (solverd_files) to 'included in datasets' (Files)
+    # map 'partOfRelease' (solverd_files) to 'included in resources' (Files)
     if 'partOfRelease' in file:
         partOfReleaseList = []
         for release in file['partOfRelease']:

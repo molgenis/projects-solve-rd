@@ -58,17 +58,15 @@ class map_solveRD_ontologies:
         )
 
         self.output_path = environ['OUTPUT_PATH_TO_CSVS']
+        self.GitHub_HOST = environ['PATH_TO_RESC_ENDP_AG']
 
 
     def map_resources(self): 
         """This function maps the resources and the data releases used in solve-RD to EMX2 RD3, i.e.,
         freezes and patches are now structured as Resources."""
         # this entry is used to group all records in the RD3 dataset
+        # disabled
         self.resources_df = pd.DataFrame([{
-            'id': 'Solve-RD RD3',
-            'name': 'Solve-RD RD3',
-            'type': 'Other type'
-        }, {
            'rdf type': 'http://www.w3.org/ns/dcat#DatasetSeries',
             'ldp membership relation': 'https://w3id.org/fdp/fdp-o#metadataCatalog',
             'id': 'EMX2 API',
@@ -84,7 +82,10 @@ class map_solveRD_ontologies:
             'number of participants with samples': 5,
             'release type': 'Closed dataset' 
         }])
-        
+
+        # get resources from GitHub repo
+        self.resources_df = pd.read_csv(f'{self.GitHub_HOST}/Resources.csv')
+
         releases = self.rd3.get('solverd_info_datareleases')
         releases_used = []
         for release in releases:
@@ -144,12 +145,14 @@ class map_solveRD_ontologies:
 
         self.resources_df['number of participants'] = self.resources_df['number of participants'].astype('Int64')
         self.resources_df['number of participants with samples'] = self.resources_df['number of participants with samples'].astype('Int64')
+        self.resources_df['start year'] = self.resources_df['start year'].astype('Int64')
         
         # write to csv
         self.resources_df.to_csv(f'{self.output_path}Resources.csv', index=False) 
 
     def make_endpoint(self):
         """This function makes an endpoint necessary for the mapping"""
+        # disabled
         endpoint = {'id':'main_fdp', 
                     'type': 'https://w3id.org/fdp/fdp-o#MetadataService,http://www.w3.org/ns/dcat#Resource,http://www.w3.org/ns/dcat#DataService,https://w3id.org/fdp/fdp-o#FAIRDataPoint',
                     'name': "MOLGENIS Fair Data Point",
@@ -161,11 +164,16 @@ class map_solveRD_ontologies:
                     'conformsTo':'https://specs.fairdatapoint.org/fdp-specs-v1.2.html',
                     'metadataCatalog':'EMX2 API',
                     'conformsToFdpSpec':'https://specs.fairdatapoint.org/fdp-specs-v1.2.html'}
+        
+        # get endpoints from GitHub repo
+        endpoint = pd.read_csv(f'{self.GitHub_HOST}/Endpoint.csv')
+        endpoint.to_csv(f'{self.output_path}Endpoint.csv', index=False)
 
-        pd.DataFrame([endpoint]).to_csv(f'{self.output_path}Endpoint.csv', index=False) # to check
+        # pd.DataFrame([endpoint]).to_csv(f'{self.output_path}Endpoint.csv', index=False) # to check
 
     def make_agent(self): 
         """This function makes an agent 'molgenis'"""
+        # disabled
         agent = {
             'name': 'MOLGENIS',
             'logo': 'https://molgenis.org/assets/img/logo_green.png',
@@ -174,11 +182,16 @@ class map_solveRD_ontologies:
             'mg_draft': 'FALSE'
         }
 
-        pd.DataFrame([agent]).to_csv(f'{self.output_path}Agent.csv', index=False) # to check
+        # get agents from GitHub repo
+        agent = pd.read_csv(f'{self.GitHub_HOST}/Agent.csv')
+        agent.to_csv(f'{self.output_pathexit()}Agent.csv', index=False)
+
+        # pd.DataFrame([agent]).to_csv(f'{self.output_path}Agent.csv', index=False) # to check
+
 
     async def zip_and_upload(self):
         """This function zips the resources, endpoint and agent tables and uploads them to the server"""
-        # get the data to be uploaded
+        # get the data to be uploaded        
         self.map_resources()
         self.make_endpoint()
         self.make_agent()

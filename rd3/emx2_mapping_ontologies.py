@@ -184,7 +184,7 @@ class map_solveRD_ontologies:
 
         # get agents from GitHub repo
         agent = pd.read_csv(f'{self.GitHub_HOST}/Agent.csv')
-        agent.to_csv(f'{self.output_pathexit()}Agent.csv', index=False)
+        agent.to_csv(f'{self.output_path}Agent.csv', index=False)
 
         # pd.DataFrame([agent]).to_csv(f'{self.output_path}Agent.csv', index=False) # to check
 
